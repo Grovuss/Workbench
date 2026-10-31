@@ -69,6 +69,7 @@ app.whenReady().then(() => {
   registerProtocol();
   registerIpc();
   createWindow();
+  require('./discord.cjs').start();
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });

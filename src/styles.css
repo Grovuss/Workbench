@@ -1307,7 +1307,7 @@ img.import-option-icon {
 }
 
 /* ---------- Profile page ---------- */
-/* The profile sits in a column on the left (identity, Play, what's in it) and its
+/* The profile sits in a column on the left (identity, Play, its details) and its
    sections take the rest. Narrower windows stack the column on top. */
 .profile-layout {
   display: grid;
@@ -1430,54 +1430,63 @@ img.import-option-icon {
   flex: 1 1 160px;
 }
 
-/* What's in the profile; each opens the matching list. */
-.profile-counts {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(60px, 1fr));
-  gap: 8px;
+.profile-panel-played {
+  margin-top: 6px;
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 700;
 }
 
-.count-tile {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 3px;
-  padding: 12px 4px 10px;
+/* The profile's facts, as a two-column list. */
+.profile-info {
+  padding: 14px 16px 16px;
   background: var(--bg-surface);
   border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  color: var(--text-muted);
-  transition: background 120ms, border-color 120ms;
+  border-radius: var(--radius-lg);
 }
 
-.count-tile:hover {
-  background: var(--bg-surface-hover);
-  border-color: var(--border-strong);
+.profile-info header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
 }
 
-.count-tile:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
-}
-
-.count-tile svg {
-  color: var(--accent);
-  margin-bottom: 2px;
-}
-
-.count-tile strong {
-  color: var(--text);
-  font-size: 18px;
+.profile-info h2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 14px;
   font-weight: 800;
-  line-height: 1.1;
-  font-variant-numeric: tabular-nums;
 }
 
-.count-tile span {
-  font-size: 11.5px;
+.profile-info h2 svg {
+  color: var(--accent);
+}
+
+.profile-info dl {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  align-items: center;
+  gap: 10px 16px;
+  margin: 0;
+  font-size: 13px;
+}
+
+.profile-info dt {
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.profile-info dd {
+  margin: 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-weight: 700;
-  line-height: 1.2;
-  text-align: center;
+  font-variant-numeric: tabular-nums;
 }
 
 .profile-hero-icon {
@@ -1493,7 +1502,7 @@ img.import-option-icon {
   width: 44px;
 }
 
-/* Stacked: Play beside the name, and the counts as one compact row. */
+/* Stacked: Play beside the name. */
 @media (max-width: 1179px) {
   .profile-panel {
     display: grid;
@@ -1520,20 +1529,6 @@ img.import-option-icon {
     grid-column: 1 / -1;
   }
 
-  .count-tile {
-    flex-direction: row;
-    justify-content: center;
-    gap: 8px;
-    padding: 10px 8px;
-  }
-
-  .count-tile svg {
-    margin-bottom: 0;
-  }
-
-  .count-tile strong {
-    font-size: 16px;
-  }
 }
 
 .profile-hero-progress {

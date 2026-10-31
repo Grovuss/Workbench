@@ -5,8 +5,9 @@ const { DISCORD_CLIENT_ID } = require('./config.cjs');
 const settings = require('./settings.cjs');
 const { LOADER_NAMES } = require('./launcher/loaders.cjs');
 
-// Discord Rich Presence over Discord's local IPC socket: "Playing Workbench · <profile>".
-// Does nothing without a Discord application id, or when Discord isn't running.
+// Discord Rich Presence over Discord's local IPC socket: "Playing Workbench", with the
+// profile while a game runs and "In the launcher" otherwise. Does nothing without a
+// Discord application id, and keeps trying quietly while Discord isn't running.
 
 const OP_HANDSHAKE = 0;
 const OP_FRAME = 1;
@@ -15,6 +16,10 @@ const OP_FRAME = 1;
 const playing = new Map();
 let socket = null;
 let connecting = null;
+const openedAt = Date.now();
+// Discord may be started, or restarted, after Workbench.
+const RETRY_MS = 20_000;
+let retryTimer = null;
 
 function socketPath(i) {
   if (process.platform === 'win32') return `\\\\.\\pipe\\discord-ipc-${i}`;
@@ -74,13 +79,15 @@ async function connect() {
   }
 }
 
-function activityFor({ profile, startedAt }) {
-  const loader = profile.loader === 'vanilla' ? 'Minecraft' : `${LOADER_NAMES[profile.loader]} ${profile.mcVersion}`;
+function activityFor(current) {
+  const assets = { large_image: 'logo', large_text: 'Workbench' };
+  if (!current) return { details: 'In the launcher', timestamps: { start: openedAt }, assets, instance: false };
+  const { profile, startedAt } = current;
   return {
     details: profile.name.slice(0, 128),
-    state: profile.loader === 'vanilla' ? `Minecraft ${profile.mcVersion}` : loader,
+    state: profile.loader === 'vanilla' ? `Minecraft ${profile.mcVersion}` : `${LOADER_NAMES[profile.loader]} ${profile.mcVersion}`,
     timestamps: { start: startedAt },
-    assets: { large_image: 'logo', large_text: 'Workbench' },
+    assets,
     instance: false,
   };
 }
@@ -88,13 +95,23 @@ function activityFor({ profile, startedAt }) {
 async function refresh() {
   if (!DISCORD_CLIENT_ID) return;
   const enabled = (await settings.get()).discordPresence;
-  const current = [...playing.values()].at(-1);
-  if (!current || !enabled) {
+  if (!enabled) {
     if (socket) send(OP_FRAME, { cmd: 'SET_ACTIVITY', args: { pid: process.pid, activity: null }, nonce: randomUUID() });
     return;
   }
   if (!(await connect())) return;
+  const current = [...playing.values()].at(-1);
   send(OP_FRAME, { cmd: 'SET_ACTIVITY', args: { pid: process.pid, activity: activityFor(current) }, nonce: randomUUID() });
+}
+
+/** Shows "In the launcher" from startup, and reconnects whenever Discord comes back. */
+function start() {
+  if (!DISCORD_CLIENT_ID || retryTimer) return;
+  refresh().catch(() => {});
+  retryTimer = setInterval(() => {
+    if (!socket) refresh().catch(() => {});
+  }, RETRY_MS);
+  retryTimer.unref?.();
 }
 
 function started(profile) {
@@ -112,4 +129,4 @@ const settingsChanged = () => refresh().catch(() => {});
 
 const configured = () => Boolean(DISCORD_CLIENT_ID);
 
-module.exports = { started, stopped, settingsChanged, configured };
+module.exports = { start, started, stopped, settingsChanged, configured };

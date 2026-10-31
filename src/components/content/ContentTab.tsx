@@ -82,10 +82,6 @@ interface Props {
   running: boolean;
   /** Opens the profile's settings, for problems fixed there (memory, loader version). */
   onOpenSettings?: () => void;
-  /** Switches the type filter, e.g. after clicking the profile's mod count. A new object applies it again. */
-  filterRequest?: { kind: ContentKind | 'all' };
-  /** After anything is installed, removed or turned on or off. */
-  onChanged?: () => void;
   onError: (message: string) => void;
   onSuccess: (message: string) => void;
 }
@@ -97,8 +93,6 @@ export default function ContentTab({
   world,
   running,
   onOpenSettings,
-  filterRequest,
-  onChanged,
   onError,
   onSuccess,
 }: Props) {
@@ -106,10 +100,7 @@ export default function ContentTab({
   const [checks, setChecks] = useState<Partial<Record<ContentKind, CheckState>>>({});
   const [view, setView] = useState<'installed' | 'browse'>('installed');
   const [browseKind, setBrowseKind] = useState<BrowseKind>(kinds.length > 1 ? 'all' : kinds[0]);
-  const [typeFilter, setTypeFilter] = useState<ContentKind | 'all'>(filterRequest?.kind ?? 'all');
-  useEffect(() => {
-    if (filterRequest) setTypeFilter(filterRequest.kind);
-  }, [filterRequest]);
+  const [typeFilter, setTypeFilter] = useState<ContentKind | 'all'>('all');
   const [query, setQuery] = useState('');
   const [sort, setSortState] = useState<InstalledSort>(readSort);
   const [pageSize, setPageSizeState] = useState<PageSize>(readPageSize);
@@ -150,7 +141,6 @@ export default function ContentTab({
   };
 
   const setList = useCallback((kind: ContentKind, items: InstalledContent[]) => setLists((l) => ({ ...l, [kind]: items })), []);
-  useEffect(() => onChanged?.(), [lists, onChanged]);
 
   const checkUpdates = useCallback(
     (kind: ContentKind) => {

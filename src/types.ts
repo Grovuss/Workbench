@@ -109,13 +109,6 @@ export interface ImportProgress {
 /** `tab` opens a profile on a specific tab (see ProfileTab). */
 export type Route = { page: Page } | { page: 'profile'; id: string; tab?: string };
 
-export interface ProfileCounts {
-  mod: number;
-  resourcepack: number;
-  shader: number;
-  worlds: number;
-}
-
 export type ProfileFolder = 'saves' | 'screenshots' | 'logs' | 'resourcepacks' | 'shaderpacks' | 'mods' | 'crash-reports';
 
 export interface World {
@@ -271,8 +264,6 @@ export interface WorkbenchApi {
   platform: string;
   profiles: {
     list(): Promise<Profile[]>;
-    /** Mods, resource packs and shaders (on or off) and worlds in a profile. */
-    counts(id: string): Promise<ProfileCounts>;
     create(input: { name: string } & VersionSelection): Promise<Profile>;
     setVersion(id: string, selection: VersionSelection): Promise<Profile>;
     updateSettings(id: string, patch: Partial<ProfileSettings>): Promise<Profile>;

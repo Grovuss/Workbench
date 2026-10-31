@@ -137,7 +137,7 @@ export default function SettingsPage({ theme, onThemeChange, onError }: Props) {
                 <h3>Show what you’re playing</h3>
                 <p>
                   {system?.discord
-                    ? 'Your Discord status shows the profile you’re playing and for how long.'
+                    ? 'Your Discord status shows Workbench while it’s open, and the profile you’re playing in game.'
                     : 'Not set up in this build of Workbench yet.'}
                 </p>
               </div>

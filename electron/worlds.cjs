@@ -298,17 +298,7 @@ async function backupChanged(profileId, kind = 'auto') {
 /** Removes every backup of a profile, when the profile itself is deleted. */
 const removeAllBackups = (profileId) => fsp.rm(path.join(paths.root(), 'backups', profileId), { recursive: true, force: true });
 
-/** Number of worlds, without reading them. */
-async function count(profileId) {
-  const entries = await fsp.readdir(savesDir(profileId), { withFileTypes: true }).catch(() => []);
-  const found = await Promise.all(
-    entries.filter((e) => e.isDirectory()).map((e) => fsp.access(path.join(savesDir(profileId), e.name, 'level.dat')).then(() => 1, () => 0)),
-  );
-  return found.reduce((a, b) => a + b, 0);
-}
-
 module.exports = {
-  count,
   list,
   listBackups: async (profileId, folder) => (await profiles.get(profileId), listBackups(profileId, folder)),
   rename,
