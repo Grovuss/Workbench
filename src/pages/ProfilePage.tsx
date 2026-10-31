@@ -117,7 +117,7 @@ export default function ProfilePage({
                 </span>
               </button>
               <div className="profile-panel-info">
-                <h1 className="profile-name">{profile.name}</h1>
+                <h1 className="profile-title">{profile.name}</h1>
                 <div className="profile-panel-played">
                   {profile.lastPlayedAt ? `Played ${timeAgo(profile.lastPlayedAt)}` : 'Never played'}
                 </div>
@@ -180,7 +180,7 @@ export default function ProfilePage({
           </section>
 
           <ModpackUpdateBanner profile={profile} busy={Boolean(launch)} onUpdated={onUpdated} onSuccess={onSuccess} />
-          <section className="profile-info" aria-labelledby="profile-info-title">
+          <section className="profile-facts" aria-labelledby="profile-info-title">
             <header>
               <h2 id="profile-info-title">
                 <Info size={16} /> Profile info

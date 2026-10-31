@@ -17,3 +17,6 @@ export function contentBlockedReason(kind: ContentKind, loader: Loader): string 
 
 /** Modrinth project id of Iris, the shader mod. */
 export const IRIS_PROJECT_ID = 'YL57xq9U';
+
+/** Modrinth's category and loader ids as labels: "game-mechanics" → "Game mechanics". */
+export const categoryLabel = (name: string) => name.replace(/-/g, ' ').replace(/^./, (c) => c.toUpperCase());

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { ArrowDownWideNarrow, Download, LoaderCircle, Search } from 'lucide-react';
 import ContentIcon from './ContentIcon';
+import ProjectDetails from './ProjectDetails';
 import Modal from '../Modal';
 import LoaderBadge from '../LoaderBadge';
 import ProgressBar from '../ProgressBar';
@@ -41,6 +42,7 @@ export default function ModpackBrowser({ onInstalled, onError }: Props) {
   const [total, setTotal] = useState(0);
   const [loadingMore, setLoadingMore] = useState(false);
   const [installing, setInstalling] = useState<ModpackHit | null>(null);
+  const [viewing, setViewing] = useState<ModpackHit | null>(null);
   const requestId = useRef(0);
   const effectiveSort: ContentSort = sort ?? (query.trim() ? 'relevance' : 'downloads');
 
@@ -159,21 +161,24 @@ export default function ModpackBrowser({ onInstalled, onError }: Props) {
           <div className="mod-list">
             {hits.map((hit) => (
               <div key={hit.projectId} className="mod-row">
-                <ContentIcon url={hit.iconUrl} size={48} />
-                <div className="mod-info">
-                  <div className="mod-title">
-                    {hit.title} <span className="mod-author">by {hit.author}</span>
+                {/* The icon and text open the pack's details. */}
+                <button className="mod-open" onClick={() => setViewing(hit)} title={`More about ${hit.title}`}>
+                  <ContentIcon url={hit.iconUrl} size={48} />
+                  <div className="mod-info">
+                    <div className="mod-title">
+                      <span className="mod-title-text">{hit.title}</span> <span className="mod-author">by {hit.author}</span>
+                    </div>
+                    <p className="mod-description">{hit.description}</p>
+                    <span className="mod-meta">
+                      {hit.loaders.map((l) => (
+                        <LoaderBadge key={l} loader={l} />
+                      ))}
+                      <Download size={12} /> {compact.format(hit.downloads)}
+                      <span className="dot">·</span>
+                      Updated {timeAgo(hit.updatedAt)}
+                    </span>
                   </div>
-                  <p className="mod-description">{hit.description}</p>
-                  <span className="mod-meta">
-                    {hit.loaders.map((l) => (
-                      <LoaderBadge key={l} loader={l} />
-                    ))}
-                    <Download size={12} /> {compact.format(hit.downloads)}
-                    <span className="dot">·</span>
-                    Updated {timeAgo(hit.updatedAt)}
-                  </span>
-                </div>
+                </button>
                 <button className="btn btn-primary btn-play" onClick={() => setInstalling(hit)}>
                   <Download size={15} /> Install
                 </button>
@@ -186,6 +191,24 @@ export default function ModpackBrowser({ onInstalled, onError }: Props) {
             </button>
           )}
         </>
+      )}
+
+      {viewing && (
+        <ProjectDetails
+          project={viewing}
+          actions={
+            <button
+              className="btn btn-primary btn-play"
+              onClick={() => {
+                setInstalling(viewing);
+                setViewing(null);
+              }}
+            >
+              <Download size={15} /> Install
+            </button>
+          }
+          onClose={() => setViewing(null)}
+        />
       )}
 
       {installing && (

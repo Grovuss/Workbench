@@ -2,8 +2,9 @@ import { useEffect, useRef, useState } from 'react';
 import { ArrowDownWideNarrow, Check, ChevronDown, Download, LoaderCircle, Search } from 'lucide-react';
 import ContentIcon from './ContentIcon';
 import VersionModal from './VersionModal';
+import ProjectDetails from './ProjectDetails';
 import { api, errorMessage } from '../../api';
-import { CONTENT } from '../../content';
+import { CONTENT, categoryLabel } from '../../content';
 import { timeAgo } from '../../time';
 import type {
   ContentCategory,
@@ -30,8 +31,6 @@ const HEADER_LABELS: Record<string, string> = {
   resolutions: 'Resolution',
   'performance impact': 'Performance impact',
 };
-
-const categoryLabel = (name: string) => name.replace(/-/g, ' ').replace(/^./, (c) => c.toUpperCase());
 
 export type BrowseKind = ContentKind | 'all';
 
@@ -60,6 +59,7 @@ export default function ContentBrowser({ profile, kind, kindOptions, onKindChang
   const [loadingMore, setLoadingMore] = useState(false);
   const [installing, setInstalling] = useState<Set<string>>(new Set());
   const [choosing, setChoosing] = useState<ContentSearchHit | null>(null);
+  const [viewing, setViewing] = useState<ContentSearchHit | null>(null);
   const requestId = useRef(0);
   // Until a sort is picked: best matches while searching, most downloaded otherwise.
   const effectiveSort: ContentSort = sort ?? (query.trim() ? 'relevance' : 'downloads');
@@ -125,6 +125,34 @@ export default function ContentBrowser({ profile, kind, kindOptions, onKindChang
         return next;
       });
     }
+  };
+
+  const installAction = (hit: ContentSearchHit) => {
+    if (installedIds.has(hit.projectId)) {
+      return (
+        <span className="mod-installed">
+          <Check size={15} /> Installed
+        </span>
+      );
+    }
+    const busy = installing.has(hit.projectId);
+    return (
+      <div className="split-btn">
+        <button className="btn btn-primary btn-play" onClick={() => install(hit)} disabled={busy}>
+          {busy ? <LoaderCircle size={15} className="spin" /> : <Download size={15} />}
+          {busy ? 'Installing' : 'Install'}
+        </button>
+        <button
+          className="btn btn-primary split-btn-more"
+          onClick={() => setChoosing(hit)}
+          disabled={busy}
+          aria-label={`Choose a version of ${hit.title}`}
+          title="Choose a version"
+        >
+          <ChevronDown size={15} />
+        </button>
+      </div>
+    );
   };
 
   const noun = kind === 'all' ? 'content' : CONTENT[kind].nounPlural;
@@ -195,15 +223,14 @@ export default function ContentBrowser({ profile, kind, kindOptions, onKindChang
       ) : (
         <>
           <div className="mod-list">
-            {hits.map((hit) => {
-              const isInstalled = installedIds.has(hit.projectId);
-              const busy = installing.has(hit.projectId);
-              return (
-                <div key={hit.projectId} className="mod-row">
+            {hits.map((hit) => (
+              <div key={hit.projectId} className="mod-row">
+                {/* The icon and text open the project's details. */}
+                <button className="mod-open" onClick={() => setViewing(hit)} title={`More about ${hit.title}`}>
                   <ContentIcon url={hit.iconUrl} />
                   <div className="mod-info">
                     <div className="mod-title">
-                      {hit.title} <span className="mod-author">by {hit.author}</span>
+                      <span className="mod-title-text">{hit.title}</span> <span className="mod-author">by {hit.author}</span>
                     </div>
                     <p className="mod-description">{hit.description}</p>
                     <span className="mod-meta">
@@ -213,30 +240,10 @@ export default function ContentBrowser({ profile, kind, kindOptions, onKindChang
                       Updated {timeAgo(hit.updatedAt)}
                     </span>
                   </div>
-                  {isInstalled ? (
-                    <span className="mod-installed">
-                      <Check size={15} /> Installed
-                    </span>
-                  ) : (
-                    <div className="split-btn">
-                      <button className="btn btn-primary btn-play" onClick={() => install(hit)} disabled={busy}>
-                        {busy ? <LoaderCircle size={15} className="spin" /> : <Download size={15} />}
-                        {busy ? 'Installing' : 'Install'}
-                      </button>
-                      <button
-                        className="btn btn-primary split-btn-more"
-                        onClick={() => setChoosing(hit)}
-                        disabled={busy}
-                        aria-label={`Choose a version of ${hit.title}`}
-                        title="Choose a version"
-                      >
-                        <ChevronDown size={15} />
-                      </button>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
+                </button>
+                {installAction(hit)}
+              </div>
+            ))}
           </div>
           {hits.length < total && (
             <button className="btn btn-secondary mod-more" onClick={loadMore} disabled={loadingMore}>
@@ -245,6 +252,8 @@ export default function ContentBrowser({ profile, kind, kindOptions, onKindChang
           )}
         </>
       )}
+
+      {viewing && <ProjectDetails project={viewing} actions={installAction(viewing)} onClose={() => setViewing(null)} />}
 
       {choosing && (
         <VersionModal

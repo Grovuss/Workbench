@@ -441,6 +441,8 @@ export interface WorkbenchApi {
     performance(profileId: string): Promise<PerformanceMod[]>;
     /** Versions that work on the target, newest first. */
     versions(target: ContentTarget, projectId: string): Promise<ContentVersion[]>;
+    /** A project's full Modrinth page: description, gallery, links. */
+    project(projectId: string): Promise<ProjectDetails>;
     /** Asks Modrinth for newer compatible versions; fills in `updateVersion`. */
     checkUpdates(target: ContentTarget): Promise<InstalledContent[]>;
     /** Changelogs between the installed version and its update. */
@@ -475,6 +477,8 @@ export interface WorkbenchApi {
   system: {
     info(): Promise<SystemInfo>;
     openDataFolder(): Promise<void>;
+    /** Opens an https link in the browser. */
+    openLink(url: string): Promise<void>;
     usage(): Promise<StorageUsage>;
     /** Deletes the downloaded Java runtimes so the next launch fetches them fresh. */
     openCurseForge(url: string): Promise<void>;
@@ -507,6 +511,32 @@ export interface SearchOptions {
   sort?: ContentSort;
   /** A Modrinth category name, e.g. "optimization". */
   category?: string;
+}
+
+/** A Modrinth project's page, for the details view. */
+export interface ProjectDetails {
+  projectId: string;
+  slug: string;
+  type: string;
+  title: string;
+  description: string;
+  /** Markdown, often with images and some HTML. */
+  body: string;
+  author: string | null;
+  iconUrl: string | null;
+  downloads: number;
+  follows: number;
+  publishedAt: string;
+  updatedAt: string;
+  categories: string[];
+  loaders: string[];
+  gameVersions: string[];
+  clientSide: 'required' | 'optional' | 'unsupported' | 'unknown';
+  serverSide: 'required' | 'optional' | 'unsupported' | 'unknown';
+  license: { id: string; name: string; url: string | null } | null;
+  /** url is a preview; fullUrl the original image. */
+  gallery: { url: string; fullUrl: string; title: string | null; description: string | null }[];
+  links: { modrinth: string; source: string | null; issues: string | null; wiki: string | null; discord: string | null };
 }
 
 export interface ContentCategory {

@@ -294,6 +294,7 @@ function registerIpc() {
     content.installMany(contentTarget(t), (Array.isArray(projectIds) ? projectIds : []).map(String)),
   );
   handle('content:performance', (_e, id) => performance.suggestions(String(id)));
+  handle('content:project', (_e, projectId) => content.project(String(projectId)));
   handle('content:versions', (_e, t, projectId) => content.versions(contentTarget(t), String(projectId)));
   handle('content:addFiles', (_e, t, filePaths) => {
     const target = contentTarget(t);
@@ -402,6 +403,12 @@ function registerIpc() {
   handle('system:openCurseForge', (_e, url) => {
     const u = new URL(String(url));
     if (u.protocol !== 'https:' || u.hostname !== 'www.curseforge.com') throw new Error('Not a CurseForge link.');
+    return shell.openExternal(u.href);
+  });
+  // Links from project pages and descriptions; web pages only.
+  handle('system:openLink', (_e, url) => {
+    const u = new URL(String(url));
+    if (u.protocol !== 'https:') throw new Error('Only web links can be opened.');
     return shell.openExternal(u.href);
   });
   handle('system:openDataFolder', () => openDir(paths.root()));

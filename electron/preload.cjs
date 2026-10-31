@@ -111,6 +111,7 @@ contextBridge.exposeInMainWorld('workbench', {
     installMany: (target, projectIds) => invoke('content:installMany', target, projectIds),
     performance: (id) => invoke('content:performance', id),
     versions: (target, projectId) => invoke('content:versions', target, projectId),
+    project: (projectId) => invoke('content:project', projectId),
     addFiles: (target, filePaths) => invoke('content:addFiles', target, filePaths),
     addAny: (id, filePaths) => invoke('content:addAny', id, filePaths),
     pickFiles: (id, target) => invoke('content:pickFiles', id, target),
@@ -155,6 +156,7 @@ contextBridge.exposeInMainWorld('workbench', {
   system: {
     info: () => invoke('system:info'),
     openDataFolder: () => invoke('system:openDataFolder'),
+    openLink: (url) => invoke('system:openLink', url),
     usage: () => invoke('system:usage'),
     openCurseForge: (url) => invoke('system:openCurseForge', url),
     removeJava: () => invoke('system:removeJava'),

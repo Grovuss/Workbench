@@ -24,6 +24,7 @@ import ContentBrowser, { type BrowseKind } from './ContentBrowser';
 import ContentIcon from './ContentIcon';
 import ProblemList, { applyFix } from './ProblemList';
 import VersionModal from './VersionModal';
+import ProjectDetails from './ProjectDetails';
 import PerformanceModal from './PerformanceModal';
 import ModSetsModal from './ModSetsModal';
 import Dropdown from '../Dropdown';
@@ -114,6 +115,7 @@ export default function ContentTab({
   const [problemsOpen, setProblemsOpen] = useState<boolean | null>(null);
   const [changelogFor, setChangelogFor] = useState<Item | null>(null);
   const [versionFor, setVersionFor] = useState<Item | null>(null);
+  const [detailsFor, setDetailsFor] = useState<Item | null>(null);
   const [tool, setTool] = useState<'performance' | 'sets' | null>(null);
   const dragDepth = useRef(0);
   const kindsKey = kinds.join(',');
@@ -479,7 +481,15 @@ export default function ContentTab({
                   <div key={key(m)} className="mod-row" data-disabled={!m.enabled || undefined}>
                     <ContentIcon url={m.iconUrl} size={40} />
                     <div className="mod-info">
-                      <div className="mod-title">{m.title}</div>
+                      <div className="mod-title">
+                        {m.projectId ? (
+                          <button className="mod-title-btn" onClick={() => setDetailsFor(m)} title={`More about ${m.title}`}>
+                            {m.title}
+                          </button>
+                        ) : (
+                          m.title
+                        )}
+                      </div>
                       <span className="mod-meta">
                         {m.kind === 'mod' && problemFiles.has(m.fileName) && (
                           <AlertTriangle size={13} className="mod-problem" aria-label="Has a problem" />
@@ -556,6 +566,13 @@ export default function ContentTab({
           }}
           onSuccess={onSuccess}
           onClose={() => setTool(null)}
+        />
+      )}
+
+      {detailsFor?.projectId && (
+        <ProjectDetails
+          project={{ projectId: detailsFor.projectId, title: detailsFor.title, description: '', iconUrl: detailsFor.iconUrl }}
+          onClose={() => setDetailsFor(null)}
         />
       )}
 

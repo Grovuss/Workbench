@@ -543,6 +543,46 @@ function installVersions(target, entries) {
   });
 }
 
+/** Everything Modrinth shows on a project's page, for the details view. */
+async function project(projectId) {
+  const id = encodeURIComponent(projectId);
+  const [p, members] = await Promise.all([modrinth(`/project/${id}`), modrinth(`/project/${id}/members`).catch(() => [])]);
+  const owner = members.find((m) => m.role === 'Owner') ?? members[0];
+  const link = (url) => (typeof url === 'string' && url.startsWith('https://') ? url : null);
+  return {
+    projectId: p.id,
+    slug: p.slug,
+    type: p.project_type,
+    title: p.title,
+    description: p.description,
+    body: p.body ?? '',
+    author: owner?.user?.username ?? null,
+    iconUrl: p.icon_url ?? null,
+    downloads: p.downloads,
+    follows: p.followers,
+    publishedAt: p.published,
+    updatedAt: p.updated,
+    categories: [...(p.categories ?? []), ...(p.additional_categories ?? [])],
+    loaders: p.loaders ?? [],
+    gameVersions: p.game_versions ?? [],
+    clientSide: p.client_side,
+    serverSide: p.server_side,
+    license: p.license ? { id: p.license.id, name: p.license.name, url: link(p.license.url) } : null,
+    gallery: (p.gallery ?? [])
+      .filter((g) => link(g.url))
+      .sort((a, b) => Number(b.featured) - Number(a.featured) || a.ordering - b.ordering)
+      // url is a compressed preview; raw_url is the original, for viewing full size.
+      .map((g) => ({ url: g.url, fullUrl: link(g.raw_url) ?? g.url, title: g.title ?? null, description: g.description ?? null })),
+    links: {
+      modrinth: `https://modrinth.com/${p.project_type}/${p.slug}`,
+      source: link(p.source_url),
+      issues: link(p.issues_url),
+      wiki: link(p.wiki_url),
+      discord: link(p.discord_url),
+    },
+  };
+}
+
 /** A project's versions that work on the target (loader and Minecraft version), newest first. */
 async function versions(target, projectId) {
   const loc = await locate(target);
@@ -689,6 +729,7 @@ module.exports = {
   installMany,
   installVersions,
   versions,
+  project,
   checkUpdates,
   update,
   changelog,
