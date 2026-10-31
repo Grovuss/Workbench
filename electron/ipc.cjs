@@ -4,6 +4,8 @@ const { BrowserWindow, dialog, ipcMain, shell } = require('electron');
 const icons = require('./icons.cjs');
 const content = require('./content.cjs');
 const curseforge = require('./curseforge.cjs');
+const servers = require('./servers.cjs');
+const { ping } = require('./ping.cjs');
 const packs = require('./packs.cjs');
 const paths = require('./paths.cjs');
 const { titleBarOverlay } = require('./titlebar.cjs');
@@ -33,6 +35,17 @@ const PROFILE_SUBFOLDERS = new Set(['saves', 'screenshots', 'logs', 'resourcepac
 
 /** Validates a content target from the renderer: { profileId, kind, world? }. */
 const contentTarget = (t) => ({ profileId: String(t?.profileId), kind: String(t?.kind), world: t?.world == null ? undefined : String(t.world) });
+
+/** { server: 'host[:port]' } or { world: '<folder>' }; these end up as game arguments. */
+function cleanQuickPlay(quickPlay) {
+  if (quickPlay?.server) {
+    const server = String(quickPlay.server).trim();
+    if (!server || server.length > 255 || /[\s/]/.test(server)) throw new Error('Invalid server address.');
+    return { server };
+  }
+  if (quickPlay?.world) return { world: content.safeFileName(quickPlay.world) };
+  return undefined;
+}
 
 function assertNotRunning(target, action) {
   if (game.isActive(target.profileId)) throw new Error(`Close the game before ${action}.`);
@@ -101,15 +114,43 @@ function registerIpc() {
       .map(({ id, type, releaseTime }) => ({ id, type, releaseTime })),
   );
 
+  handle('servers:list', (_e, id) => servers.list(String(id)));
+  handle('servers:add', (_e, id, input) => servers.add(String(id), input));
+  handle('servers:update', (_e, id, index, input) => servers.update(String(id), Number(index), input));
+  handle('servers:remove', (_e, id, index) => servers.remove(String(id), Number(index)));
+  handle('servers:ping', (_e, address) => ping(String(address)));
+
   handle('content:list', (_e, t) => content.list(contentTarget(t)));
   handle('content:openFolder', async (_e, t) => openDir(await content.folder(contentTarget(t))));
-  handle('content:search', (_e, t, query) => content.search(contentTarget(t), query));
+  handle('content:search', (_e, t, options) => content.search(contentTarget(t), options));
+  handle('content:searchAll', (_e, id, options) => content.searchAll(String(id), options));
+  handle('content:categories', (_e, kind) => content.categories(String(kind)));
   handle('content:install', (_e, t, projectId) => content.install(contentTarget(t), String(projectId)));
   handle('content:addFiles', (_e, t, filePaths) => {
     const target = contentTarget(t);
     if (!Array.isArray(filePaths) || !filePaths.length) throw new Error('No files to add.');
     assertNotRunning(target, 'adding files');
     return content.addFiles(target, filePaths.map(String));
+  });
+  // Files of any kind, sorted into mods/resource packs/shaders. Resolves to counts per kind.
+  handle('content:addAny', (_e, id, filePaths) => {
+    if (!Array.isArray(filePaths) || !filePaths.length) throw new Error('No files to add.');
+    if (game.isActive(String(id))) throw new Error('Close the game before adding files.');
+    return content.addFilesAuto(String(id), filePaths.map(String));
+  });
+  // With a target (a world's data packs), files go there; otherwise they're sorted like addAny.
+  handle('content:pickFiles', async (e, id, t) => {
+    if (game.isActive(String(id))) throw new Error('Close the game before adding files.');
+    const { canceled, filePaths } = await dialog.showOpenDialog(BrowserWindow.fromWebContents(e.sender), {
+      title: t ? 'Add data packs' : 'Add mods, resource packs or shaders',
+      properties: ['openFile', 'multiSelections'],
+      filters: [t ? { name: 'Data packs', extensions: ['zip'] } : { name: 'Mods and packs', extensions: ['jar', 'zip'] }],
+    });
+    if (canceled) return null;
+    if (!t) return content.addFilesAuto(String(id), filePaths);
+    const target = contentTarget(t);
+    await content.addFiles(target, filePaths);
+    return { [target.kind]: filePaths.length };
   });
   handle('content:checkUpdates', (_e, t) => content.checkUpdates(contentTarget(t)));
   handle('content:update', (_e, t, fileNames) => {
@@ -151,8 +192,8 @@ function registerIpc() {
   handle('accounts:setActive', (_e, id) => auth.setActive(id));
 
   // Launch runs in the background and reports through 'game:event'.
-  handle('game:launch', (_e, id) => {
-    game.launch(id);
+  handle('game:launch', (_e, id, quickPlay) => {
+    game.launch(id, cleanQuickPlay(quickPlay));
   });
   handle('game:stop', (_e, id) => game.stop(id));
   handle('game:status', () => game.status());

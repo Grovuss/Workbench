@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { FolderOpen, ImagePlus, Share } from 'lucide-react';
+import { FolderOpen, ImagePlus, Info, Share } from 'lucide-react';
 import LoaderBadge from '../components/LoaderBadge';
 import ProfileIcon from '../components/ProfileIcon';
 import Modal from '../components/Modal';
@@ -12,30 +12,27 @@ import ProfileSettingsTab from '../components/profile/ProfileSettingsTab';
 import ContentTab from '../components/content/ContentTab';
 import ExportModal from '../components/profile/ExportModal';
 import { api, errorMessage } from '../api';
+import { contentBlockedReason } from '../content';
 import { formatPlaytime, timeAgo } from '../time';
-import type { ContentKind, LaunchStatus, Profile } from '../types';
+import type { ContentKind, LaunchStatus, Profile, QuickPlay } from '../types';
 
-type Tab = 'worlds' | 'mods' | 'resourcepacks' | 'shaders' | 'logs' | 'settings';
+type Tab = 'content' | 'worlds' | 'logs' | 'settings';
 
 const TABS: { id: Tab; label: string }[] = [
-  { id: 'worlds', label: 'Worlds' },
-  { id: 'mods', label: 'Mods' },
-  { id: 'resourcepacks', label: 'Resource packs' },
-  { id: 'shaders', label: 'Shaders' },
+  { id: 'content', label: 'Content' },
+  { id: 'worlds', label: 'Worlds & servers' },
   { id: 'logs', label: 'Logs' },
   { id: 'settings', label: 'Settings' },
 ];
 
-const TAB_CONTENT: Partial<Record<Tab, ContentKind>> = {
-  mods: 'mod',
-  resourcepacks: 'resourcepack',
-  shaders: 'shader',
-};
+// Data packs belong to worlds, so they live in the Worlds tab.
+const PROFILE_KINDS: ContentKind[] = ['mod', 'resourcepack', 'shader'];
 
 interface Props {
   profile: Profile;
   launch?: LaunchStatus;
-  onPlay: () => void;
+  /** Starts the game, optionally straight into a server or world. */
+  onPlay: (quickPlay?: QuickPlay) => void;
   onStop: () => void;
   onUpdated: (profile: Profile) => void;
   onDeleted: () => void;
@@ -44,8 +41,8 @@ interface Props {
 }
 
 export default function ProfilePage({ profile, launch, onPlay, onStop, onUpdated, onDeleted, onError, onSuccess }: Props) {
-  const [tab, setTab] = useState<Tab>('worlds');
-  const contentKind = TAB_CONTENT[tab];
+  const [tab, setTab] = useState<Tab>('content');
+  const contentKinds = PROFILE_KINDS.filter((kind) => !contentBlockedReason(kind, profile.loader));
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [exporting, setExporting] = useState(false);
@@ -112,7 +109,7 @@ export default function ProfilePage({ profile, launch, onPlay, onStop, onUpdated
           <button className="btn btn-secondary" onClick={() => setExporting(true)}>
             <Share size={16} /> Export
           </button>
-          <PlayButton launch={launch} onPlay={onPlay} onStop={onStop} large />
+          <PlayButton launch={launch} onPlay={() => onPlay()} onStop={onStop} large />
         </div>
         {launch?.state === 'installing' && (
           <div className="profile-hero-progress">
@@ -141,14 +138,33 @@ export default function ProfilePage({ profile, launch, onPlay, onStop, onUpdated
       </div>
 
       <div role="tabpanel">
-        {tab === 'worlds' && <WorldsTab profile={profile} running={running} onError={onError} onSuccess={onSuccess} />}
-        {contentKind && (
-          <ContentTab
-            key={contentKind}
+        {tab === 'content' && (
+          <>
+            {profile.loader === 'vanilla' && (
+              <div className="content-notice">
+                <Info size={18} />
+                <p>Vanilla profiles can use resource packs. Mods and shaders need a mod loader.</p>
+                <button className="btn btn-secondary btn-sm" onClick={() => setTab('settings')}>
+                  Change loader
+                </button>
+              </div>
+            )}
+            <ContentTab
+              key={contentKinds.join(',')}
+              profile={profile}
+              kinds={contentKinds}
+              running={running}
+              onError={onError}
+              onSuccess={onSuccess}
+            />
+          </>
+        )}
+        {tab === 'worlds' && (
+          <WorldsTab
             profile={profile}
-            target={{ profileId: profile.id, kind: contentKind }}
             running={running}
-            onOpenSettings={() => setTab('settings')}
+            launching={Boolean(launch)}
+            onPlay={onPlay}
             onError={onError}
             onSuccess={onSuccess}
           />

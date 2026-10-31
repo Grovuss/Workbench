@@ -38,7 +38,9 @@ and Workbench shows "This Azure app isn't approved for Minecraft sign-in yet."
   (Forge 1.8+, all NeoForge). Processor output goes to `meta/loaders/<loader>/<version>/install.log`.
 - **java.cjs**: downloads the matching Mojang Java runtime
 - **install.cjs**: libraries, natives, client jar and assets (shared across profiles in `meta/`)
-- **launch.cjs**: builds JVM and game arguments and starts the game
+- **launch.cjs**: builds JVM and game arguments and starts the game. Joining a server or opening a
+  world from the launcher uses quick play (`--quickPlayMultiplayer` / `--quickPlaySingleplayer`,
+  1.20+); older versions join servers with `--server`/`--port`.
 
 Each profile gets its own game directory under `profiles/<id>`. The game's output goes to
 `logs/workbench-launch.log` inside that folder.
@@ -49,7 +51,9 @@ Each profile gets its own game directory under `profiles/<id>`. The game's outpu
   compatible release; required dependencies for mods), enable/disable (renamed to `<file>.disabled`),
   drag-and-drop, and identifying hand-added files by SHA-1. Mods, resource packs and shaders live in
   the profile; data packs live in a world (`saves/<world>/datapacks`). Metadata is cached in
-  `workbench-<folder>.json` next to each folder.
+  `workbench-<folder>.json` next to each folder. The profile's Content tab lists everything in one
+  place with search, sorting and type filters; dropped files are sorted into the right folder by
+  looking inside them (`.jar` → mod, `shaders/` → shader, `pack.mcmeta` → resource pack).
 - **electron/packs.cjs**: imports `.workbench`, Modrinth `.mrpack` and CurseForge `.zip` files and
   exports `.workbench`.
 - **electron/curseforge.cjs**: CurseForge API client. CurseForge import is disabled until a key is set,
@@ -77,3 +81,11 @@ A zip containing:
 Downloads are only allowed from Modrinth's CDN, GitHub and GitLab, and every path is checked so a
 pack can't write outside its profile. Java arguments are never imported or exported, since they can
 run arbitrary code.
+
+## Servers
+
+- **electron/servers.cjs**: reads and writes the game's `servers.dat`, so servers added in the launcher
+  also show up in game. Unknown fields and hidden entries are kept; the previous file is kept as
+  `servers.dat_old`.
+- **electron/nbt.cjs**: a small uncompressed NBT reader/writer that keeps tag types for round trips.
+- **electron/ping.cjs**: Server List Ping (with SRV lookup) for status, player count, MOTD and icon.

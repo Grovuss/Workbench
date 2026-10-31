@@ -1,5 +1,6 @@
 const fsp = require('node:fs/promises');
 const path = require('node:path');
+const AdmZip = require('adm-zip');
 const profiles = require('./profiles.cjs');
 const { readJson, writeJson, createLock } = require('./store.cjs');
 const { download, runPool, sha1 } = require('./launcher/http.cjs');
@@ -115,14 +116,15 @@ async function scan(loc) {
     const enabled = lower.endsWith(spec.ext);
     if (!enabled && !lower.endsWith(`${spec.ext}.disabled`)) continue;
     const fileName = enabled ? entry.name : entry.name.slice(0, -'.disabled'.length);
-    const { size } = await fsp.stat(path.join(dir, entry.name));
+    const { size, birthtimeMs, mtimeMs } = await fsp.stat(path.join(dir, entry.name));
     let info = meta[fileName];
     if (!info || info.size !== size) {
       info = { sha1: sha1(await fsp.readFile(path.join(dir, entry.name))), size };
       changed = true;
     }
     next[fileName] = info;
-    items.push({ fileName, enabled, info });
+    // A file's creation time is when it was downloaded or copied into the folder.
+    items.push({ fileName, enabled, info, addedAt: new Date(birthtimeMs || mtimeMs).toISOString() });
   }
   if (Object.keys(meta).length !== Object.keys(next).length) changed = true;
 
@@ -174,7 +176,7 @@ async function scan(loc) {
   return items;
 }
 
-function toPublic(loc, { fileName, enabled, info }) {
+function toPublic(loc, { fileName, enabled, info, addedAt }) {
   return {
     fileName,
     enabled,
@@ -184,6 +186,7 @@ function toPublic(loc, { fileName, enabled, info }) {
     projectId: info.projectId ?? null,
     iconUrl: info.iconUrl ?? null,
     updateVersion: info.update?.versionNumber ?? null,
+    addedAt,
   };
 }
 
@@ -253,6 +256,37 @@ function addFiles(target, filePaths) {
   });
 }
 
+/** What a file on disk is: jars are mods; zips are told apart by what's inside. */
+function detectKind(file) {
+  if (/\.jar$/i.test(file)) return 'mod';
+  if (!/\.zip$/i.test(file)) return null;
+  let names;
+  try {
+    names = new AdmZip(file).getEntries().map((e) => e.entryName);
+  } catch {
+    return null;
+  }
+  // Shader packs have a shaders/ folder, sometimes inside one top-level folder.
+  if (names.some((n) => /^(?:[^/]+\/)?shaders\//.test(n))) return 'shader';
+  if (!names.includes('pack.mcmeta')) return null;
+  if (names.some((n) => n.startsWith('data/'))) return 'datapack';
+  return 'resourcepack';
+}
+
+/** Adds files of any kind to a profile, sorting each into mods, resource packs or shader packs. */
+async function addFilesAuto(profileId, filePaths) {
+  const byKind = {};
+  for (const file of filePaths) {
+    const kind = detectKind(file);
+    const name = path.basename(file);
+    if (kind === 'datapack') throw new Error(`${name} is a data pack. Add it to a world from the Worlds tab.`);
+    if (!kind) throw new Error(`${name} isn’t a mod, resource pack or shader pack.`);
+    (byKind[kind] ??= []).push(file);
+  }
+  for (const [kind, files] of Object.entries(byKind)) await addFiles({ profileId, kind }, files);
+  return Object.fromEntries(Object.entries(byKind).map(([kind, files]) => [kind, files.length]));
+}
+
 function remove(target, fileName) {
   return withLock(async () => {
     const loc = await locate(target);
@@ -265,32 +299,88 @@ function remove(target, fileName) {
 
 // ---------- Modrinth ----------
 
-async function search(target, { query = '', offset = 0 } = {}) {
-  const { kind, profile } = await locate(target);
-  const facets = [
-    [`project_type:${KINDS[kind].projectType}`],
-    modrinthLoaders(kind, profile).map((l) => `categories:${l}`),
-    [`versions:${profile.mcVersion}`],
-  ];
+const SORTS = new Set(['relevance', 'downloads', 'follows', 'newest', 'updated']);
+// Kinds the all-in-one search covers; data packs need a world, so they're searched on their own.
+const SEARCH_ALL_KINDS = ['mod', 'resourcepack', 'shader'];
+
+const PROJECT_TYPE_KINDS = { mod: 'mod', resourcepack: 'resourcepack', shader: 'shader' };
+
+async function runSearch(facets, { query = '', offset = 0, sort } = {}, kindOf) {
+  const index = SORTS.has(sort) ? sort : query ? 'relevance' : 'downloads';
   const params = new URLSearchParams({
-    query,
+    query: String(query).slice(0, 200),
     facets: JSON.stringify(facets),
     limit: '20',
-    offset: String(offset),
-    index: query ? 'relevance' : 'downloads',
+    offset: String(Math.max(0, Number(offset) || 0)),
+    index,
   });
   const data = await modrinth(`/search?${params}`);
   return {
     total: data.total_hits,
     hits: data.hits.map((h) => ({
       projectId: h.project_id,
+      kind: kindOf(h),
       title: h.title,
       description: h.description,
       author: h.author,
       iconUrl: h.icon_url || null,
       downloads: h.downloads,
+      follows: h.follows,
+      updatedAt: h.date_modified,
     })),
   };
+}
+
+/** Modrinth search for one kind of content, filtered to what works on the target profile. */
+async function search(target, options = {}) {
+  const { kind, profile } = await locate(target);
+  const facets = [
+    [`project_type:${KINDS[kind].projectType}`],
+    modrinthLoaders(kind, profile).map((l) => `categories:${l}`),
+    [`versions:${profile.mcVersion}`],
+  ];
+  if (options.category) facets.push([`categories:${String(options.category)}`]);
+  return runSearch(facets, options, () => kind);
+}
+
+/** Searches mods, resource packs and shaders at once (whichever the profile can use). */
+async function searchAll(profileId, options = {}) {
+  const profile = await profiles.get(profileId);
+  const usable = SEARCH_ALL_KINDS.filter((kind) => {
+    try {
+      modrinthLoaders(kind, profile);
+      return true;
+    } catch {
+      return false;
+    }
+  });
+  const facets = [
+    usable.map((kind) => `project_type:${KINDS[kind].projectType}`),
+    [...new Set(usable.flatMap((kind) => modrinthLoaders(kind, profile)))].map((l) => `categories:${l}`),
+    [`versions:${profile.mcVersion}`],
+  ];
+  return runSearch(facets, options, (h) => PROJECT_TYPE_KINDS[h.project_type] ?? 'mod');
+}
+
+// Category tags that are really loaders or platforms, not things to browse by.
+const NON_BROWSABLE_HEADERS = new Set(['loaders', 'platforms']);
+let categoryCache = null;
+
+/** Modrinth's browsable categories for a kind: [{ name, header }], e.g. { name: 'optimization', header: 'categories' }. */
+async function categories(kind) {
+  const spec = KINDS[kind];
+  if (!spec) throw new Error('Unknown content type.');
+  categoryCache ??= modrinth('/tag/category').catch((err) => {
+    categoryCache = null;
+    throw err;
+  });
+  const all = await categoryCache;
+  // Data packs share the mod project type in Modrinth's tags.
+  const projectType = kind === 'datapack' ? 'mod' : spec.projectType;
+  return all
+    .filter((c) => c.project_type === projectType && !NON_BROWSABLE_HEADERS.has(c.header))
+    .map((c) => ({ name: c.name, header: c.header }))
+    .sort((a, b) => a.header.localeCompare(b.header) || a.name.localeCompare(b.name));
 }
 
 async function newestCompatible(projectId, kind, profile) {
@@ -466,8 +556,11 @@ module.exports = {
   list,
   setEnabled,
   addFiles,
+  addFilesAuto,
   remove,
   search,
+  searchAll,
+  categories,
   install,
   checkUpdates,
   update,

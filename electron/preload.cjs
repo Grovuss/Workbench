@@ -24,13 +24,24 @@ contextBridge.exposeInMainWorld('workbench', {
   versions: {
     list: () => invoke('versions:list'),
   },
+  servers: {
+    list: (id) => invoke('servers:list', id),
+    add: (id, input) => invoke('servers:add', id, input),
+    update: (id, index, input) => invoke('servers:update', id, index, input),
+    remove: (id, index) => invoke('servers:remove', id, index),
+    ping: (address) => invoke('servers:ping', address),
+  },
   // `target` is { profileId, kind: 'mod' | 'resourcepack' | 'shader' | 'datapack', world? }.
   content: {
     list: (target) => invoke('content:list', target),
     openFolder: (target) => invoke('content:openFolder', target),
-    search: (target, query) => invoke('content:search', target, query),
+    search: (target, options) => invoke('content:search', target, options),
+    searchAll: (id, options) => invoke('content:searchAll', id, options),
+    categories: (kind) => invoke('content:categories', kind),
     install: (target, projectId) => invoke('content:install', target, projectId),
     addFiles: (target, filePaths) => invoke('content:addFiles', target, filePaths),
+    addAny: (id, filePaths) => invoke('content:addAny', id, filePaths),
+    pickFiles: (id, target) => invoke('content:pickFiles', id, target),
     checkUpdates: (target) => invoke('content:checkUpdates', target),
     update: (target, fileNames) => invoke('content:update', target, fileNames),
     remove: (target, fileName) => invoke('content:remove', target, fileName),
@@ -54,7 +65,7 @@ contextBridge.exposeInMainWorld('workbench', {
     setActive: (id) => invoke('accounts:setActive', id),
   },
   game: {
-    launch: (id) => invoke('game:launch', id),
+    launch: (id, quickPlay) => invoke('game:launch', id, quickPlay),
     stop: (id) => invoke('game:stop', id),
     status: () => invoke('game:status'),
     onEvent: (callback) => {

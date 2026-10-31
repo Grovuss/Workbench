@@ -23,7 +23,7 @@ function status() {
 
 const isActive = (profileId) => sessions.has(profileId);
 
-async function launch(profileId) {
+async function launch(profileId, quickPlay) {
   if (sessions.has(profileId)) return;
   const session = { state: 'installing' };
   sessions.set(profileId, session);
@@ -49,6 +49,7 @@ async function launch(profileId) {
       memoryMb: profile.settings.memoryMb ?? global.memoryMb,
       jvmArgs: profile.settings.jvmArgs,
       resolution: profile.settings.resolution,
+      quickPlay,
       onProgress,
     });
 

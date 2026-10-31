@@ -22,15 +22,20 @@ export interface InstalledContent {
   iconUrl: string | null;
   /** Version number of an available update, from the last update check. */
   updateVersion: string | null;
+  /** When the file was added to the folder. */
+  addedAt: string;
 }
 
 export interface ContentSearchHit {
   projectId: string;
+  kind: ContentKind;
   title: string;
   description: string;
   author: string;
   iconUrl: string | null;
   downloads: number;
+  follows: number;
+  updatedAt: string;
 }
 
 export interface ContentSearchResult {
@@ -200,7 +205,8 @@ export interface WorkbenchApi {
     setActive(id: string): Promise<AccountsState>;
   };
   game: {
-    launch(profileId: string): Promise<void>;
+    /** `quickPlay` joins a server or opens a world (1.20+) as the game starts. */
+    launch(profileId: string, quickPlay?: QuickPlay): Promise<void>;
     stop(profileId: string): Promise<void>;
     status(): Promise<Record<string, Exclude<GameState, 'idle'>>>;
     onEvent(callback: (event: GameEvent) => void): () => void;
@@ -212,17 +218,31 @@ export interface WorkbenchApi {
   content: {
     list(target: ContentTarget): Promise<InstalledContent[]>;
     openFolder(target: ContentTarget): Promise<void>;
-    search(target: ContentTarget, query: { query: string; offset: number }): Promise<ContentSearchResult>;
+    search(target: ContentTarget, options: SearchOptions): Promise<ContentSearchResult>;
+    /** Mods, resource packs and shaders at once, whichever the profile can use. */
+    searchAll(profileId: string, options: SearchOptions): Promise<ContentSearchResult>;
+    categories(kind: ContentKind): Promise<ContentCategory[]>;
     /** Installs the newest compatible version (plus required dependencies for mods). */
     install(target: ContentTarget, projectId: string): Promise<InstalledContent[]>;
     /** Asks Modrinth for newer compatible versions; fills in `updateVersion`. */
     checkUpdates(target: ContentTarget): Promise<InstalledContent[]>;
     /** Copies .jar/.zip files from disk into the target folder. */
     addFiles(target: ContentTarget, filePaths: string[]): Promise<InstalledContent[]>;
+    /** Copies files of any kind into a profile, sorted by what they are. Resolves to counts per kind. */
+    addAny(profileId: string, filePaths: string[]): Promise<Partial<Record<ContentKind, number>>>;
+    /** Opens a file picker, then adds like addAny (or into `target`, for data packs); null if cancelled. */
+    pickFiles(profileId: string, target?: ContentTarget): Promise<Partial<Record<ContentKind, number>> | null>;
     /** Updates the given files, or every file with an update when fileNames is omitted. */
     update(target: ContentTarget, fileNames?: string[]): Promise<InstalledContent[]>;
     remove(target: ContentTarget, fileName: string): Promise<InstalledContent[]>;
     setEnabled(target: ContentTarget, fileName: string, enabled: boolean): Promise<InstalledContent[]>;
+  };
+  servers: {
+    list(profileId: string): Promise<Server[]>;
+    add(profileId: string, input: ServerInput): Promise<Server[]>;
+    update(profileId: string, index: number, input: ServerInput): Promise<Server[]>;
+    remove(profileId: string, index: number): Promise<Server[]>;
+    ping(address: string): Promise<ServerStatus>;
   };
   packs: {
     /** Opens a file picker; resolves to the new profile, or null if cancelled. */
@@ -247,4 +267,43 @@ declare global {
   interface Window {
     workbench: WorkbenchApi;
   }
+}
+
+export type ContentSort = 'relevance' | 'downloads' | 'follows' | 'newest' | 'updated';
+
+export interface SearchOptions {
+  query: string;
+  offset: number;
+  sort?: ContentSort;
+  /** A Modrinth category name, e.g. "optimization". */
+  category?: string;
+}
+
+export interface ContentCategory {
+  name: string;
+  /** Group, e.g. "categories", "features", "resolutions", "performance impact". */
+  header: string;
+}
+
+export type QuickPlay = { server: string } | { world: string };
+
+export interface Server {
+  /** Position in servers.dat; pass back to update/remove. */
+  index: number;
+  name: string;
+  address: string;
+  icon: string | null;
+}
+
+export interface ServerInput {
+  name: string;
+  address: string;
+}
+
+export interface ServerStatus {
+  latencyMs: number;
+  version: string | null;
+  players: { online: number; max: number } | null;
+  motd: string;
+  icon: string | null;
 }

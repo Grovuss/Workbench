@@ -824,25 +824,6 @@ button.crumb:hover {
   padding-left: 36px;
 }
 
-.search-field-sm {
-  flex: 1;
-  max-width: 320px;
-  margin-bottom: 0;
-}
-
-.search-field-sm .input {
-  padding-top: 7px;
-  padding-bottom: 7px;
-}
-
-.mods-subbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 12px;
-}
-
 .mod-list {
   display: flex;
   flex-direction: column;
@@ -1950,16 +1931,6 @@ select.input option {
 }
 
 /* ---------- Mod updates ---------- */
-.mods-subbar .toolbar-title {
-  margin-left: auto;
-}
-
-.mods-updates {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
 .mods-update-status {
   display: inline-flex;
   align-items: center;
@@ -2042,14 +2013,11 @@ select.input option {
   color: var(--text-faint);
 }
 
-.browse-kinds {
-  margin-bottom: 16px;
-}
-
 /* World cards open the world's data packs. */
 .world-card-button {
   width: 100%;
   text-align: left;
+  cursor: pointer;
   transition: background 120ms, border-color 120ms;
 }
 
@@ -2114,4 +2082,210 @@ select.input option {
   font-family: ui-monospace, 'Cascadia Code', Consolas, monospace;
   font-size: 12px;
   color: var(--text-muted);
+}
+
+/* ---------- Content tab: search, filters, sorting ---------- */
+.content-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.content-search {
+  flex: 1;
+  min-width: 0;
+  margin-bottom: 0;
+}
+
+.filter-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.filter-row-end {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+}
+
+.select-pill {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  background: var(--bg-surface);
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.select-pill:focus-within {
+  border-color: var(--accent);
+}
+
+.select-pill select {
+  appearance: none;
+  border: none;
+  background: none;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+  padding-right: 14px;
+  cursor: pointer;
+  outline: none;
+  /* small chevron */
+  background-image: linear-gradient(45deg, transparent 50%, currentColor 50%), linear-gradient(135deg, currentColor 50%, transparent 50%);
+  background-position: right 4px center, right 0 center;
+  background-size: 4px 4px, 4px 4px;
+  background-repeat: no-repeat;
+}
+
+.select-pill select option,
+.select-pill select optgroup {
+  background: var(--bg-surface);
+  color: var(--text);
+}
+
+.chips {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 12px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-muted);
+  background: var(--bg-muted);
+}
+
+.chip:hover {
+  color: var(--text);
+}
+
+.chip[aria-pressed='true'] {
+  background: var(--accent);
+  color: var(--accent-text);
+}
+
+.chip-count {
+  font-size: 11.5px;
+  font-weight: 800;
+  opacity: 0.6;
+}
+
+.kind-tag {
+  flex: none;
+  padding: 1px 7px;
+  margin-right: 4px;
+  border-radius: 999px;
+  background: var(--bg-muted);
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: capitalize;
+}
+
+.mod-file {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.icon-btn-update {
+  color: var(--success);
+}
+
+.icon-btn-update:hover {
+  background: color-mix(in srgb, var(--success) 12%, transparent);
+  color: var(--success);
+}
+
+.btn-update-all {
+  color: var(--success);
+  padding-top: 6px;
+  padding-bottom: 6px;
+  font-size: 13px;
+}
+
+/* ---------- Worlds & servers ---------- */
+.worlds-switch {
+  margin-bottom: 16px;
+}
+
+.world-header-play {
+  margin-left: auto;
+}
+
+.world-card-button .icon-btn-play {
+  margin-left: auto;
+}
+
+.icon-btn-play {
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--accent-text);
+}
+
+.icon-btn-play:hover {
+  background: var(--accent-hover);
+  color: var(--accent-text);
+}
+
+.server-icon {
+  image-rendering: pixelated;
+}
+
+.server-motd {
+  white-space: pre-line;
+  -webkit-line-clamp: 2;
+}
+
+.server-offline {
+  color: var(--danger);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.server-online-dot {
+  width: 7px;
+  height: 7px;
+  margin-right: 2px;
+  border-radius: 50%;
+  background: var(--success);
+}
+
+@media (max-width: 720px) {
+  .content-bar {
+    flex-wrap: wrap;
+  }
+
+  .content-search {
+    flex-basis: 100%;
+  }
+
+  .filter-row-end {
+    margin-left: 0;
+  }
+}
+
+.world-card-button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }

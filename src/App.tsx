@@ -10,7 +10,7 @@ import { api, errorMessage } from './api';
 import { useTheme } from './useTheme';
 import { useToasts } from './useToasts';
 import { useLaunches } from './useLaunches';
-import type { AccountsState, Page, Profile, Route } from './types';
+import type { AccountsState, Page, Profile, QuickPlay, Route } from './types';
 
 const PAGE_TITLES: Record<Page, string> = {
   profiles: 'Profiles',
@@ -75,12 +75,12 @@ export default function App() {
 
   const login = useCallback(() => updateAccounts(api.accounts.login()), [updateAccounts]);
 
-  const play = async (profile: Profile) => {
+  const play = async (profile: Profile, quickPlay?: QuickPlay) => {
     if (!accounts.activeId) {
       const next = await login();
       if (!next?.activeId) return;
     }
-    api.game.launch(profile.id).catch((err) => pushToast(errorMessage(err)));
+    api.game.launch(profile.id, quickPlay).catch((err) => pushToast(errorMessage(err)));
   };
 
   const stop = (id: string) => api.game.stop(id).catch((err) => pushToast(errorMessage(err)));
@@ -127,7 +127,7 @@ export default function App() {
               openProfile(p.id);
             }}
             onOpen={openProfile}
-            onPlay={play}
+            onPlay={(p) => play(p)}
             onStop={stop}
           />
         )}
@@ -136,7 +136,7 @@ export default function App() {
             key={currentProfile.id}
             profile={currentProfile}
             launch={launches[currentProfile.id]}
-            onPlay={() => play(currentProfile)}
+            onPlay={(quickPlay) => play(currentProfile, quickPlay)}
             onStop={() => stop(currentProfile.id)}
             onUpdated={(p) => setProfiles((ps) => ps?.map((x) => (x.id === p.id ? p : x)) ?? null)}
             onDeleted={() => {

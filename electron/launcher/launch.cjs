@@ -35,14 +35,28 @@ function splitArgs(text) {
   return [...(text ?? '').matchAll(/"([^"]*)"|(\S+)/g)].map((m) => m[1] ?? m[2]);
 }
 
-function buildArgs(version, install, vars, { memoryMb, jvmArgs, resolution }) {
-  const features = { has_custom_resolution: Boolean(resolution) };
+/** Whether the version has a quick play option (Minecraft 1.20+), e.g. 'is_quick_play_multiplayer'. */
+const supportsQuickPlay = (version, feature) =>
+  (version.arguments?.game ?? []).some((arg) => typeof arg !== 'string' && arg.rules?.some((r) => r.features?.[feature]));
+
+function buildArgs(version, install, vars, { memoryMb, jvmArgs, resolution, quickPlay }) {
+  const quickServer = Boolean(quickPlay?.server) && supportsQuickPlay(version, 'is_quick_play_multiplayer');
+  const features = {
+    has_custom_resolution: Boolean(resolution),
+    is_quick_play_multiplayer: quickServer,
+    is_quick_play_singleplayer: Boolean(quickPlay?.world),
+  };
   const jvm = version.arguments?.jvm ? collectArgs(version.arguments.jvm, features) : LEGACY_JVM_ARGS;
   let game = version.arguments?.game
     ? collectArgs(version.arguments.game, features)
     : version.minecraftArguments.split(' ');
   if (resolution && !version.arguments?.game) {
     game = [...game, '--width', '${resolution_width}', '--height', '${resolution_height}'];
+  }
+  // Before quick play, the game took the server as --server/--port.
+  if (quickPlay?.server && !quickServer) {
+    const [host, port = '25565'] = quickPlay.server.split(':');
+    game = [...game, '--server', host, '--port', port];
   }
   return [
     `-Xmx${memoryMb}M`,
@@ -57,9 +71,10 @@ function buildArgs(version, install, vars, { memoryMb, jvmArgs, resolution }) {
 
 /**
  * Installs (if needed) and starts Minecraft for a profile.
+ * `quickPlay` ({ server } or { world }) joins a server or opens a world straight away.
  * Returns the spawned process; output goes to <gameDir>/logs/workbench-launch.log.
  */
-async function launchGame({ profile, gameDir, account, memoryMb, jvmArgs, resolution, onProgress }) {
+async function launchGame({ profile, gameDir, account, memoryMb, jvmArgs, resolution, quickPlay, onProgress }) {
   const vanilla = await getVersionJson(profile.mcVersion);
   await fsp.mkdir(gameDir, { recursive: true });
 
@@ -68,6 +83,9 @@ async function launchGame({ profile, gameDir, account, memoryMb, jvmArgs, resolu
     onProgress({ stage: 'java', label: 'Downloading Java', done, total }),
   );
   const version = await resolveVersion(profile, { vanilla, java, onProgress });
+  if (quickPlay?.world && !supportsQuickPlay(version, 'is_quick_play_singleplayer')) {
+    throw new Error('Opening a world from the launcher needs Minecraft 1.20 or newer.');
+  }
   const install = await installVersion(version, gameDir, onProgress);
 
   const vars = {
@@ -93,8 +111,10 @@ async function launchGame({ profile, gameDir, account, memoryMb, jvmArgs, resolu
     launcher_version: launcherVersion,
     resolution_width: String(resolution?.width ?? ''),
     resolution_height: String(resolution?.height ?? ''),
+    quickPlayMultiplayer: quickPlay?.server ?? '',
+    quickPlaySingleplayer: quickPlay?.world ?? '',
   };
-  const args = buildArgs(version, install, vars, { memoryMb, jvmArgs, resolution });
+  const args = buildArgs(version, install, vars, { memoryMb, jvmArgs, resolution, quickPlay });
 
   const logFile = path.join(gameDir, 'logs', 'workbench-launch.log');
   await fsp.mkdir(path.dirname(logFile), { recursive: true });
