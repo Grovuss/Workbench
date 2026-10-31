@@ -31,6 +31,9 @@ const TABS: { id: ProfileTab; label: string }[] = [
   { id: 'settings', label: 'Settings' },
 ];
 
+// Sits apart from the others, at the far end of the tab bar.
+const SETTINGS_TAB: ProfileTab = 'settings';
+
 // Data packs belong to worlds, so they live in the Worlds tab.
 const PROFILE_KINDS: ContentKind[] = ['mod', 'resourcepack', 'shader'];
 
@@ -131,7 +134,6 @@ export default function ProfilePage({
                 onSelect: () => api.profiles.openFolder(profile.id).catch((err) => onError(errorMessage(err))),
               },
               { icon: <ImagePlus size={16} />, label: 'Change icon', onSelect: changeIcon },
-              { icon: <Settings size={16} />, label: 'Profile settings', onSelect: () => setTab('settings') },
               {
                 section: 'Share',
                 icon: <FileArchive size={16} />,
@@ -165,10 +167,11 @@ export default function ProfilePage({
           <button
             key={t.id}
             role="tab"
-            className="tab"
+            className={t.id === SETTINGS_TAB ? 'tab tab-end' : 'tab'}
             aria-selected={tab === t.id}
             onClick={() => setTab(t.id)}
           >
+            {t.id === SETTINGS_TAB && <Settings size={15} />}
             {t.label}
           </button>
         ))}

@@ -1409,6 +1409,10 @@ img.import-option-icon {
   border-bottom: 1px solid var(--border);
 }
 
+.tab-end {
+  margin-left: auto;
+}
+
 .tab {
   position: relative;
   display: inline-flex;
