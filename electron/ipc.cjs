@@ -1,6 +1,8 @@
 const fsp = require('node:fs/promises');
 const path = require('node:path');
-const { BrowserWindow, ipcMain, shell } = require('electron');
+const { BrowserWindow, dialog, ipcMain, shell } = require('electron');
+const mods = require('./mods.cjs');
+const packs = require('./packs.cjs');
 const paths = require('./paths.cjs');
 const { titleBarOverlay } = require('./titlebar.cjs');
 const auth = require('./auth.cjs');
@@ -23,7 +25,27 @@ function handle(channel, fn) {
   });
 }
 
-const PROFILE_SUBFOLDERS = new Set(['saves', 'screenshots', 'logs', 'resourcepacks']);
+const PROFILE_SUBFOLDERS = new Set(['saves', 'screenshots', 'logs', 'resourcepacks', 'mods']);
+
+const PACK_FILTERS = {
+  workbench: [{ name: 'Workbench pack', extensions: ['workbench'] }],
+  mrpack: [{ name: 'Modrinth pack', extensions: ['mrpack'] }],
+  any: [{ name: 'Modpacks', extensions: ['workbench', 'mrpack'] }],
+};
+
+let importing = false;
+
+async function importPackFile(filePath) {
+  if (importing) throw new Error('Another pack is already importing.');
+  importing = true;
+  try {
+    const profile = await packs.importPack(filePath, (p) => game.broadcast({ type: 'import-progress', ...p }));
+    game.broadcast({ type: 'profiles-changed' });
+    return profile;
+  } finally {
+    importing = false;
+  }
+}
 
 async function openDir(dir) {
   await fsp.mkdir(dir, { recursive: true });
@@ -57,6 +79,34 @@ function registerIpc() {
       .filter((v) => v.type === 'release' || v.type === 'snapshot')
       .map(({ id, type, releaseTime }) => ({ id, type, releaseTime })),
   );
+
+  handle('mods:list', (_e, id) => mods.list(id));
+  handle('mods:search', (_e, id, query) => mods.search(id, query));
+  handle('mods:install', (_e, id, projectId) => mods.install(id, projectId));
+  handle('mods:remove', (_e, id, fileName) => mods.remove(id, fileName));
+  handle('mods:setEnabled', (_e, id, fileName, enabled) => mods.setEnabled(id, fileName, enabled));
+
+  handle('packs:import', async (e, kind) => {
+    const { canceled, filePaths } = await dialog.showOpenDialog(BrowserWindow.fromWebContents(e.sender), {
+      title: 'Import pack',
+      properties: ['openFile'],
+      filters: PACK_FILTERS[kind] ?? PACK_FILTERS.any,
+    });
+    return canceled ? null : importPackFile(filePaths[0]);
+  });
+  handle('packs:importFile', (_e, filePath) => importPackFile(String(filePath)));
+  handle('packs:export', async (e, id, include) => {
+    const profile = await profiles.get(id);
+    const { canceled, filePath } = await dialog.showSaveDialog(BrowserWindow.fromWebContents(e.sender), {
+      title: 'Export profile',
+      defaultPath: `${profile.name.replace(/[\\/:*?"<>|]/g, '_')}.workbench`,
+      filters: PACK_FILTERS.workbench,
+    });
+    if (canceled || !filePath) return null;
+    await packs.exportWorkbench(id, include, filePath);
+    shell.showItemInFolder(filePath);
+    return filePath;
+  });
 
   handle('loaders:games', (_e, loader) => supportedGameVersions(loader));
   handle('loaders:versions', (_e, loader, mcVersion) => loaderVersions(loader, mcVersion));

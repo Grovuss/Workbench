@@ -42,3 +42,24 @@ and Workbench shows "This Azure app isn't approved for Minecraft sign-in yet."
 
 Each profile gets its own game directory under `profiles/<id>`. The game's output goes to
 `logs/workbench-launch.log` inside that folder.
+
+## Mods and packs
+
+- **electron/mods.cjs**: Modrinth search and install (newest compatible release plus required
+  dependencies), enable/disable (`.jar.disabled`), and identifying hand-added jars by SHA-1.
+  Metadata is cached in `workbench-mods.json` in each profile folder.
+- **electron/packs.cjs**: imports `.workbench` and Modrinth `.mrpack` files and exports `.workbench`.
+
+### The `.workbench` format (format 1)
+
+A zip containing:
+
+- `workbench.json`: `format`, `name`, `game { minecraft, loader, loaderVersion }`,
+  `settings { memoryMb, resolution }` and `mods[]`. Each mod has `fileName`, `enabled`, `sha1`, `size`
+  and, for Modrinth mods, a download `url` plus `projectId`/`versionId`.
+- `overrides/`: files copied into the profile (config, options.txt, resource packs, mods that
+  aren't on Modrinth, and so on).
+
+Downloads are only allowed from Modrinth's CDN, GitHub and GitLab, and every path is checked so a
+pack can't write outside its profile. Java arguments are never imported or exported, since they can
+run arbitrary code.

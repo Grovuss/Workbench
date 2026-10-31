@@ -1,4 +1,4 @@
-const { contextBridge, ipcRenderer } = require('electron');
+const { contextBridge, ipcRenderer, webUtils } = require('electron');
 
 async function invoke(channel, ...args) {
   const res = await ipcRenderer.invoke(channel, ...args);
@@ -21,6 +21,20 @@ contextBridge.exposeInMainWorld('workbench', {
   },
   versions: {
     list: () => invoke('versions:list'),
+  },
+  mods: {
+    list: (id) => invoke('mods:list', id),
+    search: (id, query) => invoke('mods:search', id, query),
+    install: (id, projectId) => invoke('mods:install', id, projectId),
+    remove: (id, fileName) => invoke('mods:remove', id, fileName),
+    setEnabled: (id, fileName, enabled) => invoke('mods:setEnabled', id, fileName, enabled),
+  },
+  packs: {
+    import: (kind) => invoke('packs:import', kind),
+    importFile: (filePath) => invoke('packs:importFile', filePath),
+    export: (id, include) => invoke('packs:export', id, include),
+    // Dropped files carry no path in the renderer; Electron resolves it here.
+    pathForFile: (file) => webUtils.getPathForFile(file),
   },
   loaders: {
     games: (loader) => invoke('loaders:games', loader),

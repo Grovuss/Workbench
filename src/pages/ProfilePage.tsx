@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { FolderOpen } from 'lucide-react';
+import { FolderOpen, Share } from 'lucide-react';
 import logo from '../assets/logo.svg';
 import LoaderBadge from '../components/LoaderBadge';
 import Modal from '../components/Modal';
@@ -9,15 +9,17 @@ import ProgressBar, { progressPercent } from '../components/ProgressBar';
 import WorldsTab from '../components/profile/WorldsTab';
 import LogsTab from '../components/profile/LogsTab';
 import ProfileSettingsTab from '../components/profile/ProfileSettingsTab';
+import ModsTab from '../components/profile/ModsTab';
+import ExportModal from '../components/profile/ExportModal';
 import { api, errorMessage } from '../api';
 import { timeAgo } from '../time';
 import type { LaunchStatus, Profile } from '../types';
 
 type Tab = 'worlds' | 'mods' | 'logs' | 'settings';
 
-const TABS: { id: Tab; label: string; soon?: boolean }[] = [
+const TABS: { id: Tab; label: string }[] = [
   { id: 'worlds', label: 'Worlds' },
-  { id: 'mods', label: 'Mods', soon: true },
+  { id: 'mods', label: 'Mods' },
   { id: 'logs', label: 'Logs' },
   { id: 'settings', label: 'Settings' },
 ];
@@ -30,12 +32,14 @@ interface Props {
   onUpdated: (profile: Profile) => void;
   onDeleted: () => void;
   onError: (message: string) => void;
+  onSuccess: (message: string) => void;
 }
 
-export default function ProfilePage({ profile, launch, onPlay, onStop, onUpdated, onDeleted, onError }: Props) {
+export default function ProfilePage({ profile, launch, onPlay, onStop, onUpdated, onDeleted, onError, onSuccess }: Props) {
   const [tab, setTab] = useState<Tab>('worlds');
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const running = launch?.state === 'running';
 
   const confirmDelete = async () => {
@@ -80,6 +84,9 @@ export default function ProfilePage({ profile, launch, onPlay, onStop, onUpdated
           >
             <FolderOpen size={16} /> Folder
           </button>
+          <button className="btn btn-secondary" onClick={() => setExporting(true)}>
+            <Share size={16} /> Export
+          </button>
           <PlayButton launch={launch} onPlay={onPlay} onStop={onStop} large />
         </div>
         {launch?.state === 'installing' && (
@@ -101,17 +108,16 @@ export default function ProfilePage({ profile, launch, onPlay, onStop, onUpdated
             role="tab"
             className="tab"
             aria-selected={tab === t.id}
-            disabled={t.soon}
             onClick={() => setTab(t.id)}
           >
             {t.label}
-            {t.soon && <span className="soon-pill soon-pill-inline">Soon</span>}
           </button>
         ))}
       </div>
 
       <div role="tabpanel">
         {tab === 'worlds' && <WorldsTab profileId={profile.id} running={running} onError={onError} />}
+        {tab === 'mods' && <ModsTab profile={profile} onOpenSettings={() => setTab('settings')} onError={onError} />}
         {tab === 'logs' && <LogsTab profileId={profile.id} running={running} onError={onError} />}
         {tab === 'settings' && (
           <ProfileSettingsTab
@@ -123,6 +129,10 @@ export default function ProfilePage({ profile, launch, onPlay, onStop, onUpdated
           />
         )}
       </div>
+
+      {exporting && (
+        <ExportModal profile={profile} onClose={() => setExporting(false)} onExported={onSuccess} onError={onError} />
+      )}
 
       {confirmingDelete && (
         <Modal

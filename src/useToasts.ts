@@ -1,8 +1,11 @@
 import { useCallback, useState } from 'react';
 
+export type ToastTone = 'error' | 'success';
+
 export interface Toast {
   id: number;
   message: string;
+  tone: ToastTone;
 }
 
 let nextId = 1;
@@ -15,10 +18,10 @@ export function useToasts() {
   }, []);
 
   const pushToast = useCallback(
-    (message: string) => {
+    (message: string, tone: ToastTone = 'error') => {
       const id = nextId++;
-      setToasts((ts) => [...ts.slice(-3), { id, message }]);
-      setTimeout(() => dismissToast(id), 8000);
+      setToasts((ts) => [...ts.slice(-3), { id, message, tone }]);
+      setTimeout(() => dismissToast(id), tone === 'error' ? 8000 : 4000);
     },
     [dismissToast],
   );

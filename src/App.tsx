@@ -4,7 +4,6 @@ import TitleBar, { type Crumb } from './components/TitleBar';
 import Toasts from './components/Toasts';
 import ProfilesPage from './pages/ProfilesPage';
 import ProfilePage from './pages/ProfilePage';
-import ImportPage from './pages/ImportPage';
 import ModsPage from './pages/ModsPage';
 import SettingsPage from './pages/SettingsPage';
 import { api, errorMessage } from './api';
@@ -15,7 +14,6 @@ import type { AccountsState, Page, Profile, Route } from './types';
 
 const PAGE_TITLES: Record<Page, string> = {
   profiles: 'Profiles',
-  import: 'Import Pack',
   mods: 'Mods',
   settings: 'Settings',
 };
@@ -124,7 +122,10 @@ export default function App() {
           <ProfilesPage
             profiles={profiles}
             launches={launches}
-            onCreated={(p) => setProfiles((ps) => [...(ps ?? []), p])}
+            onCreated={(p) => {
+              setProfiles((ps) => [...(ps ?? []).filter((x) => x.id !== p.id), p]);
+              openProfile(p.id);
+            }}
             onOpen={openProfile}
             onPlay={play}
             onStop={stop}
@@ -143,10 +144,10 @@ export default function App() {
               setHistory([{ page: 'profiles' }]);
             }}
             onError={pushToast}
+            onSuccess={(message) => pushToast(message, 'success')}
           />
         )}
-        {route.page === 'import' && <ImportPage />}
-        {route.page === 'mods' && <ModsPage />}
+        {route.page === 'mods' && <ModsPage profiles={profiles} onError={pushToast} />}
         {route.page === 'settings' && (
           <SettingsPage theme={preference} onThemeChange={setPreference} onError={pushToast} />
         )}

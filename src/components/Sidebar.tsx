@@ -1,10 +1,9 @@
-import { Layers, Package, Puzzle, Settings, type LucideIcon } from 'lucide-react';
+import { Layers, Puzzle, Settings, type LucideIcon } from 'lucide-react';
 import AccountMenu from './AccountMenu';
 import type { AccountsState, Page } from '../types';
 
 const NAV: { id: Page; label: string; icon: LucideIcon }[] = [
   { id: 'profiles', label: 'Profiles', icon: Layers },
-  { id: 'import', label: 'Import Pack', icon: Package },
   { id: 'mods', label: 'Mods', icon: Puzzle },
   { id: 'settings', label: 'Settings', icon: Settings },
 ];

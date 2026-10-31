@@ -1,8 +1,45 @@
-export type Page = 'profiles' | 'import' | 'mods' | 'settings';
+export type Page = 'profiles' | 'mods' | 'settings';
+
+export interface InstalledMod {
+  /** File name in mods/, without a ".disabled" suffix. */
+  fileName: string;
+  enabled: boolean;
+  size: number;
+  title: string;
+  versionNumber: string | null;
+  /** Modrinth project, when the jar was identified. */
+  projectId: string | null;
+  iconUrl: string | null;
+}
+
+export interface ModSearchHit {
+  projectId: string;
+  title: string;
+  description: string;
+  author: string;
+  iconUrl: string | null;
+  downloads: number;
+}
+
+export interface ModSearchResult {
+  total: number;
+  hits: ModSearchHit[];
+}
+
+export type PackKind = 'workbench' | 'mrpack';
+
+/** Extra profile folders/files a .workbench export can include. */
+export type ExportItem = 'config' | 'resourcepacks' | 'shaderpacks' | 'options.txt' | 'saves';
+
+export interface ImportProgress {
+  label: string;
+  done: number;
+  total: number;
+}
 
 export type Route = { page: Page } | { page: 'profile'; id: string };
 
-export type ProfileFolder = 'saves' | 'screenshots' | 'logs' | 'resourcepacks';
+export type ProfileFolder = 'saves' | 'screenshots' | 'logs' | 'resourcepacks' | 'mods';
 
 export interface World {
   folder: string;
@@ -96,7 +133,8 @@ export type GameEvent =
   | { type: 'state'; profileId: string; state: GameState }
   | ({ type: 'progress'; profileId: string } & Progress)
   | { type: 'error'; profileId: string; message: string }
-  | { type: 'profiles-changed' };
+  | { type: 'profiles-changed' }
+  | ({ type: 'import-progress' } & ImportProgress);
 
 export interface WorkbenchApi {
   platform: string;
@@ -136,6 +174,22 @@ export interface WorkbenchApi {
   settings: {
     get(): Promise<Settings>;
     set(patch: Partial<Settings>): Promise<Settings>;
+  };
+  mods: {
+    list(profileId: string): Promise<InstalledMod[]>;
+    search(profileId: string, query: { query: string; offset: number }): Promise<ModSearchResult>;
+    /** Installs the newest compatible version plus required dependencies. */
+    install(profileId: string, projectId: string): Promise<InstalledMod[]>;
+    remove(profileId: string, fileName: string): Promise<InstalledMod[]>;
+    setEnabled(profileId: string, fileName: string, enabled: boolean): Promise<InstalledMod[]>;
+  };
+  packs: {
+    /** Opens a file picker; resolves to the new profile, or null if cancelled. */
+    import(kind?: PackKind): Promise<Profile | null>;
+    importFile(filePath: string): Promise<Profile>;
+    /** Opens a save dialog; resolves to the written path, or null if cancelled. */
+    export(profileId: string, include: ExportItem[]): Promise<string | null>;
+    pathForFile(file: File): string;
   };
   system: {
     info(): Promise<SystemInfo>;

@@ -1,8 +1,8 @@
 const ITEMS = [
-  { title: 'Mods Tab', body: 'Manage the mods in each profile' },
-  { title: 'Modrinth Search', body: 'Browse and install mods directly' },
-  { title: 'Update All Mods', body: 'Check for and apply updates' },
-  { title: 'Export Pack', body: 'Export your profile as a .mrpack' },
+  { title: 'Update All Mods', body: 'Check for and apply mod updates' },
+  { title: 'CurseForge Packs', body: 'Import CurseForge modpacks' },
+  { title: 'Resource Packs', body: 'Browse resource packs and shaders' },
+  { title: 'Open .workbench Files', body: 'Double-click a pack to import it' },
 ];
 
 export default function ComingSoon() {
