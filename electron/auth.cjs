@@ -148,7 +148,7 @@ async function minecraftLogin(msAccessToken) {
     json: { identityToken: `XBL3.0 x=${uhs};${xsts.body.Token}` },
   });
   if (mc.status === 403) {
-    throw new Error("This Azure app isn't approved for Minecraft sign-in yet. See README → Microsoft sign-in.");
+    throw new Error("This Azure app isn't approved for Minecraft sign-in yet.");
   }
   if (!mc.ok) throw new Error('Minecraft sign-in failed.');
 

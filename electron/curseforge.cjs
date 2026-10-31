@@ -1,7 +1,7 @@
 const { CURSEFORGE_API_KEY } = require('./config.cjs');
 const { version: appVersion } = require('../package.json');
 
-// CurseForge's API needs a key from https://console.curseforge.com (see README.md).
+// CurseForge's API needs a key from https://console.curseforge.com (set it up in config.cjs).
 const CF_API = 'https://api.curseforge.com/v1';
 
 // Hosts CurseForge serves files from.
