@@ -8,6 +8,9 @@ const servers = require('./servers.cjs');
 const screenshots = require('./screenshots.cjs');
 const skins = require('./skins.cjs');
 const diagnose = require('./diagnose.cjs');
+const performance = require('./performance.cjs');
+const modsets = require('./modsets.cjs');
+const configs = require('./configs.cjs');
 const { ping } = require('./ping.cjs');
 const packs = require('./packs.cjs');
 const paths = require('./paths.cjs');
@@ -128,6 +131,18 @@ function registerIpc() {
   handle('servers:remove', (_e, id, index) => servers.remove(String(id), Number(index)));
   handle('servers:ping', (_e, address) => ping(String(address)));
 
+  handle('modsets:list', () => modsets.list());
+  handle('modsets:create', (_e, name, entries) => modsets.create(name, entries));
+  handle('modsets:update', (_e, id, patch) => modsets.update(String(id), patch ?? {}));
+  handle('modsets:remove', (_e, id) => modsets.remove(String(id)));
+
+  handle('configs:list', (_e, id) => configs.list(String(id)));
+  handle('configs:read', (_e, id, rel) => configs.read(String(id), rel));
+  handle('configs:write', (_e, id, rel, text, baseModifiedAt, force) =>
+    configs.write(String(id), rel, text, baseModifiedAt == null ? null : Number(baseModifiedAt), Boolean(force)),
+  );
+  handle('configs:reveal', (_e, id, rel) => configs.reveal(String(id), rel));
+
   handle('screenshots:list', (_e, id) => screenshots.list(String(id)));
   handle('screenshots:remove', (_e, id, fileName) => screenshots.remove(String(id), fileName));
   handle('screenshots:setCover', (_e, id, fileName) => screenshots.setCover(String(id), fileName ?? null));
@@ -175,6 +190,10 @@ function registerIpc() {
   handle('content:install', (_e, t, projectId, versionId) =>
     content.install(contentTarget(t), String(projectId), versionId == null ? null : String(versionId)),
   );
+  handle('content:installMany', (_e, t, projectIds) =>
+    content.installMany(contentTarget(t), (Array.isArray(projectIds) ? projectIds : []).map(String)),
+  );
+  handle('content:performance', (_e, id) => performance.suggestions(String(id)));
   handle('content:versions', (_e, t, projectId) => content.versions(contentTarget(t), String(projectId)));
   handle('content:addFiles', (_e, t, filePaths) => {
     const target = contentTarget(t);

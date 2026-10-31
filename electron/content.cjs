@@ -479,6 +479,34 @@ function install(target, projectId, versionId = null) {
   });
 }
 
+/**
+ * Installs several projects (newest compatible versions, plus dependencies for mods), skipping any
+ * already installed. Projects with no version for the profile are reported in `skipped`, not thrown.
+ */
+function installMany(target, projectIds) {
+  return withLock(async () => {
+    const loc = await locate(target);
+    const ctx = await installContext(loc);
+    const installed = [];
+    const skipped = [];
+    try {
+      for (const projectId of projectIds) {
+        if (ctx.installed.has(projectId)) continue;
+        try {
+          await installProject(ctx, projectId, true);
+          if (ctx.installed.has(projectId)) installed.push(projectId);
+          else skipped.push({ projectId, reason: 'No version for this profile.' });
+        } catch (err) {
+          skipped.push({ projectId, reason: err.message });
+        }
+      }
+    } finally {
+      await saveMeta(loc, ctx.meta);
+    }
+    return { items: await listUnlocked(loc), installed, skipped };
+  });
+}
+
 /** A project's versions that work on the target (loader and Minecraft version), newest first. */
 async function versions(target, projectId) {
   const loc = await locate(target);
@@ -622,6 +650,7 @@ module.exports = {
   searchAll,
   categories,
   install,
+  installMany,
   versions,
   checkUpdates,
   update,

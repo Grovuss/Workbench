@@ -12,17 +12,19 @@ import ProfileSettingsTab from '../components/profile/ProfileSettingsTab';
 import ContentTab from '../components/content/ContentTab';
 import ExportModal from '../components/profile/ExportModal';
 import ScreenshotsTab from '../components/profile/ScreenshotsTab';
+import ConfigsTab from '../components/profile/ConfigsTab';
 import { api, errorMessage } from '../api';
 import { contentBlockedReason } from '../content';
 import { formatPlaytime, timeAgo } from '../time';
 import type { ContentKind, LaunchStatus, Profile, QuickPlay } from '../types';
 
-export type ProfileTab = 'content' | 'worlds' | 'screenshots' | 'logs' | 'settings';
+export type ProfileTab = 'content' | 'worlds' | 'screenshots' | 'configs' | 'logs' | 'settings';
 
 const TABS: { id: ProfileTab; label: string }[] = [
   { id: 'content', label: 'Content' },
   { id: 'worlds', label: 'Worlds' },
   { id: 'screenshots', label: 'Screenshots' },
+  { id: 'configs', label: 'Configs' },
   { id: 'logs', label: 'Logs' },
   { id: 'settings', label: 'Settings' },
 ];
@@ -190,6 +192,7 @@ export default function ProfilePage({
         {tab === 'screenshots' && (
           <ScreenshotsTab profile={profile} running={running} onUpdated={onUpdated} onError={onError} onSuccess={onSuccess} />
         )}
+        {tab === 'configs' && <ConfigsTab profileId={profile.id} running={running} onError={onError} onSuccess={onSuccess} />}
         {tab === 'logs' && <LogsTab profileId={profile.id} running={running} onError={onError} />}
         {tab === 'settings' && (
           <ProfileSettingsTab

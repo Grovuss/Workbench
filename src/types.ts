@@ -28,6 +28,42 @@ export interface InstalledContent {
   addedAt: string;
 }
 
+export interface InstallManyResult {
+  items: InstalledContent[];
+  installed: string[];
+  skipped: { projectId: string; reason: string }[];
+}
+
+export interface PerformanceMod {
+  projectId: string;
+  title: string;
+  iconUrl: string | null;
+  /** What it does, in a sentence. */
+  about: string;
+  installed: boolean;
+}
+
+export interface ModSetEntry {
+  projectId: string;
+  kind: 'mod' | 'resourcepack' | 'shader';
+  title: string;
+  iconUrl: string | null;
+}
+
+export interface ModSet {
+  id: string;
+  name: string;
+  entries: ModSetEntry[];
+  createdAt: string;
+}
+
+export interface ConfigFile {
+  /** Relative to the profile folder, like "config/sodium-options.json". */
+  path: string;
+  size: number;
+  modifiedAt: string;
+}
+
 export interface ContentSearchHit {
   projectId: string;
   kind: ContentKind;
@@ -197,6 +233,19 @@ export interface WorkbenchApi {
     /** Copies the profile's folder and settings into a new profile. */
     duplicate(id: string, name?: string): Promise<Profile>;
   };
+  modSets: {
+    list(): Promise<ModSet[]>;
+    create(name: string, entries: ModSetEntry[]): Promise<ModSet[]>;
+    update(id: string, patch: { name?: string; entries?: ModSetEntry[] }): Promise<ModSet[]>;
+    remove(id: string): Promise<ModSet[]>;
+  };
+  configs: {
+    list(profileId: string): Promise<ConfigFile[]>;
+    read(profileId: string, path: string): Promise<{ text: string; modifiedAt: number }>;
+    /** Doesn't write (returns conflict) if the file changed on disk since it was read, unless forced. */
+    write(profileId: string, path: string, text: string, baseModifiedAt: number | null, force?: boolean): Promise<{ conflict: boolean; modifiedAt?: number }>;
+    reveal(profileId: string, path: string): Promise<void>;
+  };
   screenshots: {
     list(profileId: string): Promise<Screenshot[]>;
     remove(profileId: string, fileName: string): Promise<Screenshot[]>;
@@ -268,6 +317,10 @@ export interface WorkbenchApi {
     categories(kind: ContentKind | 'modpack'): Promise<ContentCategory[]>;
     /** Installs a version (the newest compatible one by default) plus required dependencies for mods. Replaces any other installed version. */
     install(target: ContentTarget, projectId: string, versionId?: string): Promise<InstalledContent[]>;
+    /** Installs several projects at once; ones with no version for the profile come back in `skipped`. */
+    installMany(target: ContentTarget, projectIds: string[]): Promise<InstallManyResult>;
+    /** Well-known performance mods available for the profile. */
+    performance(profileId: string): Promise<PerformanceMod[]>;
     /** Versions that work on the target, newest first. */
     versions(target: ContentTarget, projectId: string): Promise<ContentVersion[]>;
     /** Asks Modrinth for newer compatible versions; fills in `updateVersion`. */

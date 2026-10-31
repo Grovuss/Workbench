@@ -8,7 +8,9 @@ import {
   ChevronsUpDown,
   Compass,
   FolderOpen,
+  Gauge,
   Info,
+  Layers,
   LoaderCircle,
   Plus,
   Puzzle,
@@ -22,6 +24,9 @@ import ContentBrowser, { type BrowseKind } from './ContentBrowser';
 import ContentIcon from './ContentIcon';
 import ProblemList, { applyFix } from './ProblemList';
 import VersionModal from './VersionModal';
+import PerformanceModal from './PerformanceModal';
+import ModSetsModal from './ModSetsModal';
+import Dropdown from '../Dropdown';
 import Markdown from '../Markdown';
 import Modal from '../Modal';
 import Toggle from '../Toggle';
@@ -87,6 +92,7 @@ export default function ContentTab({ profile, kinds, world, running, onOpenSetti
   const [problemsOpen, setProblemsOpen] = useState<boolean | null>(null);
   const [changelogFor, setChangelogFor] = useState<Item | null>(null);
   const [versionFor, setVersionFor] = useState<Item | null>(null);
+  const [tool, setTool] = useState<'performance' | 'sets' | null>(null);
   const dragDepth = useRef(0);
   const kindsKey = kinds.join(',');
   const singleKind = kinds.length === 1 ? kinds[0] : null;
@@ -327,9 +333,26 @@ export default function ContentTab({ profile, kinds, world, running, onOpenSetti
                 onChange={(e) => setQuery(e.target.value)}
               />
             </label>
-            <button className="btn btn-secondary" onClick={upload} disabled={running || adding}>
-              <Upload size={16} /> Upload files
-            </button>
+            {world ? (
+              <button className="btn btn-secondary" onClick={upload} disabled={running || adding}>
+                <Upload size={16} /> Upload files
+              </button>
+            ) : (
+              <Dropdown
+                label={
+                  <>
+                    <Plus size={16} /> Add
+                  </>
+                }
+                items={[
+                  ...(kinds.includes('mod')
+                    ? [{ icon: <Gauge size={16} />, label: 'Performance mods', hint: 'More FPS, less memory', onSelect: () => setTool('performance') }]
+                    : []),
+                  { icon: <Layers size={16} />, label: 'Mod sets', hint: 'Your saved groups of mods', onSelect: () => setTool('sets') },
+                  { icon: <Upload size={16} />, label: 'Upload files', hint: 'Jars and zips from your PC', onSelect: upload, disabled: running || adding },
+                ]}
+              />
+            )}
             <button className="btn btn-primary" onClick={openBrowse}>
               <Compass size={16} /> Browse {singleKind ? CONTENT[singleKind].nounPlural : 'content'}
             </button>
@@ -460,6 +483,32 @@ export default function ContentTab({ profile, kinds, world, running, onOpenSetti
             </>
           )}
         </>
+      )}
+
+      {tool === 'performance' && (
+        <PerformanceModal
+          profile={profile}
+          onInstalled={(items) => {
+            setList('mod', items);
+            checkUpdates('mod');
+          }}
+          onSuccess={onSuccess}
+          onClose={() => setTool(null)}
+        />
+      )}
+
+      {tool === 'sets' && (
+        <ModSetsModal
+          profile={profile}
+          kinds={kinds}
+          installed={all}
+          onInstalled={(kind, items) => {
+            setList(kind, items);
+            checkUpdates(kind);
+          }}
+          onSuccess={onSuccess}
+          onClose={() => setTool(null)}
+        />
       )}
 
       {versionFor && (

@@ -22,6 +22,18 @@ contextBridge.exposeInMainWorld('workbench', {
     removeIcon: (id) => invoke('profiles:removeIcon', id),
     duplicate: (id, name) => invoke('profiles:duplicate', id, name),
   },
+  modSets: {
+    list: () => invoke('modsets:list'),
+    create: (name, entries) => invoke('modsets:create', name, entries),
+    update: (id, patch) => invoke('modsets:update', id, patch),
+    remove: (id) => invoke('modsets:remove', id),
+  },
+  configs: {
+    list: (id) => invoke('configs:list', id),
+    read: (id, rel) => invoke('configs:read', id, rel),
+    write: (id, rel, text, baseModifiedAt, force) => invoke('configs:write', id, rel, text, baseModifiedAt, force),
+    reveal: (id, rel) => invoke('configs:reveal', id, rel),
+  },
   screenshots: {
     list: (id) => invoke('screenshots:list', id),
     remove: (id, fileName) => invoke('screenshots:remove', id, fileName),
@@ -69,6 +81,8 @@ contextBridge.exposeInMainWorld('workbench', {
     searchAll: (id, options) => invoke('content:searchAll', id, options),
     categories: (kind) => invoke('content:categories', kind),
     install: (target, projectId, versionId) => invoke('content:install', target, projectId, versionId),
+    installMany: (target, projectIds) => invoke('content:installMany', target, projectIds),
+    performance: (id) => invoke('content:performance', id),
     versions: (target, projectId) => invoke('content:versions', target, projectId),
     addFiles: (target, filePaths) => invoke('content:addFiles', target, filePaths),
     addAny: (id, filePaths) => invoke('content:addAny', id, filePaths),
