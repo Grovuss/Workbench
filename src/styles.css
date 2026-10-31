@@ -2303,28 +2303,26 @@ select.input option {
 
 .profile-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
-  gap: 12px;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 14px;
 }
 
 .profile-card {
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
-  gap: 6px;
   min-width: 0;
-  padding: 14px;
+  overflow: hidden;
   background: var(--bg-surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-card);
   cursor: pointer;
-  transition: border-color 120ms, background 120ms;
+  transition: border-color 120ms, transform 120ms;
 }
 
 .profile-card:hover {
   border-color: var(--border-strong);
-  background: var(--bg-surface-hover);
+  transform: translateY(-2px);
 }
 
 .profile-card:focus-visible {
@@ -2332,23 +2330,41 @@ select.input option {
   outline-offset: 2px;
 }
 
-.profile-card-icon {
+.profile-card-cover {
+  position: relative;
   display: grid;
   place-items: center;
-  width: 64px;
-  height: 64px;
-  margin-bottom: 4px;
-  border-radius: var(--radius-md);
+  height: 118px;
+  overflow: hidden;
   background: var(--icon-tile-bg);
 }
 
+.profile-card-backdrop {
+  position: absolute;
+  inset: -24px;
+  width: calc(100% + 48px);
+  height: calc(100% + 48px);
+  object-fit: cover;
+  filter: blur(24px) saturate(1.2);
+  opacity: 0.75;
+}
+
+.profile-card-icon {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 72px;
+  height: 72px;
+}
+
 .profile-card-icon img {
-  width: 38px;
+  width: 52px;
 }
 
 .profile-card-icon[data-custom] {
   overflow: hidden;
-  background: var(--bg-muted);
+  border-radius: var(--radius-md);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
 }
 
 .profile-card-icon[data-custom] img {
@@ -2357,33 +2373,53 @@ select.input option {
   object-fit: cover;
 }
 
-.profile-card-name {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  max-width: 100%;
+.profile-card-running {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: var(--success);
+  color: #fff;
+  font-size: 11px;
   font-weight: 800;
-  font-size: 15px;
 }
 
-.profile-card-name .running-dot {
-  flex: none;
-  color: var(--success);
+.profile-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 14px 14px;
+}
+
+.profile-card-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 15px;
+  font-weight: 800;
+}
+
+.profile-card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 6px;
 }
 
 .profile-card-played {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-size: 12px;
   font-weight: 700;
   color: var(--text-faint);
 }
 
 .profile-card-progress {
-  width: 100%;
-  padding: 5px 0;
-}
-
-.profile-card-actions {
-  margin-top: 6px;
+  padding: 13px 0 6px;
 }
 
 /* ---------- Mod problems ---------- */
