@@ -27,6 +27,7 @@ import VersionModal from './VersionModal';
 import PerformanceModal from './PerformanceModal';
 import ModSetsModal from './ModSetsModal';
 import Dropdown from '../Dropdown';
+import Pagination, { PAGE_SIZES, type PageSize } from '../Pagination';
 import Markdown from '../Markdown';
 import Modal from '../Modal';
 import Toggle from '../Toggle';
@@ -62,6 +63,16 @@ const readSort = (): InstalledSort => {
   }
 };
 
+const PAGE_SIZE_KEY = 'workbench.contentPageSize';
+const readPageSize = (): PageSize => {
+  try {
+    const saved = Number(localStorage.getItem(PAGE_SIZE_KEY));
+    return PAGE_SIZES.includes(saved as PageSize) && localStorage.getItem(PAGE_SIZE_KEY) !== null ? (saved as PageSize) : 50;
+  } catch {
+    return 50;
+  }
+};
+
 interface Props {
   profile: Profile;
   /** Kinds managed here: the profile's usable kinds, or ['datapack'] for a world. */
@@ -84,6 +95,9 @@ export default function ContentTab({ profile, kinds, world, running, onOpenSetti
   const [typeFilter, setTypeFilter] = useState<ContentKind | 'all'>('all');
   const [query, setQuery] = useState('');
   const [sort, setSortState] = useState<InstalledSort>(readSort);
+  const [pageSize, setPageSizeState] = useState<PageSize>(readPageSize);
+  const [page, setPage] = useState(0);
+  const listTop = useRef<HTMLDivElement>(null);
   // "<kind>/<fileName>" being updated, or 'all'.
   const [updating, setUpdating] = useState<Set<string> | 'all'>(new Set());
   const [dragging, setDragging] = useState(false);
@@ -103,6 +117,19 @@ export default function ContentTab({ profile, kinds, world, running, onOpenSetti
     try {
       localStorage.setItem(SORT_KEY, next);
     } catch {}
+  };
+
+  const setPageSize = (next: PageSize) => {
+    setPageSizeState(next);
+    setPage(0);
+    try {
+      localStorage.setItem(PAGE_SIZE_KEY, String(next));
+    } catch {}
+  };
+
+  const goToPage = (next: number) => {
+    setPage(next);
+    listTop.current?.scrollIntoView({ block: 'nearest' });
   };
 
   const setList = useCallback((kind: ContentKind, items: InstalledContent[]) => setLists((l) => ({ ...l, [kind]: items })), []);
@@ -176,6 +203,12 @@ export default function ContentTab({ profile, kinds, world, running, onOpenSetti
     };
     return filtered.sort(compare[sort]);
   }, [all, typeFilter, query, sort]);
+
+  // A new search, filter or sort starts from the first page.
+  useEffect(() => setPage(0), [typeFilter, query, sort]);
+  const pageCount = pageSize ? Math.max(1, Math.ceil(shown.length / pageSize)) : 1;
+  const currentPage = Math.min(page, pageCount - 1);
+  const paged = pageSize ? shown.slice(currentPage * pageSize, (currentPage + 1) * pageSize) : shown;
 
   const withUpdates = all.filter((m) => m.updateVersion && (typeFilter === 'all' || m.kind === typeFilter));
   const checking = kinds.some((k) => checks[k] === 'checking');
@@ -426,8 +459,8 @@ export default function ContentTab({ profile, kinds, world, running, onOpenSetti
 
           {shown.length > 0 && (
             <>
-              <div className="mod-list">
-                {shown.map((m) => (
+              <div className="mod-list" ref={listTop}>
+                {paged.map((m) => (
                   <div key={key(m)} className="mod-row" data-disabled={!m.enabled || undefined}>
                     <ContentIcon url={m.iconUrl} size={40} />
                     <div className="mod-info">
@@ -477,6 +510,9 @@ export default function ContentTab({ profile, kinds, world, running, onOpenSetti
                   </div>
                 ))}
               </div>
+              {shown.length > PAGE_SIZES[0] && (
+                <Pagination page={currentPage} pageSize={pageSize} total={shown.length} onPage={goToPage} onPageSize={setPageSize} />
+              )}
               <p className="content-hint">
                 {enabledCount} of {shown.length} enabled{hint ? ` · ${hint}` : ''}
               </p>
