@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type FormEvent } from 'react';
 import { FolderOpen, ImagePlus, Info, Share } from 'lucide-react';
 import LoaderBadge from '../components/LoaderBadge';
 import ProfileIcon from '../components/ProfileIcon';
@@ -11,16 +11,18 @@ import LogsTab from '../components/profile/LogsTab';
 import ProfileSettingsTab from '../components/profile/ProfileSettingsTab';
 import ContentTab from '../components/content/ContentTab';
 import ExportModal from '../components/profile/ExportModal';
+import ScreenshotsTab from '../components/profile/ScreenshotsTab';
 import { api, errorMessage } from '../api';
 import { contentBlockedReason } from '../content';
 import { formatPlaytime, timeAgo } from '../time';
 import type { ContentKind, LaunchStatus, Profile, QuickPlay } from '../types';
 
-type Tab = 'content' | 'worlds' | 'logs' | 'settings';
+export type ProfileTab = 'content' | 'worlds' | 'screenshots' | 'logs' | 'settings';
 
-const TABS: { id: Tab; label: string }[] = [
+const TABS: { id: ProfileTab; label: string }[] = [
   { id: 'content', label: 'Content' },
   { id: 'worlds', label: 'Worlds' },
+  { id: 'screenshots', label: 'Screenshots' },
   { id: 'logs', label: 'Logs' },
   { id: 'settings', label: 'Settings' },
 ];
@@ -31,17 +33,32 @@ const PROFILE_KINDS: ContentKind[] = ['mod', 'resourcepack', 'shader'];
 interface Props {
   profile: Profile;
   launch?: LaunchStatus;
+  /** Tab to open on, e.g. settings after a crash caused by too little memory. */
+  initialTab?: ProfileTab;
   /** Starts the game, optionally straight into a server or world. */
   onPlay: (quickPlay?: QuickPlay) => void;
   onStop: () => void;
   onUpdated: (profile: Profile) => void;
   onDeleted: () => void;
+  onDuplicated: (profile: Profile) => void;
   onError: (message: string) => void;
   onSuccess: (message: string) => void;
 }
 
-export default function ProfilePage({ profile, launch, onPlay, onStop, onUpdated, onDeleted, onError, onSuccess }: Props) {
-  const [tab, setTab] = useState<Tab>('content');
+export default function ProfilePage({
+  profile,
+  launch,
+  initialTab = 'content',
+  onPlay,
+  onStop,
+  onUpdated,
+  onDeleted,
+  onDuplicated,
+  onError,
+  onSuccess,
+}: Props) {
+  const [tab, setTab] = useState<ProfileTab>(initialTab);
+  const [duplicating, setDuplicating] = useState(false);
   const contentKinds = PROFILE_KINDS.filter((kind) => !contentBlockedReason(kind, profile.loader));
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -154,6 +171,7 @@ export default function ProfilePage({ profile, launch, onPlay, onStop, onUpdated
               profile={profile}
               kinds={contentKinds}
               running={running}
+              onOpenSettings={() => setTab('settings')}
               onError={onError}
               onSuccess={onSuccess}
             />
@@ -169,6 +187,7 @@ export default function ProfilePage({ profile, launch, onPlay, onStop, onUpdated
             onSuccess={onSuccess}
           />
         )}
+        {tab === 'screenshots' && <ScreenshotsTab profileId={profile.id} running={running} onError={onError} onSuccess={onSuccess} />}
         {tab === 'logs' && <LogsTab profileId={profile.id} running={running} onError={onError} />}
         {tab === 'settings' && (
           <ProfileSettingsTab
@@ -176,10 +195,15 @@ export default function ProfilePage({ profile, launch, onPlay, onStop, onUpdated
             busy={Boolean(launch)}
             onUpdated={onUpdated}
             onDelete={() => setConfirmingDelete(true)}
+            onDuplicate={() => setDuplicating(true)}
             onError={onError}
           />
         )}
       </div>
+
+      {duplicating && (
+        <DuplicateModal profile={profile} onClose={() => setDuplicating(false)} onDuplicated={onDuplicated} onError={onError} />
+      )}
 
       {exporting && (
         <ExportModal profile={profile} onClose={() => setExporting(false)} onExported={onSuccess} onError={onError} />
@@ -206,5 +230,56 @@ export default function ProfilePage({ profile, launch, onPlay, onStop, onUpdated
         </Modal>
       )}
     </>
+  );
+}
+
+function DuplicateModal({
+  profile,
+  onClose,
+  onDuplicated,
+  onError,
+}: {
+  profile: Profile;
+  onClose: () => void;
+  onDuplicated: (profile: Profile) => void;
+  onError: (message: string) => void;
+}) {
+  const [name, setName] = useState(`${profile.name} (copy)`.slice(0, 48));
+  const [busy, setBusy] = useState(false);
+
+  const submit = async (e: FormEvent) => {
+    e.preventDefault();
+    setBusy(true);
+    try {
+      onDuplicated(await api.profiles.duplicate(profile.id, name));
+    } catch (err) {
+      onError(errorMessage(err));
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Modal
+      title="Duplicate profile"
+      onClose={busy ? () => {} : onClose}
+      footer={
+        <>
+          <button className="btn btn-secondary" onClick={onClose} disabled={busy}>
+            Cancel
+          </button>
+          <button type="submit" form="duplicate-profile" className="btn btn-primary" disabled={busy || !name.trim()}>
+            {busy ? 'Copying…' : 'Duplicate'}
+          </button>
+        </>
+      }
+    >
+      <form id="duplicate-profile" className="form" onSubmit={submit}>
+        <p className="modal-text">Copies everything: mods, worlds, config and settings. Playtime starts from zero.</p>
+        <label className="field">
+          <span className="field-label">Name</span>
+          <input className="input" value={name} maxLength={48} onChange={(e) => setName(e.target.value)} autoFocus />
+        </label>
+      </form>
+    </Modal>
   );
 }

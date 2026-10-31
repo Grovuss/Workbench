@@ -2,29 +2,33 @@ import { useCallback, useEffect, useState } from 'react';
 import Sidebar from './components/Sidebar';
 import TitleBar, { type Crumb } from './components/TitleBar';
 import Toasts from './components/Toasts';
+import CrashModal from './components/CrashModal';
 import ProfilesPage from './pages/ProfilesPage';
-import ProfilePage from './pages/ProfilePage';
+import ProfilePage, { type ProfileTab } from './pages/ProfilePage';
 import BrowsePage from './pages/BrowsePage';
+import SkinsPage from './pages/SkinsPage';
 import SettingsPage from './pages/SettingsPage';
 import { api, errorMessage } from './api';
 import { useTheme } from './useTheme';
 import { useToasts } from './useToasts';
 import { useLaunches } from './useLaunches';
-import type { AccountsState, Page, Profile, QuickPlay, Route } from './types';
+import type { AccountsState, CrashReport, Page, Profile, QuickPlay, Route } from './types';
 
 const PAGE_TITLES: Record<Page, string> = {
   profiles: 'Profiles',
   browse: 'Browse',
+  skins: 'Skins',
   settings: 'Settings',
 };
 
 const sameRoute = (a: Route, b: Route) =>
-  a.page === b.page && (a.page !== 'profile' || (b.page === 'profile' && a.id === b.id));
+  a.page === b.page && (a.page !== 'profile' || (b.page === 'profile' && a.id === b.id && a.tab === b.tab));
 
 export default function App() {
   const [history, setHistory] = useState<Route[]>([{ page: 'profiles' }]);
   const [profiles, setProfiles] = useState<Profile[] | null>(null);
   const [accounts, setAccounts] = useState<AccountsState>({ configured: true, activeId: null, accounts: [] });
+  const [crash, setCrash] = useState<{ profileId: string; report: CrashReport } | null>(null);
   const { preference, setPreference } = useTheme();
   const { toasts, pushToast, dismissToast } = useToasts();
   const route = history[history.length - 1];
@@ -48,15 +52,20 @@ export default function App() {
       .catch((err) => pushToast(errorMessage(err)));
   }, [pushToast]);
 
-  const launches = useLaunches(pushToast, refreshProfiles);
+  const onCrash = useCallback((profileId: string, report: CrashReport) => setCrash({ profileId, report }), []);
+  const launches = useLaunches(pushToast, refreshProfiles, onCrash);
 
-  useEffect(() => {
-    refreshProfiles();
+  const refreshAccounts = useCallback(() => {
     api.accounts
       .list()
       .then(setAccounts)
       .catch((err) => pushToast(errorMessage(err)));
-  }, [refreshProfiles, pushToast]);
+  }, [pushToast]);
+
+  useEffect(() => {
+    refreshProfiles();
+    refreshAccounts();
+  }, [refreshProfiles, refreshAccounts]);
 
   // Accepts a promise from any accounts:* call and applies the resulting state.
   const updateAccounts = useCallback(
@@ -84,9 +93,14 @@ export default function App() {
   };
 
   const stop = (id: string) => api.game.stop(id).catch((err) => pushToast(errorMessage(err)));
-  const openProfile = (id: string) => navigate({ page: 'profile', id });
+  const openProfile = (id: string, tab?: ProfileTab) => navigate({ page: 'profile', id, tab });
+  const addProfile = (p: Profile) => {
+    setProfiles((ps) => [...(ps ?? []).filter((x) => x.id !== p.id), p]);
+    openProfile(p.id);
+  };
 
   const currentProfile = route.page === 'profile' ? profiles?.find((p) => p.id === route.id) : undefined;
+  const crashedProfile = crash && profiles?.find((p) => p.id === crash.profileId);
 
   let crumbs: Crumb[];
   if (route.page === 'profile') {
@@ -106,7 +120,7 @@ export default function App() {
         onBack={back}
         profiles={profiles ?? []}
         launches={launches}
-        onOpenProfile={openProfile}
+        onOpenProfile={(id) => openProfile(id)}
         onStop={stop}
       />
       <Sidebar
@@ -122,20 +136,19 @@ export default function App() {
           <ProfilesPage
             profiles={profiles}
             launches={launches}
-            onCreated={(p) => {
-              setProfiles((ps) => [...(ps ?? []).filter((x) => x.id !== p.id), p]);
-              openProfile(p.id);
-            }}
-            onOpen={openProfile}
+            onCreated={addProfile}
+            onOpen={(id) => openProfile(id)}
             onPlay={(p) => play(p)}
             onStop={stop}
           />
         )}
         {route.page === 'profile' && currentProfile && (
           <ProfilePage
-            key={currentProfile.id}
+            // A requested tab (from the crash dialog) opens the page fresh on that tab.
+            key={`${currentProfile.id}:${route.tab ?? ''}`}
             profile={currentProfile}
             launch={launches[currentProfile.id]}
+            initialTab={route.tab as ProfileTab | undefined}
             onPlay={(quickPlay) => play(currentProfile, quickPlay)}
             onStop={() => stop(currentProfile.id)}
             onUpdated={(p) => setProfiles((ps) => ps?.map((x) => (x.id === p.id ? p : x)) ?? null)}
@@ -143,15 +156,29 @@ export default function App() {
               setProfiles((ps) => ps?.filter((x) => x.id !== currentProfile.id) ?? null);
               setHistory([{ page: 'profiles' }]);
             }}
+            onDuplicated={(p) => {
+              addProfile(p);
+              pushToast(`Created “${p.name}”.`, 'success');
+            }}
             onError={pushToast}
             onSuccess={(message) => pushToast(message, 'success')}
           />
         )}
-        {route.page === 'browse' && <BrowsePage profiles={profiles} onError={pushToast} />}
+        {route.page === 'browse' && <BrowsePage profiles={profiles} onProfileCreated={addProfile} onError={pushToast} />}
+        {route.page === 'skins' && <SkinsPage accounts={accounts} onLogin={login} onSkinChanged={refreshAccounts} onError={pushToast} onSuccess={(message) => pushToast(message, 'success')} />}
         {route.page === 'settings' && (
           <SettingsPage theme={preference} onThemeChange={setPreference} onError={pushToast} />
         )}
       </main>
+      {crash && crashedProfile && (
+        <CrashModal
+          profile={crashedProfile}
+          report={crash.report}
+          onClose={() => setCrash(null)}
+          onOpenTab={(tab) => openProfile(crashedProfile.id, tab)}
+          onError={pushToast}
+        />
+      )}
       <Toasts toasts={toasts} onDismiss={dismissToast} />
     </div>
   );

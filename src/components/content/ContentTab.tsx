@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from 'react';
 import {
+  AlertTriangle,
   ArrowDownWideNarrow,
   ArrowLeft,
   ArrowUpCircle,
+  ChevronDown,
   Compass,
   FolderOpen,
   Info,
@@ -17,10 +19,14 @@ import {
 } from 'lucide-react';
 import ContentBrowser, { type BrowseKind } from './ContentBrowser';
 import ContentIcon from './ContentIcon';
+import ProblemList, { applyFix } from './ProblemList';
+import Markdown from '../Markdown';
+import Modal from '../Modal';
 import Toggle from '../Toggle';
 import { api, errorMessage } from '../../api';
 import { CONTENT, IRIS_PROJECT_ID } from '../../content';
-import type { ContentKind, InstalledContent, Profile } from '../../types';
+import { timeAgo } from '../../time';
+import type { Changelog, ContentKind, InstalledContent, Problem, ProblemFix, Profile } from '../../types';
 
 type Item = InstalledContent & { kind: ContentKind };
 type InstalledSort = 'name' | 'name-desc' | 'added' | 'updates';
@@ -56,12 +62,14 @@ interface Props {
   /** World folder, for data packs. */
   world?: string;
   running: boolean;
+  /** Opens the profile's settings, for problems fixed there (memory, loader version). */
+  onOpenSettings?: () => void;
   onError: (message: string) => void;
   onSuccess: (message: string) => void;
 }
 
 /** Everything installed in a profile (or a world's data packs) in one list, plus Modrinth browsing. */
-export default function ContentTab({ profile, kinds, world, running, onError, onSuccess }: Props) {
+export default function ContentTab({ profile, kinds, world, running, onOpenSettings, onError, onSuccess }: Props) {
   const [lists, setLists] = useState<Partial<Record<ContentKind, InstalledContent[]>>>({});
   const [checks, setChecks] = useState<Partial<Record<ContentKind, CheckState>>>({});
   const [view, setView] = useState<'installed' | 'browse'>('installed');
@@ -73,6 +81,9 @@ export default function ContentTab({ profile, kinds, world, running, onError, on
   const [updating, setUpdating] = useState<Set<string> | 'all'>(new Set());
   const [dragging, setDragging] = useState(false);
   const [adding, setAdding] = useState(false);
+  const [problems, setProblems] = useState<Problem[]>([]);
+  const [problemsOpen, setProblemsOpen] = useState<boolean | null>(null);
+  const [changelogFor, setChangelogFor] = useState<Item | null>(null);
   const dragDepth = useRef(0);
   const kindsKey = kinds.join(',');
   const singleKind = kinds.length === 1 ? kinds[0] : null;
@@ -115,6 +126,26 @@ export default function ContentTab({ profile, kinds, world, running, onError, on
   }, [kindsKey, target, setList, checkUpdates, onError]);
 
   useEffect(refresh, [refresh]);
+
+  // Re-check mods for conflicts whenever the mod list changes.
+  const modList = lists.mod;
+  const managesMods = kindsKey.split(',').includes('mod');
+  useEffect(() => {
+    if (!modList || !managesMods) return;
+    let current = true;
+    api.diagnose
+      .scan(profile.id)
+      .then((found) => current && setProblems(found))
+      .catch(() => {});
+    return () => {
+      current = false;
+    };
+  }, [modList, managesMods, profile.id]);
+
+  const problemFiles = useMemo(() => new Set(problems.flatMap((p) => p.files)), [problems]);
+  const fixProblem = (fix: ProblemFix) =>
+    applyFix(profile.id, fix, { onModsChanged: (mods) => setList('mod', mods), onOpenSettings: () => onOpenSettings?.() });
+  const showProblems = problemsOpen ?? problems.length <= 3;
 
   const loaded = kinds.every((k) => lists[k]);
   const all: Item[] = useMemo(() => kinds.flatMap((kind) => (lists[kind] ?? []).map((m) => ({ ...m, kind }))), [kinds, lists]);
@@ -247,6 +278,22 @@ export default function ContentTab({ profile, kinds, world, running, onError, on
         <ShaderNotice profile={profile} hasIris={hasIris} onInstalled={(items) => setList('mod', items)} onError={onError} onSuccess={onSuccess} />
       )}
 
+      {view === 'installed' && problems.length > 0 && (
+        <div className="problems">
+          <button className="problems-head" aria-expanded={showProblems} onClick={() => setProblemsOpen(!showProblems)}>
+            <AlertTriangle size={18} />
+            <span className="problems-title">
+              <strong>
+                {problems.length === 1 ? '1 problem' : `${problems.length} problems`} with your mods
+              </strong>
+              <span>Minecraft will probably crash until {problems.length === 1 ? 'it’s' : 'they’re'} fixed.</span>
+            </span>
+            <ChevronDown size={16} className="problems-chevron" />
+          </button>
+          {showProblems && <ProblemList key={problems.map((p) => p.id).join()} problems={problems} onFix={fixProblem} onError={onError} />}
+        </div>
+      )}
+
       {view === 'browse' ? (
         <>
           <div className="content-bar">
@@ -360,6 +407,9 @@ export default function ContentTab({ profile, kinds, world, running, onError, on
                     <div className="mod-info">
                       <div className="mod-title">{m.title}</div>
                       <span className="mod-meta">
+                        {m.kind === 'mod' && problemFiles.has(m.fileName) && (
+                          <AlertTriangle size={13} className="mod-problem" aria-label="Has a problem" />
+                        )}
                         {typeFilter === 'all' && kinds.length > 1 && <span className="kind-tag">{CONTENT[m.kind].noun}</span>}
                         {m.versionNumber ?? 'Local file'}
                         {m.updateVersion && <span className="mod-update-to">→ {m.updateVersion}</span>}
@@ -370,10 +420,10 @@ export default function ContentTab({ profile, kinds, world, running, onError, on
                     {m.updateVersion && (
                       <button
                         className="icon-btn icon-btn-update"
-                        onClick={() => runUpdate([m], false)}
-                        disabled={running || isUpdating(m)}
+                        onClick={() => setChangelogFor(m)}
+                        disabled={isUpdating(m)}
                         aria-label={`Update ${m.title} to ${m.updateVersion}`}
-                        title={running ? 'Close the game to update' : `Update to ${m.updateVersion}`}
+                        title={`See what’s new in ${m.updateVersion}`}
                       >
                         {isUpdating(m) ? <LoaderCircle size={16} className="spin" /> : <ArrowUpCircle size={16} />}
                       </button>
@@ -401,7 +451,93 @@ export default function ContentTab({ profile, kinds, world, running, onError, on
           )}
         </>
       )}
+
+      {changelogFor && (
+        <UpdateModal
+          item={changelogFor}
+          target={target(changelogFor.kind)}
+          running={running}
+          onClose={() => setChangelogFor(null)}
+          onUpdate={() => runUpdate([changelogFor], false)}
+        />
+      )}
     </div>
+  );
+}
+
+/** What changed in an update, with a button to apply it. */
+function UpdateModal({
+  item,
+  target,
+  running,
+  onClose,
+  onUpdate,
+}: {
+  item: Item;
+  target: { profileId: string; kind: ContentKind; world?: string };
+  running: boolean;
+  onClose: () => void;
+  onUpdate: () => void;
+}) {
+  const [log, setLog] = useState<Changelog | null>(null);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    api.content
+      .changelog(target, item.fileName)
+      .then(setLog)
+      .catch(() => setFailed(true));
+    // Loaded once per opened item.
+  }, []);
+
+  return (
+    <Modal
+      title={`Update ${item.title}`}
+      onClose={onClose}
+      footer={
+        <>
+          <button className="btn btn-secondary" onClick={onClose}>
+            Cancel
+          </button>
+          <button
+            className="btn btn-primary"
+            disabled={running}
+            title={running ? 'Close the game to update' : undefined}
+            onClick={() => {
+              onUpdate();
+              onClose();
+            }}
+          >
+            <ArrowUpCircle size={16} /> Update to {item.updateVersion}
+          </button>
+        </>
+      }
+    >
+      <p className="modal-text">
+        {item.versionNumber ?? 'Your version'} → <strong>{item.updateVersion}</strong>
+      </p>
+      {failed ? (
+        <p className="mod-empty">Couldn’t load the changelog.</p>
+      ) : !log ? (
+        <div className="mod-loading">
+          <LoaderCircle size={22} className="spin" />
+        </div>
+      ) : (
+        <div className="changelog">
+          {log.entries.map((entry) => (
+            <section key={entry.versionNumber} className="changelog-entry">
+              <header>
+                <strong>{entry.versionNumber}</strong>
+                {entry.type !== 'release' && <span className="kind-tag">{entry.type}</span>}
+                <span className="changelog-date">{timeAgo(entry.date)}</span>
+              </header>
+              {entry.changelog.trim() ? <Markdown text={entry.changelog} /> : <p className="changelog-none">No changelog for this version.</p>}
+            </section>
+          ))}
+          {log.more > 0 && <p className="changelog-none">…and {log.more} older {log.more === 1 ? 'version' : 'versions'}.</p>}
+        </div>
+      )}
+    </Modal>
   );
 }
 

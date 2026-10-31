@@ -1,4 +1,4 @@
-export type Page = 'profiles' | 'browse' | 'settings';
+export type Page = 'profiles' | 'browse' | 'skins' | 'settings';
 
 export type ContentKind = 'mod' | 'resourcepack' | 'shader' | 'datapack';
 
@@ -68,9 +68,10 @@ export interface ImportProgress {
   total: number;
 }
 
-export type Route = { page: Page } | { page: 'profile'; id: string };
+/** `tab` opens a profile on a specific tab (see ProfileTab). */
+export type Route = { page: Page } | { page: 'profile'; id: string; tab?: string };
 
-export type ProfileFolder = 'saves' | 'screenshots' | 'logs' | 'resourcepacks' | 'shaderpacks' | 'mods';
+export type ProfileFolder = 'saves' | 'screenshots' | 'logs' | 'resourcepacks' | 'shaderpacks' | 'mods' | 'crash-reports';
 
 export interface World {
   folder: string;
@@ -170,7 +171,8 @@ export type GameEvent =
   | ({ type: 'progress'; profileId: string } & Progress)
   | { type: 'error'; profileId: string; message: string }
   | { type: 'profiles-changed' }
-  | ({ type: 'import-progress' } & ImportProgress);
+  | ({ type: 'import-progress' } & ImportProgress)
+  | { type: 'crash'; profileId: string; report: CrashReport };
 
 export interface WorkbenchApi {
   platform: string;
@@ -188,6 +190,43 @@ export interface WorkbenchApi {
     /** Opens an image picker; resolves to the updated profile, or null if cancelled. */
     setIcon(id: string): Promise<Profile | null>;
     removeIcon(id: string): Promise<Profile>;
+    /** Copies the profile's folder and settings into a new profile. */
+    duplicate(id: string, name?: string): Promise<Profile>;
+  };
+  screenshots: {
+    list(profileId: string): Promise<Screenshot[]>;
+    remove(profileId: string, fileName: string): Promise<Screenshot[]>;
+    copy(profileId: string, fileName: string): Promise<void>;
+    reveal(profileId: string, fileName: string): Promise<void>;
+  };
+  diagnose: {
+    /** Problems with the profile's enabled mods, read from their metadata. */
+    scan(profileId: string): Promise<Problem[]>;
+    /** Finds a mod on Modrinth by its mod id and installs it. */
+    installDependency(profileId: string, modId: string): Promise<InstalledContent[]>;
+    openCrashReport(profileId: string, fileName: string): Promise<void>;
+  };
+  skins: {
+    state(): Promise<SkinState>;
+    /** Back to the default skin. */
+    reset(): Promise<SkinState>;
+    /** null hides the cape. */
+    setCape(capeId: string | null): Promise<SkinState>;
+    /** Uploads a library skin as the account's skin. */
+    wear(id: string): Promise<SkinState>;
+    library(): Promise<LibrarySkin[]>;
+    /** Opens a file picker; null if cancelled. */
+    pick(): Promise<LibrarySkin[] | null>;
+    addFiles(filePaths: string[]): Promise<LibrarySkin[]>;
+    saveCurrent(): Promise<LibrarySkin[]>;
+    update(id: string, patch: { name?: string; variant?: SkinVariant }): Promise<LibrarySkin[]>;
+    remove(id: string): Promise<LibrarySkin[]>;
+  };
+  modpacks: {
+    search(options: ModpackSearchOptions): Promise<{ total: number; hits: ModpackHit[] }>;
+    versions(projectId: string): Promise<ModpackVersion[]>;
+    /** Installs a version (the newest release by default) as a new profile. */
+    install(projectId: string, versionId?: string): Promise<ImportResult>;
   };
   versions: {
     list(): Promise<McVersion[]>;
@@ -221,11 +260,13 @@ export interface WorkbenchApi {
     search(target: ContentTarget, options: SearchOptions): Promise<ContentSearchResult>;
     /** Mods, resource packs and shaders at once, whichever the profile can use. */
     searchAll(profileId: string, options: SearchOptions): Promise<ContentSearchResult>;
-    categories(kind: ContentKind): Promise<ContentCategory[]>;
+    categories(kind: ContentKind | 'modpack'): Promise<ContentCategory[]>;
     /** Installs the newest compatible version (plus required dependencies for mods). */
     install(target: ContentTarget, projectId: string): Promise<InstalledContent[]>;
     /** Asks Modrinth for newer compatible versions; fills in `updateVersion`. */
     checkUpdates(target: ContentTarget): Promise<InstalledContent[]>;
+    /** Changelogs between the installed version and its update. */
+    changelog(target: ContentTarget, fileName: string): Promise<Changelog>;
     /** Copies .jar/.zip files from disk into the target folder. */
     addFiles(target: ContentTarget, filePaths: string[]): Promise<InstalledContent[]>;
     /** Copies files of any kind into a profile, sorted by what they are. Resolves to counts per kind. */
@@ -306,4 +347,99 @@ export interface ServerStatus {
   players: { online: number; max: number } | null;
   motd: string;
   icon: string | null;
+}
+
+export type ProblemFix =
+  | { type: 'disable'; fileName: string; label: string }
+  | { type: 'install'; modId: string; label: string }
+  | { type: 'settings'; label: string };
+
+/** A mod problem found ahead of time, or a likely cause of a crash. */
+export interface Problem {
+  id: string;
+  message: string;
+  /** Mod files involved. */
+  files: string[];
+  fixes: ProblemFix[];
+}
+
+export interface CrashReport {
+  exitCode: number | null;
+  problems: Problem[];
+  /** File name in crash-reports/, if the game wrote one. */
+  crashReport: string | null;
+}
+
+export interface Screenshot {
+  fileName: string;
+  takenAt: string;
+  size: number;
+}
+
+export type SkinVariant = 'classic' | 'slim';
+
+export interface Cape {
+  id: string;
+  alias: string;
+  url: string;
+  active: boolean;
+}
+
+export interface SkinState {
+  account: { id: string; name: string };
+  /** null when wearing a default skin. */
+  skin: { url: string; variant: SkinVariant } | null;
+  capes: Cape[];
+}
+
+export interface LibrarySkin {
+  id: string;
+  name: string;
+  variant: SkinVariant;
+  addedAt: string;
+}
+
+export interface ChangelogEntry {
+  versionNumber: string;
+  type: 'release' | 'beta' | 'alpha';
+  date: string;
+  /** Markdown. */
+  changelog: string;
+}
+
+export interface Changelog {
+  title: string;
+  from: string | null;
+  to: string | null;
+  entries: ChangelogEntry[];
+  /** Versions left out of `entries`. */
+  more: number;
+}
+
+export interface ModpackSearchOptions extends SearchOptions {
+  loader?: ModLoader;
+  gameVersion?: string;
+}
+
+export interface ModpackHit {
+  projectId: string;
+  title: string;
+  description: string;
+  author: string;
+  iconUrl: string | null;
+  downloads: number;
+  follows: number;
+  updatedAt: string;
+  loaders: ModLoader[];
+  gameVersions: string[];
+}
+
+export interface ModpackVersion {
+  id: string;
+  name: string;
+  versionNumber: string;
+  type: 'release' | 'beta' | 'alpha';
+  gameVersions: string[];
+  loaders: string[];
+  date: string;
 }

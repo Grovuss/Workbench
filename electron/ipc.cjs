@@ -5,6 +5,9 @@ const icons = require('./icons.cjs');
 const content = require('./content.cjs');
 const curseforge = require('./curseforge.cjs');
 const servers = require('./servers.cjs');
+const screenshots = require('./screenshots.cjs');
+const skins = require('./skins.cjs');
+const diagnose = require('./diagnose.cjs');
 const { ping } = require('./ping.cjs');
 const packs = require('./packs.cjs');
 const paths = require('./paths.cjs');
@@ -31,7 +34,7 @@ function handle(channel, fn) {
   });
 }
 
-const PROFILE_SUBFOLDERS = new Set(['saves', 'screenshots', 'logs', 'resourcepacks', 'shaderpacks', 'mods']);
+const PROFILE_SUBFOLDERS = new Set(['saves', 'screenshots', 'logs', 'resourcepacks', 'shaderpacks', 'mods', 'crash-reports']);
 
 /** Validates a content target from the renderer: { profileId, kind, world? }. */
 const contentTarget = (t) => ({ profileId: String(t?.profileId), kind: String(t?.kind), world: t?.world == null ? undefined : String(t.world) });
@@ -60,11 +63,12 @@ const PACK_FILTERS = {
 
 let importing = false;
 
-async function importPackFile(filePath) {
+/** Runs one pack import at a time, reporting progress to every window. */
+async function runImport(fn) {
   if (importing) throw new Error('Another pack is already importing.');
   importing = true;
   try {
-    const result = await packs.importPack(filePath, (p) => game.broadcast({ type: 'import-progress', ...p }));
+    const result = await fn((p) => game.broadcast({ type: 'import-progress', ...p }));
     game.broadcast({ type: 'profiles-changed' });
     return result;
   } finally {
@@ -102,6 +106,10 @@ function registerIpc() {
     return canceled ? null : icons.setFromFile(id, filePaths[0]);
   });
   handle('profiles:removeIcon', (_e, id) => icons.remove(id));
+  handle('profiles:duplicate', (_e, id, name) => {
+    if (game.isActive(String(id))) throw new Error('Close the game before duplicating this profile.');
+    return profiles.duplicate(String(id), name);
+  });
   handle('profiles:openFolder', async (_e, id, sub) => {
     if (sub !== undefined && !PROFILE_SUBFOLDERS.has(sub)) throw new Error('Unknown folder.');
     await profiles.get(id);
@@ -119,6 +127,44 @@ function registerIpc() {
   handle('servers:update', (_e, id, index, input) => servers.update(String(id), Number(index), input));
   handle('servers:remove', (_e, id, index) => servers.remove(String(id), Number(index)));
   handle('servers:ping', (_e, address) => ping(String(address)));
+
+  handle('screenshots:list', (_e, id) => screenshots.list(String(id)));
+  handle('screenshots:remove', (_e, id, fileName) => screenshots.remove(String(id), fileName));
+  handle('screenshots:copy', (_e, id, fileName) => screenshots.copy(String(id), fileName));
+  handle('screenshots:reveal', (_e, id, fileName) => screenshots.reveal(String(id), fileName));
+
+  handle('diagnose:scan', (_e, id) => diagnose.scanMods(String(id)));
+  handle('diagnose:installDependency', (_e, id, modId) => diagnose.installDependency(String(id), String(modId)));
+  handle('diagnose:openCrashReport', async (_e, id, name) => {
+    await profiles.get(String(id));
+    const file = path.join(profiles.gameDir(String(id)), 'crash-reports', content.safeFileName(name));
+    const err = await shell.openPath(file);
+    if (err) throw new Error(err);
+  });
+
+  handle('skins:state', () => skins.state());
+  handle('skins:reset', () => skins.reset());
+  handle('skins:setCape', (_e, capeId) => skins.setCape(capeId == null ? null : String(capeId)));
+  handle('skins:wear', (_e, id) => skins.wear(String(id)));
+  handle('skins:library', () => skins.listLibrary());
+  handle('skins:pick', async (e) => {
+    const { canceled, filePaths } = await dialog.showOpenDialog(BrowserWindow.fromWebContents(e.sender), {
+      title: 'Add skins',
+      properties: ['openFile', 'multiSelections'],
+      filters: [{ name: 'Skins', extensions: ['png'] }],
+    });
+    return canceled ? null : skins.addFiles(filePaths);
+  });
+  handle('skins:addFiles', (_e, filePaths) => skins.addFiles((Array.isArray(filePaths) ? filePaths : []).map(String)));
+  handle('skins:saveCurrent', () => skins.saveCurrent());
+  handle('skins:update', (_e, id, patch) => skins.updateEntry(String(id), patch ?? {}));
+  handle('skins:remove', (_e, id) => skins.removeFromLibrary(String(id)));
+
+  handle('modpacks:search', (_e, options) => packs.searchModpacks(options ?? {}));
+  handle('modpacks:versions', (_e, projectId) => packs.modpackVersions(String(projectId)));
+  handle('modpacks:install', (_e, projectId, versionId) =>
+    runImport((progress) => packs.installModpack(String(projectId), versionId == null ? null : String(versionId), progress)),
+  );
 
   handle('content:list', (_e, t) => content.list(contentTarget(t)));
   handle('content:openFolder', async (_e, t) => openDir(await content.folder(contentTarget(t))));
@@ -153,6 +199,7 @@ function registerIpc() {
     return { [target.kind]: filePaths.length };
   });
   handle('content:checkUpdates', (_e, t) => content.checkUpdates(contentTarget(t)));
+  handle('content:changelog', (_e, t, fileName) => content.changelog(contentTarget(t), fileName));
   handle('content:update', (_e, t, fileNames) => {
     const target = contentTarget(t);
     assertNotRunning(target, 'updating');
@@ -167,9 +214,9 @@ function registerIpc() {
       properties: ['openFile'],
       filters: PACK_FILTERS[kind] ?? PACK_FILTERS.any,
     });
-    return canceled ? null : importPackFile(filePaths[0]);
+    return canceled ? null : runImport((progress) => packs.importPack(filePaths[0], progress));
   });
-  handle('packs:importFile', (_e, filePath) => importPackFile(String(filePath)));
+  handle('packs:importFile', (_e, filePath) => runImport((progress) => packs.importPack(String(filePath), progress)));
   handle('packs:export', async (e, id, include) => {
     const profile = await profiles.get(id);
     const { canceled, filePath } = await dialog.showSaveDialog(BrowserWindow.fromWebContents(e.sender), {

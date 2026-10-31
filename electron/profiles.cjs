@@ -66,6 +66,40 @@ async function create({ name, ...selection }) {
   });
 }
 
+// Per-launch output that a copy shouldn't inherit.
+const SKIP_ON_DUPLICATE = new Set(['logs', 'crash-reports']);
+
+/** Copies a profile: its whole folder (mods, worlds, config, icon) and settings. */
+async function duplicate(id, name) {
+  const source = await get(id);
+  const copy = normalize({
+    ...source,
+    id: randomUUID(),
+    name: String(name ?? '').trim().slice(0, 48) || `${source.name} (copy)`.slice(0, 48),
+    createdAt: new Date().toISOString(),
+    lastPlayedAt: null,
+    playtimeMs: 0,
+  });
+  const from = gameDir(id);
+  try {
+    await fsp.mkdir(gameDir(copy.id), { recursive: true });
+    // Entry by entry: Electron's fs.cp ignores the `filter` option.
+    for (const entry of await fsp.readdir(from).catch(() => [])) {
+      if (SKIP_ON_DUPLICATE.has(entry)) continue;
+      await fsp.cp(path.join(from, entry), path.join(gameDir(copy.id), entry), { recursive: true });
+    }
+  } catch (err) {
+    await fsp.rm(gameDir(copy.id), { recursive: true, force: true });
+    throw err;
+  }
+  return withLock(async () => {
+    const all = await load();
+    all.push(copy);
+    await writeJson(file(), all);
+    return copy;
+  });
+}
+
 function update(id, patch) {
   return withLock(async () => {
     const all = await load();
@@ -200,6 +234,7 @@ module.exports = {
   list: load,
   get,
   create,
+  duplicate,
   update,
   addPlaytime,
   rename,

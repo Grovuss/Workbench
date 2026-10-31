@@ -369,14 +369,14 @@ let categoryCache = null;
 /** Modrinth's browsable categories for a kind: [{ name, header }], e.g. { name: 'optimization', header: 'categories' }. */
 async function categories(kind) {
   const spec = KINDS[kind];
-  if (!spec) throw new Error('Unknown content type.');
+  if (!spec && kind !== 'modpack') throw new Error('Unknown content type.');
   categoryCache ??= modrinth('/tag/category').catch((err) => {
     categoryCache = null;
     throw err;
   });
   const all = await categoryCache;
   // Data packs share the mod project type in Modrinth's tags.
-  const projectType = kind === 'datapack' ? 'mod' : spec.projectType;
+  const projectType = kind === 'modpack' ? 'modpack' : kind === 'datapack' ? 'mod' : spec.projectType;
   return all
     .filter((c) => c.project_type === projectType && !NON_BROWSABLE_HEADERS.has(c.header))
     .map((c) => ({ name: c.name, header: c.header }))
@@ -534,6 +534,39 @@ function update(target, fileNames) {
   });
 }
 
+const MAX_CHANGELOG_ENTRIES = 15;
+
+/**
+ * What changed between a file's version and its available update, newest first:
+ * { title, from, to, entries: [{ versionNumber, type, date, changelog }], more } where `more` counts entries left out.
+ */
+async function changelog(target, fileName) {
+  const loc = await locate(target);
+  const info = (await loadMeta(loc))[safeFileName(fileName)];
+  if (!info?.projectId) throw new Error('This file isn’t from Modrinth, so it has no changelog.');
+  const params = new URLSearchParams({
+    loaders: JSON.stringify(modrinthLoaders(loc.kind, loc.profile)),
+    game_versions: JSON.stringify([loc.profile.mcVersion]),
+  });
+  const versions = await modrinth(`/project/${encodeURIComponent(info.projectId)}/version?${params}`);
+  const newest = info.update ? versions.findIndex((v) => v.id === info.update.versionId) : 0;
+  const current = versions.findIndex((v) => v.id === info.versionId);
+  const start = Math.max(newest, 0);
+  const between = versions.slice(start, current > start ? current : start + 1);
+  return {
+    title: info.title ?? fileName,
+    from: info.versionNumber ?? null,
+    to: info.update?.versionNumber ?? versions[0]?.version_number ?? null,
+    entries: between.slice(0, MAX_CHANGELOG_ENTRIES).map((v) => ({
+      versionNumber: v.version_number,
+      type: v.version_type,
+      date: v.date_published,
+      changelog: v.changelog ?? '',
+    })),
+    more: Math.max(0, between.length - MAX_CHANGELOG_ENTRIES),
+  };
+}
+
 /** Records metadata for mods a pack import downloaded, so they show with titles straight away. */
 function recordInstalledMods(profileId, entries) {
   return withLock(async () => {
@@ -564,6 +597,7 @@ module.exports = {
   install,
   checkUpdates,
   update,
+  changelog,
   listModsForExport,
   recordInstalledMods,
   modsDir,

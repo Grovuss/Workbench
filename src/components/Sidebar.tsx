@@ -1,10 +1,11 @@
-import { Compass, Layers, Settings, type LucideIcon } from 'lucide-react';
+import { Compass, Layers, Settings, Shirt, type LucideIcon } from 'lucide-react';
 import AccountMenu from './AccountMenu';
 import type { AccountsState, Page } from '../types';
 
 const NAV: { id: Page; label: string; icon: LucideIcon }[] = [
   { id: 'profiles', label: 'Profiles', icon: Layers },
   { id: 'browse', label: 'Browse', icon: Compass },
+  { id: 'skins', label: 'Skins', icon: Shirt },
   { id: 'settings', label: 'Settings', icon: Settings },
 ];
 

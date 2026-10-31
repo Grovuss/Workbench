@@ -1,12 +1,16 @@
 import { useEffect, useRef, useState } from 'react';
 import { api } from './api';
-import type { LaunchStatus } from './types';
+import type { CrashReport, LaunchStatus } from './types';
 
 /** Tracks install/run state per profile from main-process game events. */
-export function useLaunches(onError: (message: string) => void, onProfilesChanged: () => void) {
+export function useLaunches(
+  onError: (message: string) => void,
+  onProfilesChanged: () => void,
+  onCrash: (profileId: string, report: CrashReport) => void,
+) {
   const [launches, setLaunches] = useState<Record<string, LaunchStatus>>({});
-  const handlers = useRef({ onError, onProfilesChanged });
-  handlers.current = { onError, onProfilesChanged };
+  const handlers = useRef({ onError, onProfilesChanged, onCrash });
+  handlers.current = { onError, onProfilesChanged, onCrash };
 
   useEffect(() => {
     api.game
@@ -37,6 +41,9 @@ export function useLaunches(onError: (message: string) => void, onProfilesChange
           break;
         case 'profiles-changed':
           handlers.current.onProfilesChanged();
+          break;
+        case 'crash':
+          handlers.current.onCrash(event.profileId, event.report);
           break;
       }
     });

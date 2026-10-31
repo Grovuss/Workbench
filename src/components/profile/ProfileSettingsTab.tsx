@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react';
-import { ImagePlus, Trash2 } from 'lucide-react';
+import { Copy, ImagePlus, Trash2 } from 'lucide-react';
 import ProfileIcon from '../ProfileIcon';
 import Toggle from '../Toggle';
 import VersionPicker, { isCompleteSelection } from '../VersionPicker';
@@ -14,16 +14,26 @@ interface Props {
   busy: boolean;
   onUpdated: (profile: Profile) => void;
   onDelete: () => void;
+  onDuplicate: () => void;
   onError: (message: string) => void;
 }
 
-export default function ProfileSettingsTab({ profile, busy, onUpdated, onDelete, onError }: Props) {
+export default function ProfileSettingsTab({ profile, busy, onUpdated, onDelete, onDuplicate, onError }: Props) {
   return (
     <>
       <h2 className="section-label section-label-first">General</h2>
       <div className="settings-group">
         <NameSection profile={profile} onUpdated={onUpdated} onError={onError} />
         <IconSection profile={profile} onUpdated={onUpdated} onError={onError} />
+        <div className="settings-row">
+          <div>
+            <h3>Duplicate</h3>
+            <p>{busy ? 'Stop the game before duplicating.' : 'A copy with the same mods, worlds and settings, to try changes safely.'}</p>
+          </div>
+          <button className="btn btn-secondary" onClick={onDuplicate} disabled={busy}>
+            <Copy size={15} /> Duplicate
+          </button>
+        </div>
       </div>
 
       <h2 className="section-label">Version</h2>

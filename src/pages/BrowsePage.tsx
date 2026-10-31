@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Puzzle } from 'lucide-react';
+import { Package, Puzzle } from 'lucide-react';
 import PageHeader from '../components/PageHeader';
 import ContentBrowser, { type BrowseKind } from '../components/content/ContentBrowser';
+import ModpackBrowser from '../components/content/ModpackBrowser';
 import { api, errorMessage } from '../api';
 import { CONTENT, contentBlockedReason } from '../content';
 import { LOADER_LABELS } from '../loaders';
@@ -13,11 +14,14 @@ const KIND_OPTIONS: BrowseKind[] = ['all', ...KINDS];
 
 interface Props {
   profiles: Profile[] | null;
+  /** A modpack was installed as a new profile. */
+  onProfileCreated: (profile: Profile) => void;
   onError: (message: string) => void;
 }
 
-/** Browse Modrinth and install into any profile that can use the content. */
-export default function BrowsePage({ profiles, onError }: Props) {
+/** Browse Modrinth: content to install into a profile, or modpacks that become new profiles. */
+export default function BrowsePage({ profiles, onProfileCreated, onError }: Props) {
+  const [section, setSection] = useState<'content' | 'modpacks'>('content');
   const [kind, setKind] = useState<BrowseKind>('all');
   const [profileId, setProfileId] = useState<string | null>(null);
   const [lists, setLists] = useState<Partial<Record<ContentKind, InstalledContent[]>> | null>(null);
@@ -60,8 +64,21 @@ export default function BrowsePage({ profiles, onError }: Props) {
 
   return (
     <>
-      <PageHeader title="Browse" subtitle="Find mods, resource packs and shaders on Modrinth" actions={picker} />
-      {profiles && !profile && (
+      <PageHeader
+        title="Browse"
+        subtitle={section === 'content' ? 'Find mods, resource packs and shaders on Modrinth' : 'Install a Modrinth modpack as a new profile'}
+        actions={section === 'content' ? picker : null}
+      />
+      <div className="segmented browse-switch" role="group" aria-label="What to browse">
+        <button aria-pressed={section === 'content'} onClick={() => setSection('content')}>
+          <Puzzle size={14} /> Content
+        </button>
+        <button aria-pressed={section === 'modpacks'} onClick={() => setSection('modpacks')}>
+          <Package size={14} /> Modpacks
+        </button>
+      </div>
+      {section === 'modpacks' && <ModpackBrowser onInstalled={onProfileCreated} onError={onError} />}
+      {section === 'content' && profiles && !profile && (
         <div className="empty">
           <Puzzle className="empty-icon" size={48} strokeWidth={1.5} />
           <h2>{kind === 'all' ? 'No profiles yet' : `No profiles can use ${CONTENT[kind].nounPlural}`}</h2>
@@ -79,7 +96,7 @@ export default function BrowsePage({ profiles, onError }: Props) {
           )}
         </div>
       )}
-      {profile && lists && (
+      {section === 'content' && profile && lists && (
         <ContentBrowser
           key={profile.id}
           profile={profile}

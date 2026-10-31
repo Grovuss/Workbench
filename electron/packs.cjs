@@ -2,6 +2,7 @@ const fsp = require('node:fs/promises');
 const path = require('node:path');
 const AdmZip = require('adm-zip');
 const profiles = require('./profiles.cjs');
+const paths = require('./paths.cjs');
 const content = require('./content.cjs');
 const curseforge = require('./curseforge.cjs');
 const icons = require('./icons.cjs');
@@ -239,6 +240,84 @@ async function importPack(filePath, onProgress) {
   throw new Error('This file isn’t a modpack Workbench recognizes.');
 }
 
+// ---------- Modrinth modpacks ----------
+
+const MODPACK_SORTS = new Set(['relevance', 'downloads', 'follows', 'newest', 'updated']);
+const PACK_LOADERS = ['fabric', 'quilt', 'forge', 'neoforge'];
+
+/** Modrinth modpack search; `loader` and `gameVersion` narrow it down. */
+async function searchModpacks({ query = '', offset = 0, sort, category, loader, gameVersion } = {}) {
+  const facets = [['project_type:modpack']];
+  if (PACK_LOADERS.includes(loader)) facets.push([`categories:${loader}`]);
+  if (gameVersion) facets.push([`versions:${String(gameVersion)}`]);
+  if (category) facets.push([`categories:${String(category)}`]);
+  const text = String(query).slice(0, 200);
+  const params = new URLSearchParams({
+    query: text,
+    facets: JSON.stringify(facets),
+    limit: '20',
+    offset: String(Math.max(0, Number(offset) || 0)),
+    index: MODPACK_SORTS.has(sort) ? sort : text ? 'relevance' : 'downloads',
+  });
+  const data = await content.modrinth(`/search?${params}`);
+  return {
+    total: data.total_hits,
+    hits: data.hits.map((h) => ({
+      projectId: h.project_id,
+      title: h.title,
+      description: h.description,
+      author: h.author,
+      iconUrl: h.icon_url || null,
+      downloads: h.downloads,
+      follows: h.follows,
+      updatedAt: h.date_modified,
+      loaders: (h.categories ?? []).filter((c) => PACK_LOADERS.includes(c)),
+      gameVersions: h.versions ?? [],
+    })),
+  };
+}
+
+/** A modpack's versions, newest first. */
+async function modpackVersions(projectId) {
+  const versions = await content.modrinth(`/project/${encodeURIComponent(projectId)}/version`);
+  return versions.map((v) => ({
+    id: v.id,
+    name: v.name,
+    versionNumber: v.version_number,
+    type: v.version_type,
+    gameVersions: v.game_versions,
+    loaders: v.loaders,
+    date: v.date_published,
+  }));
+}
+
+/** Downloads a Modrinth modpack version (the newest release by default) and imports it as a new profile. */
+async function installModpack(projectId, versionId, onProgress) {
+  const project = await content.modrinth(`/project/${encodeURIComponent(projectId)}`);
+  if (project.project_type !== 'modpack') throw new Error('That project isn’t a modpack.');
+  let version;
+  if (versionId) {
+    version = await content.modrinth(`/version/${encodeURIComponent(versionId)}`);
+    if (version.project_id !== project.id) throw new Error('That version belongs to a different project.');
+  } else {
+    const versions = await content.modrinth(`/project/${encodeURIComponent(project.id)}/version`);
+    version = versions.find((v) => v.version_type === 'release') ?? versions[0];
+    if (!version) throw new Error(`${project.title} has no versions to install.`);
+  }
+  const file = version.files.find((f) => f.primary && f.filename.endsWith('.mrpack')) ?? version.files.find((f) => f.filename.endsWith('.mrpack'));
+  if (!file || !allowedUrl(file.url)) throw new Error(`${project.title} ${version.version_number} has no Modrinth pack file.`);
+
+  onProgress({ label: `Downloading ${project.title}`, done: 0, total: 1 });
+  const tmp = path.join(paths.root(), 'tmp', `${file.hashes.sha1}.mrpack`);
+  try {
+    await download(file.url, tmp, { sha1: file.hashes.sha1, size: file.size });
+    const buf = await fsp.readFile(tmp);
+    return { profile: await importMrpack(new AdmZip(buf), buf, onProgress), missing: [] };
+  } finally {
+    await fsp.rm(tmp, { force: true });
+  }
+}
+
 // ---------- Export ----------
 
 /** Writes a profile to a .workbench file. `include` picks extra folders (see EXPORTABLE). */
@@ -290,4 +369,4 @@ async function exportWorkbench(profileId, include, filePath) {
   return { modsLinked: manifestMods.length };
 }
 
-module.exports = { importPack, exportWorkbench };
+module.exports = { importPack, exportWorkbench, searchModpacks, modpackVersions, installModpack };

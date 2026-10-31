@@ -89,3 +89,23 @@ run arbitrary code.
   `servers.dat_old`.
 - **electron/nbt.cjs**: a small uncompressed NBT reader/writer that keeps tag types for round trips.
 - **electron/ping.cjs**: Server List Ping (with SRV lookup) for status, player count, MOTD and icon.
+
+## Mod problems and crashes
+
+- **electron/diagnose.cjs** reads each enabled mod jar's own metadata (`fabric.mod.json`,
+  `quilt.mod.json`, `META-INF/mods.toml`, `META-INF/neoforge.mods.toml`, plus bundled jars) and reports
+  missing dependencies, declared incompatibilities, duplicate copies, mods for another Minecraft
+  version or loader, and loaders that are too old. Version checks only report a problem when a range
+  can be read for certain, so unusual version schemes never cause false alarms.
+- When the game exits with an error (or a loader stops it with an in-game error screen), the launch
+  log and newest crash report are read for known causes: missing mods, out of memory, wrong Java,
+  mixin failures and crash-report suspects. Each problem comes with fixes (disable a mod, install a
+  missing one from Modrinth, open settings).
+
+## Skins, screenshots and modpacks
+
+- **electron/skins.cjs**: the account's skin and cape through Mojang's profile API, and a local skin
+  library in `<userData>/skins`.
+- **electron/screenshots.cjs**: each profile's `screenshots/` folder, with cached thumbnails served
+  over `workbench://screenshot/…`.
+- Modrinth modpacks install through the same `.mrpack` importer as files do (`packs.installModpack`).

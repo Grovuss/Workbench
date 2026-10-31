@@ -1,5 +1,6 @@
 const { BrowserWindow } = require('electron');
 const auth = require('./auth.cjs');
+const diagnose = require('./diagnose.cjs');
 const profiles = require('./profiles.cjs');
 const settings = require('./settings.cjs');
 const { launchGame } = require('./launcher/launch.cjs');
@@ -38,6 +39,7 @@ async function launch(profileId, quickPlay) {
     broadcast({ type: 'progress', profileId, ...p });
   };
 
+  const startedAt = Date.now();
   try {
     const account = await auth.getLaunchAccount();
     const profile = await profiles.get(profileId);
@@ -82,9 +84,16 @@ async function launch(profileId, quickPlay) {
       if (message && !session.stopping) broadcast({ type: 'error', profileId, message });
     };
     child.once('error', (err) => end(`Couldn't start Minecraft: ${err.message}`));
-    child.once('exit', (code) =>
-      end(code ? `Minecraft exited with code ${code}. Details are in ${logFile}` : null),
-    );
+    child.once('exit', (code) => {
+      if (ended) return; // it never started
+      end(null);
+      if (session.stopping) return;
+      // Explain crashes (and loader errors shown in game, which exit normally) instead of just reporting the exit code.
+      diagnose
+        .analyzeCrash(profileId, startedAt, code)
+        .then((report) => report && broadcast({ type: 'crash', profileId, report }))
+        .catch(() => code && broadcast({ type: 'error', profileId, message: `Minecraft exited with code ${code}. Details are in ${logFile}` }));
+    });
   } catch (err) {
     sessions.delete(profileId);
     setState(profileId, 'idle');

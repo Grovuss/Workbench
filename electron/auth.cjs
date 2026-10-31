@@ -263,7 +263,7 @@ async function getLaunchAccount() {
   const activeId = publicState(store).activeId;
   const dev = devOffline();
   if (dev && activeId === dev.id) {
-    return { uuid: offlineUuid(dev.name), name: dev.name, accessToken: '0' };
+    return { uuid: offlineUuid(dev.name), name: dev.name, accessToken: '0', offline: true };
   }
   const stored = store.accounts.find((a) => a.id === activeId);
   if (!stored) throw new Error('Sign in with a Microsoft account to play.');
@@ -288,4 +288,15 @@ async function getLaunchAccount() {
   return { uuid: mc.uuid, name: mc.name, accessToken: mc.accessToken };
 }
 
-module.exports = { listAccounts, login, logout, setActive, getLaunchAccount };
+/** Remembers a changed skin so the account's head updates without signing in again. */
+function setSkinUrl(id, skinUrl) {
+  return withLock(async () => {
+    const store = await loadStore();
+    const account = store.accounts.find((a) => a.id === id);
+    if (!account) return;
+    account.skinUrl = skinUrl;
+    await writeJson(file(), store);
+  });
+}
+
+module.exports = { listAccounts, login, logout, setActive, getLaunchAccount, setSkinUrl };
