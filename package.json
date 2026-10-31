@@ -1,7 +1,7 @@
 {
   "name": "workbench",
   "productName": "Workbench",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Workbench – a Minecraft launcher and modpack manager",
   "private": true,
   "main": "electron/main.cjs",

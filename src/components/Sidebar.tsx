@@ -1,5 +1,6 @@
 import { Compass, Layers, Settings, Shirt, type LucideIcon } from 'lucide-react';
 import AccountMenu from './AccountMenu';
+import { version } from '../../package.json';
 import type { AccountsState, Page } from '../types';
 
 const NAV: { id: Page; label: string; icon: LucideIcon }[] = [
@@ -37,7 +38,7 @@ export default function Sidebar({ page, onNavigate, accounts, onLogin, onSwitchA
 
       <div className="sidebar-footer">
         <AccountMenu accounts={accounts} onLogin={onLogin} onSwitch={onSwitchAccount} onLogout={onLogout} />
-        <span className="sidebar-version">Workbench v0.2</span>
+        <span className="sidebar-version">Workbench v{version}</span>
       </div>
     </aside>
   );
