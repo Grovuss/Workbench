@@ -1,6 +1,8 @@
 const fsp = require('node:fs/promises');
+const path = require('node:path');
 const { BrowserWindow, ipcMain, shell } = require('electron');
 const paths = require('./paths.cjs');
+const { titleBarOverlay } = require('./titlebar.cjs');
 const auth = require('./auth.cjs');
 const game = require('./game.cjs');
 const profiles = require('./profiles.cjs');
@@ -20,6 +22,8 @@ function handle(channel, fn) {
   });
 }
 
+const PROFILE_SUBFOLDERS = new Set(['saves', 'screenshots', 'logs', 'resourcepacks']);
+
 async function openDir(dir) {
   await fsp.mkdir(dir, { recursive: true });
   const err = await shell.openPath(dir);
@@ -33,9 +37,13 @@ function registerIpc() {
     if (game.isActive(id)) throw new Error('Stop the game before deleting this profile.');
     return profiles.remove(id);
   });
-  handle('profiles:openFolder', async (_e, id) => {
+  handle('profiles:rename', (_e, id, name) => profiles.rename(id, name));
+  handle('profiles:worlds', (_e, id) => profiles.listWorlds(id));
+  handle('profiles:readLog', (_e, id) => profiles.readLog(id));
+  handle('profiles:openFolder', async (_e, id, sub) => {
+    if (sub !== undefined && !PROFILE_SUBFOLDERS.has(sub)) throw new Error('Unknown folder.');
     await profiles.get(id);
-    await openDir(profiles.gameDir(id));
+    await openDir(path.join(profiles.gameDir(id), sub ?? ''));
   });
 
   handle('versions:list', async () =>
@@ -61,6 +69,11 @@ function registerIpc() {
 
   handle('system:info', () => ({ totalMemoryMb: settings.totalMemoryMb(), dataDir: paths.root() }));
   handle('system:openDataFolder', () => openDir(paths.root()));
+
+  handle('window:setTheme', (e, dark) => {
+    const win = BrowserWindow.fromWebContents(e.sender);
+    if (win && process.platform !== 'darwin') win.setTitleBarOverlay(titleBarOverlay(Boolean(dark)));
+  });
 }
 
 module.exports = { registerIpc };

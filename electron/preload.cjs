@@ -12,7 +12,10 @@ contextBridge.exposeInMainWorld('workbench', {
     list: () => invoke('profiles:list'),
     create: (input) => invoke('profiles:create', input),
     delete: (id) => invoke('profiles:delete', id),
-    openFolder: (id) => invoke('profiles:openFolder', id),
+    rename: (id, name) => invoke('profiles:rename', id, name),
+    worlds: (id) => invoke('profiles:worlds', id),
+    readLog: (id) => invoke('profiles:readLog', id),
+    openFolder: (id, sub) => invoke('profiles:openFolder', id, sub),
   },
   versions: {
     list: () => invoke('versions:list'),
@@ -40,5 +43,8 @@ contextBridge.exposeInMainWorld('workbench', {
   system: {
     info: () => invoke('system:info'),
     openDataFolder: () => invoke('system:openDataFolder'),
+  },
+  window: {
+    setTheme: (dark) => invoke('window:setTheme', dark),
   },
 });

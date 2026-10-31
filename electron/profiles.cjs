@@ -53,6 +53,59 @@ function update(id, patch) {
   });
 }
 
+function rename(id, name) {
+  const clean = String(name ?? '').trim().slice(0, 48);
+  if (!clean) throw new Error('Profile name can’t be empty.');
+  return update(id, { name: clean });
+}
+
+async function listWorlds(id) {
+  await get(id);
+  const savesDir = path.join(gameDir(id), 'saves');
+  const entries = await fsp.readdir(savesDir, { withFileTypes: true }).catch(() => []);
+  const worlds = [];
+  for (const entry of entries) {
+    if (!entry.isDirectory()) continue;
+    const dir = path.join(savesDir, entry.name);
+    const stat = await fsp.stat(path.join(dir, 'level.dat')).catch(() => null);
+    if (!stat) continue;
+    const icon = await fsp.readFile(path.join(dir, 'icon.png')).catch(() => null);
+    worlds.push({
+      folder: entry.name,
+      lastPlayedAt: stat.mtime.toISOString(),
+      icon: icon ? `data:image/png;base64,${icon.toString('base64')}` : null,
+    });
+  }
+  return worlds.sort((a, b) => b.lastPlayedAt.localeCompare(a.lastPlayedAt));
+}
+
+const LOG_TAIL_BYTES = 512 * 1024;
+
+// Older versions print "Session ID is token:<accessToken>:<uuid>"; access tokens are JWTs.
+// Hide both so logs are safe to view and share.
+function redactTokens(text) {
+  return text
+    .replace(/token:[^:\s\]]+:/g, 'token:<hidden>:')
+    .replace(/eyJ[\w-]+\.[\w-]+\.[\w-]+/g, '<hidden token>');
+}
+
+/** The tail of the profile's last launch log, or null if it has never been launched. */
+async function readLog(id) {
+  await get(id);
+  const file = path.join(gameDir(id), 'logs', 'workbench-launch.log');
+  const handle = await fsp.open(file).catch(() => null);
+  if (!handle) return null;
+  try {
+    const { size } = await handle.stat();
+    const length = Math.min(size, LOG_TAIL_BYTES);
+    const buf = Buffer.alloc(length);
+    await handle.read(buf, 0, length, size - length);
+    return redactTokens(buf.toString('utf8'));
+  } finally {
+    await handle.close();
+  }
+}
+
 function remove(id) {
   return withLock(async () => {
     const all = await load();
@@ -63,4 +116,4 @@ function remove(id) {
   });
 }
 
-module.exports = { list: load, get, create, update, remove, gameDir };
+module.exports = { list: load, get, create, update, rename, remove, listWorlds, readLog, gameDir };

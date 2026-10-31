@@ -1,9 +1,16 @@
 const { app, BrowserWindow, nativeTheme } = require('electron');
 const path = require('node:path');
 const { registerIpc } = require('./ipc.cjs');
+const { titleBarOverlay } = require('./titlebar.cjs');
 
 function createWindow() {
+  const frame =
+    process.platform === 'darwin'
+      ? { titleBarStyle: 'hidden', trafficLightPosition: { x: 16, y: 16 } }
+      : { titleBarStyle: 'hidden', titleBarOverlay: titleBarOverlay(nativeTheme.shouldUseDarkColors) };
+
   const win = new BrowserWindow({
+    ...frame,
     width: 1160,
     height: 770,
     minWidth: 900,

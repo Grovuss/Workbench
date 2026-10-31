@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { api } from './api';
 import type { ThemePreference } from './types';
 
 const STORAGE_KEY = 'workbench.theme';
@@ -21,6 +22,7 @@ export function useTheme() {
     const apply = () => {
       const resolved = preference === 'system' ? (media.matches ? 'dark' : 'light') : preference;
       document.documentElement.dataset.theme = resolved;
+      api.window.setTheme(resolved === 'dark').catch(() => {});
     };
     apply();
     try {

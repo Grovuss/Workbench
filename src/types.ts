@@ -1,5 +1,16 @@
 export type Page = 'profiles' | 'import' | 'mods' | 'settings';
 
+export type Route = { page: Page } | { page: 'profile'; id: string };
+
+export type ProfileFolder = 'saves' | 'screenshots' | 'logs' | 'resourcepacks';
+
+export interface World {
+  folder: string;
+  lastPlayedAt: string;
+  /** data: URL of the world's icon.png, if it has one. */
+  icon: string | null;
+}
+
 export type ThemePreference = 'light' | 'dark' | 'system';
 
 export type Loader = 'vanilla';
@@ -68,7 +79,11 @@ export interface WorkbenchApi {
     list(): Promise<Profile[]>;
     create(input: { name: string; mcVersion: string }): Promise<Profile>;
     delete(id: string): Promise<void>;
-    openFolder(id: string): Promise<void>;
+    rename(id: string, name: string): Promise<Profile>;
+    worlds(id: string): Promise<World[]>;
+    /** Tail of the last launch log, or null if never launched. */
+    readLog(id: string): Promise<string | null>;
+    openFolder(id: string, sub?: ProfileFolder): Promise<void>;
   };
   versions: {
     list(): Promise<McVersion[]>;
@@ -93,6 +108,9 @@ export interface WorkbenchApi {
   system: {
     info(): Promise<SystemInfo>;
     openDataFolder(): Promise<void>;
+  };
+  window: {
+    setTheme(dark: boolean): Promise<void>;
   };
 }
 

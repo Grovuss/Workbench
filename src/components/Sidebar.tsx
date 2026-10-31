@@ -1,5 +1,4 @@
 import { Layers, Package, Puzzle, Settings, type LucideIcon } from 'lucide-react';
-import logo from '../assets/logo.svg';
 import AccountMenu from './AccountMenu';
 import type { AccountsState, Page } from '../types';
 
@@ -22,11 +21,6 @@ interface Props {
 export default function Sidebar({ page, onNavigate, accounts, onLogin, onSwitchAccount, onLogout }: Props) {
   return (
     <aside className="sidebar">
-      <div className="logo">
-        <img src={logo} alt="" />
-        <span className="logo-text">workbench</span>
-      </div>
-
       <nav className="nav" aria-label="Main">
         {NAV.map(({ id, label, icon: Icon }) => (
           <button

@@ -8,6 +8,9 @@ import '@fontsource/nunito-sans/800.css';
 import './styles.css';
 import App from './App';
 
+// Title bar layout differs per OS (window controls right on Windows, left on macOS).
+document.documentElement.dataset.platform = window.workbench.platform;
+
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <App />

@@ -1,79 +1,65 @@
-import { FolderOpen, LoaderCircle, Play, Square, Trash2 } from 'lucide-react';
+import type { KeyboardEvent, MouseEvent } from 'react';
 import logo from '../assets/logo.svg';
+import PlayButton from './PlayButton';
+import ProgressBar, { progressPercent } from './ProgressBar';
 import { timeAgo } from '../time';
 import type { LaunchStatus, Profile } from '../types';
 
 interface Props {
   profile: Profile;
   launch?: LaunchStatus;
+  onOpen: () => void;
   onPlay: () => void;
   onStop: () => void;
-  onOpenFolder: () => void;
-  onDelete: () => void;
 }
 
-export default function ProfileRow({ profile, launch, onPlay, onStop, onOpenFolder, onDelete }: Props) {
+export default function ProfileRow({ profile, launch, onOpen, onPlay, onStop }: Props) {
   const state = launch?.state ?? 'idle';
   const progress = launch?.progress;
-  const percent = progress?.total ? Math.floor((progress.done / progress.total) * 100) : 0;
 
-  let meta: string;
-  if (state === 'installing') {
-    meta = progress
-      ? `${progress.label} · ${progress.done.toLocaleString()} / ${progress.total.toLocaleString()}`
-      : 'Preparing…';
-  } else {
-    meta = profile.lastPlayedAt ? `Played ${timeAgo(profile.lastPlayedAt)}` : 'Never played';
-  }
+  const onKeyDown = (e: KeyboardEvent) => {
+    if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) {
+      e.preventDefault();
+      onOpen();
+    }
+  };
+  // Keep clicks on the play button from also opening the profile.
+  const stop = (e: MouseEvent) => e.stopPropagation();
 
   return (
-    <div className="profile-row" data-state={state}>
+    <div className="profile-row" role="link" tabIndex={0} onClick={onOpen} onKeyDown={onKeyDown}>
       <div className="profile-icon">
         <img src={logo} alt="" />
       </div>
 
       <div className="profile-info">
         <div className="profile-name">
-          {profile.name}
-          <span className="badge badge-vanilla">Vanilla {profile.mcVersion}</span>
+          <span className="profile-name-text">{profile.name}</span>
           {state === 'running' && (
             <span className="badge badge-running">
               <span className="running-dot" /> Running
             </span>
           )}
         </div>
-        <div className="profile-meta">{meta}</div>
-      </div>
 
-      <div className="profile-actions">
-        <button className="btn btn-ghost" onClick={onOpenFolder}>
-          <FolderOpen size={15} /> Folder
-        </button>
-        <button className="btn btn-ghost btn-danger" onClick={onDelete} disabled={state !== 'idle'}>
-          <Trash2 size={15} /> Delete
-        </button>
-        {state === 'idle' && (
-          <button className="btn btn-primary btn-play" onClick={onPlay}>
-            <Play size={15} fill="currentColor" /> Play
-          </button>
-        )}
-        {state === 'installing' && (
-          <button className="btn btn-primary btn-play" disabled>
-            <LoaderCircle size={15} className="spin" /> {progress ? `${percent}%` : 'Starting'}
-          </button>
-        )}
-        {state === 'running' && (
-          <button className="btn btn-stop btn-play" onClick={onStop}>
-            <Square size={13} fill="currentColor" /> Stop
-          </button>
+        {state === 'installing' ? (
+          <div className="profile-row-progress">
+            <span className="profile-meta">{progress?.label ?? 'Preparing…'}</span>
+            <ProgressBar value={progressPercent(progress)} size="sm" label={`Installing ${profile.name}`} />
+          </div>
+        ) : (
+          <div className="profile-meta">
+            <span className="badge badge-vanilla">Vanilla</span>
+            {profile.mcVersion}
+            <span className="dot">·</span>
+            {profile.lastPlayedAt ? `Played ${timeAgo(profile.lastPlayedAt)}` : 'Never played'}
+          </div>
         )}
       </div>
 
-      {state === 'installing' && (
-        <div className="profile-progress" aria-hidden="true">
-          <div style={{ width: `${percent}%` }} />
-        </div>
-      )}
+      <div className="profile-actions" onClick={stop}>
+        <PlayButton launch={launch} onPlay={onPlay} onStop={onStop} />
+      </div>
     </div>
   );
 }
