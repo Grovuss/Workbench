@@ -6,7 +6,7 @@ import { DEFAULT_RESOLUTION, MemorySlider, ResolutionFields } from '../GameContr
 import VersionPicker, { isCompleteSelection } from '../VersionPicker';
 import { api, errorMessage } from '../../api';
 import { formatGb, maxMemoryMb } from '../../format';
-import type { Profile, ProfileSettings, VersionSelection } from '../../types';
+import type { Profile, ProfileSettings, Settings, VersionSelection } from '../../types';
 
 interface Props {
   profile: Profile;
@@ -173,9 +173,15 @@ function VersionSection({ profile, busy, onUpdated, onError }: SectionProps & { 
   );
 }
 
+const FULLSCREEN_CHOICES: { label: string; value: boolean | null }[] = [
+  { label: 'Default', value: null },
+  { label: 'Windowed', value: false },
+  { label: 'Fullscreen', value: true },
+];
+
 function GameSection({ profile, onUpdated, onError }: SectionProps) {
   const [draft, setDraft] = useState<ProfileSettings>(profile.settings);
-  const [globalMemory, setGlobalMemory] = useState<number | null>(null);
+  const [global, setGlobal] = useState<Settings | null>(null);
   const [totalMemory, setTotalMemory] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
   const dirty = JSON.stringify(draft) !== JSON.stringify(profile.settings);
@@ -183,7 +189,7 @@ function GameSection({ profile, onUpdated, onError }: SectionProps) {
   useEffect(() => {
     Promise.all([api.settings.get(), api.system.info()])
       .then(([s, info]) => {
-        setGlobalMemory(s.memoryMb);
+        setGlobal(s);
         setTotalMemory(info.totalMemoryMb);
       })
       .catch((err) => onError(errorMessage(err)));
@@ -207,6 +213,8 @@ function GameSection({ profile, onUpdated, onError }: SectionProps) {
 
   const maxMemory = totalMemory ? maxMemoryMb(totalMemory) : 8192;
   const resolution = draft.resolution;
+  const globalMemory = global?.memoryMb ?? null;
+  const customCommands = draft.preLaunchCommand !== null || draft.postExitCommand !== null;
 
   return (
     <form className="settings-group" onSubmit={save}>
@@ -258,6 +266,81 @@ function GameSection({ profile, onUpdated, onError }: SectionProps) {
           />
         </div>
       </div>
+
+      <div className="settings-row">
+        <div>
+          <h3>Fullscreen</h3>
+          <p>
+            {draft.fullscreen === null
+              ? `Using the global setting${global ? ` (${global.fullscreen ? 'fullscreen' : 'windowed'})` : ''}.`
+              : 'How this profile opens. F11 switches in game.'}
+          </p>
+        </div>
+        <div className="segmented" role="group" aria-label="Fullscreen">
+          {FULLSCREEN_CHOICES.map((choice) => (
+            <button
+              type="button"
+              key={choice.label}
+              aria-pressed={draft.fullscreen === choice.value}
+              onClick={() => set({ fullscreen: choice.value })}
+            >
+              {choice.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="settings-row">
+        <div>
+          <h3>Launch commands</h3>
+          <p>
+            {customCommands
+              ? 'Used instead of the ones in Settings. Leave a box empty to run nothing.'
+              : 'Using the commands from Settings, if any.'}
+          </p>
+        </div>
+        <Toggle
+          label="Custom launch commands"
+          checked={customCommands}
+          onChange={(on) =>
+            set(
+              on
+                ? { preLaunchCommand: global?.preLaunchCommand ?? '', postExitCommand: global?.postExitCommand ?? '' }
+                : { preLaunchCommand: null, postExitCommand: null },
+            )
+          }
+        />
+      </div>
+      {customCommands && (
+        <>
+          <div className="settings-row">
+            <div>
+              <h3>Before launch</h3>
+              <p>Runs in the profile’s folder; the game waits for it.</p>
+            </div>
+            <input
+              className="input input-mono inline-field"
+              value={draft.preLaunchCommand ?? ''}
+              spellCheck={false}
+              onChange={(e) => set({ preLaunchCommand: e.target.value })}
+              aria-label="Before launch command"
+            />
+          </div>
+          <div className="settings-row">
+            <div>
+              <h3>After the game closes</h3>
+              <p>Runs in the profile’s folder once the game has exited.</p>
+            </div>
+            <input
+              className="input input-mono inline-field"
+              value={draft.postExitCommand ?? ''}
+              spellCheck={false}
+              onChange={(e) => set({ postExitCommand: e.target.value })}
+              aria-label="After the game closes command"
+            />
+          </div>
+        </>
+      )}
 
       {dirty && (
         <div className="settings-row settings-save-row">

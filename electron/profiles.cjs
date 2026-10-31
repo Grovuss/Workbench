@@ -21,7 +21,15 @@ function normalize(p) {
     pack: null,
     playtimeMs: 0,
     ...p,
-    settings: { memoryMb: null, jvmArgs: '', resolution: null, ...p.settings },
+    settings: {
+      memoryMb: null,
+      jvmArgs: '',
+      resolution: null,
+      fullscreen: null,
+      preLaunchCommand: null,
+      postExitCommand: null,
+      ...p.settings,
+    },
   };
 }
 
@@ -175,6 +183,13 @@ function cleanSettings(patch) {
       }
       clean.resolution = { width, height };
     }
+  }
+  if ('fullscreen' in patch) {
+    clean.fullscreen = patch.fullscreen === null ? null : Boolean(patch.fullscreen);
+  }
+  // null means "use the global command"; an empty string means "run nothing for this profile".
+  for (const key of ['preLaunchCommand', 'postExitCommand']) {
+    if (key in patch) clean[key] = patch[key] === null ? null : String(patch[key] ?? '').trim().slice(0, 2000);
   }
   return clean;
 }

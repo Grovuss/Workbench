@@ -93,16 +93,19 @@ async function launch(profileId, quickPlay) {
     const profile = await profiles.get(profileId);
     const global = await settings.get();
     const gameDir = profiles.gameDir(profileId);
-    if (global.preLaunchCommand.trim()) await runPreLaunch(global.preLaunchCommand, profile, gameDir);
+    const own = profile.settings;
+    const preLaunch = own.preLaunchCommand ?? global.preLaunchCommand;
+    const postExit = own.postExitCommand ?? global.postExitCommand;
+    if (preLaunch.trim()) await runPreLaunch(preLaunch, profile, gameDir);
     const { child, logFile } = await launchGame({
       profile,
       gameDir,
       account,
-      memoryMb: profile.settings.memoryMb ?? global.memoryMb,
+      memoryMb: own.memoryMb ?? global.memoryMb,
       // The profile's own arguments come last, so they win.
-      jvmArgs: [global.jvmArgs, profile.settings.jvmArgs].filter((a) => a.trim()).join(' '),
-      resolution: profile.settings.resolution ?? global.resolution,
-      fullscreen: global.fullscreen,
+      jvmArgs: [global.jvmArgs, own.jvmArgs].filter((a) => a.trim()).join(' '),
+      resolution: own.resolution ?? global.resolution,
+      fullscreen: own.fullscreen ?? global.fullscreen,
       downloadThreads: global.downloadThreads,
       quickPlay,
       onProgress,
@@ -138,7 +141,7 @@ async function launch(profileId, quickPlay) {
       setState(profileId, 'idle');
       discord.stopped(profileId);
       comeBack(global.onLaunch);
-      if (global.postExitCommand.trim()) runPostExit(global.postExitCommand, profile, gameDir);
+      if (postExit.trim()) runPostExit(postExit, profile, gameDir);
       // Worlds played this session get a backup, if they changed.
       require('./worlds.cjs')
         .backupChanged(profileId)

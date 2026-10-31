@@ -173,10 +173,15 @@ export interface Resolution {
 }
 
 /** Per-profile overrides; null/empty means "use the global setting". */
+/** A profile's own game settings; null means it uses the one from Settings. */
 export interface ProfileSettings {
   memoryMb: number | null;
   jvmArgs: string;
   resolution: Resolution | null;
+  fullscreen: boolean | null;
+  /** An empty string runs nothing for this profile, even if Settings has a command. */
+  preLaunchCommand: string | null;
+  postExitCommand: string | null;
 }
 
 export interface Profile extends VersionSelection {
