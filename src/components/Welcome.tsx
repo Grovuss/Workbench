@@ -16,7 +16,7 @@ export type WelcomeChoice = 'new' | 'import' | 'browse' | 'none';
 interface Props {
   accounts: AccountsState;
   onLogin: () => void;
-  theme: ThemePreference;
+  theme: string;
   onThemeChange: (theme: ThemePreference) => void;
   /** Ends the welcome; the choice says where to go next. */
   onDone: (choice: WelcomeChoice) => void;

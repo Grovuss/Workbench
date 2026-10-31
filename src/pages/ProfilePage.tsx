@@ -2,12 +2,15 @@ import { useState, type FormEvent, type ReactNode } from 'react';
 import {
   FileArchive,
   FileCog,
+  FolderInput,
   FolderOpen,
   Globe,
   Image,
   ImagePlus,
   Info,
   MoreHorizontal,
+  Pin,
+  PinOff,
   Package,
   QrCode,
   Server,
@@ -30,6 +33,7 @@ import ScreenshotsTab from '../components/profile/ScreenshotsTab';
 import ConfigsTab from '../components/profile/ConfigsTab';
 import { ModpackUpdateBanner, ServerPackModal, ShareCodeModal } from '../components/profile/ShareTools';
 import Dropdown from '../components/Dropdown';
+import GroupModal from '../components/GroupModal';
 import { api, errorMessage } from '../api';
 import { contentBlockedReason } from '../content';
 import { formatPlaytime, timeAgo } from '../time';
@@ -55,6 +59,8 @@ const PROFILE_KINDS: ContentKind[] = ['mod', 'resourcepack', 'shader'];
 interface Props {
   profile: Profile;
   launch?: LaunchStatus;
+  /** Every profile group, for moving this one into another. */
+  groups: string[];
   /** Tab to open on, e.g. settings after a crash caused by too little memory. */
   initialTab?: ProfileTab;
   /** Starts the game, optionally straight into a server or world. */
@@ -70,6 +76,7 @@ interface Props {
 export default function ProfilePage({
   profile,
   launch,
+  groups,
   initialTab = 'content',
   onPlay,
   onStop,
@@ -85,6 +92,12 @@ export default function ProfilePage({
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [sharing, setSharing] = useState<'workbench' | 'code' | 'server' | null>(null);
+  const [grouping, setGrouping] = useState(false);
+  const organize = (patch: { group?: string | null; pinned?: boolean }) =>
+    api.profiles
+      .organize(profile.id, patch)
+      .then(onUpdated)
+      .catch((err) => onError(errorMessage(err)));
   const running = launch?.state === 'running';
   const playtime = formatPlaytime(profile.playtimeMs);
   const changeIcon = () =>
@@ -140,6 +153,17 @@ export default function ProfilePage({
                     icon: <ImagePlus size={16} />,
                     label: 'Change icon',
                     onSelect: changeIcon,
+                  },
+                  {
+                    icon: profile.pinned ? <PinOff size={16} /> : <Pin size={16} />,
+                    label: profile.pinned ? 'Unpin from sidebar' : 'Pin to sidebar',
+                    onSelect: () => organize({ pinned: !profile.pinned }),
+                  },
+                  {
+                    icon: <FolderInput size={16} />,
+                    label: profile.group ? 'Change group' : 'Add to a group',
+                    hint: profile.group ? `In “${profile.group}”` : undefined,
+                    onSelect: () => setGrouping(true),
                   },
                   {
                     section: 'Share',
@@ -297,6 +321,17 @@ export default function ProfilePage({
         <ExportModal profile={profile} onClose={() => setSharing(null)} onExported={onSuccess} onError={onError} />
       )}
       {sharing === 'code' && <ShareCodeModal profile={profile} onClose={() => setSharing(null)} />}
+      {grouping && (
+        <GroupModal
+          title={profile.group ? 'Change group' : 'Add to a group'}
+          initial={profile.group}
+          groups={groups}
+          submitLabel={profile.group ? 'Move' : 'Add'}
+          removeLabel="Remove from group"
+          onSubmit={(group) => organize({ group })}
+          onClose={() => setGrouping(false)}
+        />
+      )}
       {sharing === 'server' && <ServerPackModal profile={profile} onClose={() => setSharing(null)} onSuccess={onSuccess} />}
 
       {confirmingDelete && (

@@ -5,6 +5,7 @@ const { registerIpc } = require('./ipc.cjs');
 const { titleBarOverlay } = require('./titlebar.cjs');
 const icons = require('./icons.cjs');
 const screenshots = require('./screenshots.cjs');
+const background = require('./background.cjs');
 const skins = require('./skins.cjs');
 const opened = require('./opened.cjs');
 const updater = require('./updater.cjs');
@@ -51,6 +52,10 @@ function registerProtocol() {
         if (image) return new Response(image.buf, { headers: { 'Content-Type': image.type } });
       }
     }
+    if (url.hostname === 'background') {
+      const image = await background.read();
+      if (image) return new Response(image.buf, { headers: { 'Content-Type': image.type, 'Cache-Control': 'no-cache' } });
+    }
     if (url.hostname === 'skin') {
       const buf = await skins.read(id);
       if (buf) return new Response(buf, { headers: { 'Content-Type': 'image/png' } });
@@ -59,21 +64,21 @@ function registerProtocol() {
   });
 }
 
-/** Whether the app was dark when it last ran, so the window opens in the right colours. */
-function lastDark() {
+/** How the app looked when it last ran ({ dark, background, sidebar, text, zoom }), so the window opens that way. */
+function lastLook() {
   try {
-    return Boolean(JSON.parse(fs.readFileSync(path.join(app.getPath('userData'), 'window.json'), 'utf8')).dark);
+    return JSON.parse(fs.readFileSync(path.join(app.getPath('userData'), 'window.json'), 'utf8'));
   } catch {
-    return nativeTheme.shouldUseDarkColors;
+    return { dark: nativeTheme.shouldUseDarkColors };
   }
 }
 
 function createWindow() {
-  const dark = lastDark();
+  const look = lastLook();
   const frame =
     process.platform === 'darwin'
       ? { titleBarStyle: 'hidden', trafficLightPosition: { x: 16, y: 16 } }
-      : { titleBarStyle: 'hidden', titleBarOverlay: titleBarOverlay(dark) };
+      : { titleBarStyle: 'hidden', titleBarOverlay: titleBarOverlay(look) };
 
   const win = new BrowserWindow({
     ...frame,
@@ -83,7 +88,7 @@ function createWindow() {
     minHeight: 600,
     title: 'Workbench',
     icon: path.join(__dirname, '..', 'build', 'icon.png'),
-    backgroundColor: dark ? '#1c1c1d' : '#fef3dd',
+    backgroundColor: look.background ?? (look.dark ? '#1c1c1d' : '#fef3dd'),
     // Shown once the splash has painted, so it never opens blank.
     show: false,
     autoHideMenuBar: true,
@@ -91,6 +96,7 @@ function createWindow() {
       preload: path.join(__dirname, 'preload.cjs'),
       contextIsolation: true,
       nodeIntegration: false,
+      zoomFactor: look.zoom ?? 1,
     },
   });
 

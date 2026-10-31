@@ -1,7 +1,6 @@
 const ITEMS = [
   { title: 'CurseForge Packs', body: 'Import CurseForge modpacks (waiting on an API key)' },
-  { title: 'Open .workbench Files', body: 'Double-click a pack to import it' },
-  { title: 'Windows Installer', body: 'Install Workbench like any other app' },
+  { title: 'Microsoft sign-in', body: 'Play online with your own account (waiting on approval)' },
 ];
 
 export default function ComingSoon() {

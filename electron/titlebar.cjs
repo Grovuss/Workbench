@@ -1,12 +1,12 @@
 // Native window controls drawn over our custom title bar (Windows/Linux).
-// Colors match --bg-sidebar and --text in src/styles.css.
 const TITLEBAR_HEIGHT = 48;
 
-function titleBarOverlay(dark) {
+/** `look` is what the renderer last reported: { dark, sidebar, text, zoom }. */
+function titleBarOverlay(look) {
   return {
-    color: dark ? '#161617' : '#fffdf8',
-    symbolColor: dark ? '#f6f1e6' : '#2a2a2b',
-    height: TITLEBAR_HEIGHT,
+    color: look.sidebar ?? (look.dark ? '#161617' : '#fffdf8'),
+    symbolColor: look.text ?? (look.dark ? '#f6f1e6' : '#2a2a2b'),
+    height: Math.round(TITLEBAR_HEIGHT * (look.zoom ?? 1)),
   };
 }
 

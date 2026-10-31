@@ -6,11 +6,22 @@
     <link rel="icon" type="image/png" href="./favicon.png" />
     <title>Workbench</title>
     <script>
-      // The saved theme, before anything paints, so the first frame is already the right colour.
+      // The saved look, before anything paints, so the first frame is already the right colour.
+      // src/appearance.ts writes this cache each time the appearance changes.
       try {
-        var pref = localStorage.getItem('workbench.theme');
-        var dark = pref === 'dark' || (pref !== 'light' && matchMedia('(prefers-color-scheme: dark)').matches);
-        document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+        var root = document.documentElement;
+        var look = JSON.parse(localStorage.getItem('workbench.appearanceCache') || 'null');
+        if (look) {
+          root.dataset.theme = look.theme;
+          if (look.palette) root.dataset.palette = look.palette;
+          if (look.density) root.dataset.density = look.density;
+          for (var name in look.vars) root.style.setProperty(name, look.vars[name]);
+          if (look.background) root.style.setProperty('--splash-bg', look.background);
+        } else {
+          var pref = localStorage.getItem('workbench.theme');
+          var dark = pref === 'dark' || (pref !== 'light' && matchMedia('(prefers-color-scheme: dark)').matches);
+          root.dataset.theme = dark ? 'dark' : 'light';
+        }
       } catch (e) {}
     </script>
     <style>
@@ -18,11 +29,11 @@
       html,
       body {
         margin: 0;
-        background: #fef3dd;
+        background: var(--splash-bg, #fef3dd);
       }
       html[data-theme='dark'],
       html[data-theme='dark'] body {
-        background: #1c1c1d;
+        background: var(--splash-bg, #1c1c1d);
       }
       #splash {
         position: fixed;

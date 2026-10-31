@@ -20,6 +20,9 @@ function normalize(p) {
     cover: null,
     pack: null,
     playtimeMs: 0,
+    // A folder on the profiles page, and whether it's in the sidebar.
+    group: null,
+    pinned: false,
     ...p,
     settings: {
       memoryMb: null,
@@ -105,6 +108,7 @@ async function duplicate(id, name) {
     createdAt: new Date().toISOString(),
     lastPlayedAt: null,
     playtimeMs: 0,
+    pinned: false,
   });
   const from = gameDir(id);
   try {
@@ -194,6 +198,30 @@ function cleanSettings(patch) {
   return clean;
 }
 
+const cleanGroup = (group) => {
+  const name = String(group ?? '').trim().slice(0, 40);
+  return name || null;
+};
+
+/** Moves a profile into a group (null for none) and/or pins it to the sidebar. */
+function organize(id, patch) {
+  const clean = {};
+  if ('group' in (patch ?? {})) clean.group = cleanGroup(patch.group);
+  if ('pinned' in (patch ?? {})) clean.pinned = Boolean(patch.pinned);
+  return update(id, clean);
+}
+
+/** Renames a group on every profile in it; a null name takes them out of the group. */
+function renameGroup(from, to) {
+  const name = cleanGroup(to);
+  return withLock(async () => {
+    const all = await load();
+    for (const p of all) if (p.group === from) p.group = name;
+    await writeJson(file(), all);
+    return all;
+  });
+}
+
 function updateSettings(id, patch) {
   const clean = cleanSettings(patch ?? {});
   return withLock(async () => {
@@ -253,6 +281,8 @@ module.exports = {
   rename,
   setVersion,
   updateSettings,
+  organize,
+  renameGroup,
   remove,
   readLog,
   gameDir,

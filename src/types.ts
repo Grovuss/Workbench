@@ -195,6 +195,10 @@ export interface Profile extends VersionSelection {
   /** A screenshot's file name, shown on the profile's card in the grid view. */
   cover: string | null;
   playtimeMs: number;
+  /** A folder on the profiles page; null when it isn’t in one. */
+  group: string | null;
+  /** Shown in the sidebar for quick access. */
+  pinned: boolean;
   /** The Modrinth modpack this profile was installed from. */
   pack: { projectId: string; versionId: string; versionNumber: string; title: string } | null;
 }
@@ -236,6 +240,8 @@ export interface Settings {
   /** Window size for profiles without their own; null is the game's default. */
   resolution: Resolution | null;
   fullscreen: boolean;
+  /** Look over the mods when Play is pressed, and ask first if something’s wrong. */
+  checkModsOnLaunch: boolean;
   onLaunch: LauncherOnLaunch;
   preLaunchCommand: string;
   postExitCommand: string;
@@ -303,6 +309,10 @@ export interface WorkbenchApi {
   platform: string;
   profiles: {
     list(): Promise<Profile[]>;
+    /** Moves a profile into a group (null for none) and/or pins it to the sidebar. */
+    organize(id: string, patch: { group?: string | null; pinned?: boolean }): Promise<Profile>;
+    /** Renames a group on every profile in it; null ungroups them. Resolves to all profiles. */
+    renameGroup(from: string, to: string | null): Promise<Profile[]>;
     create(input: { name: string } & VersionSelection): Promise<Profile>;
     setVersion(id: string, selection: VersionSelection): Promise<Profile>;
     updateSettings(id: string, patch: Partial<ProfileSettings>): Promise<Profile>;
@@ -500,8 +510,23 @@ export interface WorkbenchApi {
     install(): Promise<void>;
   };
   window: {
-    setTheme(dark: boolean): Promise<void>;
+    /** Title bar colours, window background and zoom; remembered for the next start. */
+    setLook(look: WindowLook): Promise<void>;
   };
+  appearance: {
+    /** Opens a picker and stores the image; resolves to its version, or null if cancelled. */
+    pickBackground(): Promise<string | null>;
+    removeBackground(): Promise<void>;
+  };
+}
+
+export interface WindowLook {
+  dark: boolean;
+  /** #rrggbb */
+  background: string;
+  sidebar: string;
+  text: string;
+  zoom: number;
 }
 
 declare global {

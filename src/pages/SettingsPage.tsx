@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   Check,
   ClipboardCopy,
@@ -9,13 +9,10 @@ import {
   Globe,
   HardDrive,
   LifeBuoy,
-  Monitor,
-  Moon,
   Palette,
   RefreshCw,
   Rocket,
   RotateCcw,
-  Sun,
   Users,
 } from 'lucide-react';
 import PageHeader from '../components/PageHeader';
@@ -25,14 +22,11 @@ import { DEFAULT_RESOLUTION, MemorySlider, ResolutionFields, validResolution } f
 import { api, errorMessage } from '../api';
 import { formatBytes, formatGb, maxMemoryMb } from '../format';
 import { reduceMotionStored, setReduceMotion } from '../motion';
+import AppearanceSection from '../components/AppearanceSection';
+import { Row, Section } from '../components/SettingsRows';
+import { APPEARANCE_DEFAULTS, type Appearance } from '../appearance';
 import { useUpdateStatus } from '../useUpdateStatus';
-import type { LauncherOnLaunch, Resolution, Settings, StorageUsage, SystemInfo, ThemePreference, UpdateStatus } from '../types';
-
-const THEMES: { id: ThemePreference; label: string; icon: typeof Sun }[] = [
-  { id: 'light', label: 'Light', icon: Sun },
-  { id: 'dark', label: 'Dark', icon: Moon },
-  { id: 'system', label: 'System', icon: Monitor },
-];
+import type { LauncherOnLaunch, Resolution, Settings, StorageUsage, SystemInfo, UpdateStatus } from '../types';
 
 const ON_LAUNCH: { id: LauncherOnLaunch; label: string }[] = [
   { id: 'keep', label: 'Stay open' },
@@ -58,15 +52,15 @@ type SectionId = (typeof SECTIONS)[number]['id'];
 const TEXT_SAVE_MS = 500;
 
 interface Props {
-  theme: ThemePreference;
-  onThemeChange: (theme: ThemePreference) => void;
+  appearance: Appearance;
+  onAppearanceChange: (patch: Partial<Appearance>) => void;
   onError: (message: string) => void;
 }
 
-export default function SettingsPage({ theme, onThemeChange, onError }: Props) {
+export default function SettingsPage({ appearance, onAppearanceChange, onError }: Props) {
   const [settings, setSettings] = useState<Settings | null>(null);
   const [system, setSystem] = useState<SystemInfo | null>(null);
-  const [reduceMotion, setReduceMotionState] = useState(reduceMotionStored);
+  const [resets, setResets] = useState(0);
   const [active, setActive] = useState<SectionId>('appearance');
   const timers = useRef<Record<string, number>>({});
 
@@ -118,7 +112,7 @@ export default function SettingsPage({ theme, onThemeChange, onError }: Props) {
 
   const jumpTo = (id: SectionId) => {
     setActive(id);
-    document.getElementById(`settings-${id}`)?.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' });
+    document.getElementById(`settings-${id}`)?.scrollIntoView({ behavior: reduceMotionStored() ? 'auto' : 'smooth', block: 'start' });
   };
 
   if (!settings || !system) return <PageHeader title="Settings" subtitle="Customize how Workbench looks and behaves" />;
@@ -141,29 +135,15 @@ export default function SettingsPage({ theme, onThemeChange, onError }: Props) {
         </nav>
 
         <div className="settings-sections">
-          <Section id="appearance" title="Appearance">
-            <Row title="Theme" description="Cream or charcoal, or follow your system.">
-              <div className="segmented" role="group" aria-label="Theme">
-                {THEMES.map(({ id, label, icon: Icon }) => (
-                  <button key={id} aria-pressed={theme === id} onClick={() => onThemeChange(id)}>
-                    <Icon size={14} /> {label}
-                  </button>
-                ))}
-              </div>
-            </Row>
-            <Row title="Reduce motion" description="Turns off sliding, spinning and fading. Your system setting for this is always followed too.">
-              <Toggle
-                label="Reduce motion"
-                checked={reduceMotion}
-                onChange={(on) => {
-                  setReduceMotionState(on);
-                  setReduceMotion(on);
-                }}
-              />
-            </Row>
-          </Section>
+          <AppearanceSection key={resets} appearance={appearance} onChange={onAppearanceChange} onError={onError} />
 
           <Section id="launching" title="Launching">
+            <Row
+              title="Check mods before launching"
+              description="Looks for missing dependencies, wrong versions and mods known not to work together, and asks before starting the game if it finds any."
+            >
+              <Toggle label="Check mods before launching" checked={settings.checkModsOnLaunch} onChange={(on) => update({ checkModsOnLaunch: on })} />
+            </Row>
             <Row
               title="While you play"
               description={
@@ -316,8 +296,12 @@ export default function SettingsPage({ theme, onThemeChange, onError }: Props) {
             <ResetRow
               onReset={(next) => {
                 setSettings(next);
-                setReduceMotionState(false);
                 setReduceMotion(false);
+                // Custom themes are kept; they took work to make.
+                const { customThemes: _kept, ...looks } = APPEARANCE_DEFAULTS;
+                onAppearanceChange(looks);
+                api.appearance.removeBackground().catch(() => {});
+                setResets((n) => n + 1);
               }}
               onError={onError}
             />
@@ -325,30 +309,6 @@ export default function SettingsPage({ theme, onThemeChange, onError }: Props) {
         </div>
       </div>
     </>
-  );
-}
-
-function Section({ id, title, description, children }: { id: SectionId; title: string; description?: string; children: ReactNode }) {
-  return (
-    <section id={`settings-${id}`} className="settings-section" aria-labelledby={`settings-${id}-title`}>
-      <h2 id={`settings-${id}-title`} className="section-label">
-        {title}
-      </h2>
-      {description && <p className="settings-section-text">{description}</p>}
-      <div className="settings-group">{children}</div>
-    </section>
-  );
-}
-
-function Row({ title, description, children }: { title: string; description: ReactNode; children: ReactNode }) {
-  return (
-    <div className="settings-row">
-      <div>
-        <h3>{title}</h3>
-        <p>{description}</p>
-      </div>
-      {children}
-    </div>
   );
 }
 

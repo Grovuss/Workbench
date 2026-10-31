@@ -21,6 +21,26 @@ export function writeStored(key: string, value: string | number) {
   }
 }
 
+/** A set of strings that's remembered between runs, with a function that adds or removes one. */
+export function useStoredSet(key: string) {
+  const [value, setValue] = useState<Set<string>>(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem(key) ?? '[]');
+      return new Set(Array.isArray(saved) ? saved.map(String) : []);
+    } catch {
+      return new Set();
+    }
+  });
+  const toggle = (item: string) =>
+    setValue((prev) => {
+      const next = new Set(prev);
+      if (!next.delete(item)) next.add(item);
+      writeStored(key, JSON.stringify([...next]));
+      return next;
+    });
+  return [value, toggle] as const;
+}
+
 /** A choice that's remembered between runs. */
 export function useStoredChoice<T extends string | number>(key: string, allowed: readonly T[], fallback: T) {
   const [value, setValue] = useState<T>(() => readStored(key, allowed, fallback));

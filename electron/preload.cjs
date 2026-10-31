@@ -10,6 +10,8 @@ contextBridge.exposeInMainWorld('workbench', {
   platform: process.platform,
   profiles: {
     list: () => invoke('profiles:list'),
+    organize: (id, patch) => invoke('profiles:organize', id, patch),
+    renameGroup: (from, to) => invoke('profiles:renameGroup', from, to),
     create: (input) => invoke('profiles:create', input),
     delete: (id) => invoke('profiles:delete', id),
     rename: (id, name) => invoke('profiles:rename', id, name),
@@ -65,6 +67,10 @@ contextBridge.exposeInMainWorld('workbench', {
     setCover: (id, fileName) => invoke('screenshots:setCover', id, fileName),
     copy: (id, fileName) => invoke('screenshots:copy', id, fileName),
     reveal: (id, fileName) => invoke('screenshots:reveal', id, fileName),
+  },
+  appearance: {
+    pickBackground: () => invoke('appearance:pickBackground'),
+    removeBackground: () => invoke('appearance:removeBackground'),
   },
   diagnose: {
     scan: (id) => invoke('diagnose:scan', id),
@@ -169,6 +175,6 @@ contextBridge.exposeInMainWorld('workbench', {
     install: () => invoke('updates:install'),
   },
   window: {
-    setTheme: (dark) => invoke('window:setTheme', dark),
+    setLook: (look) => invoke('window:setLook', look),
   },
 });

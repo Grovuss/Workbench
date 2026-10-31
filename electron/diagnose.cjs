@@ -438,7 +438,33 @@ const prettyId = (id) =>
 const matches = (syntax, range, version) =>
   version == null ? null : syntax === 'fabric' ? fabricMatches(range, version) : mavenMatches(range, version);
 
+/** "0.6.1+mc1.21.1" → "0.6.1", for messages. */
+const shortVersion = (v) => String(v).replace(/\+.*$/, '');
+
 const isAny = (range) => range === '*' || range === '' || range == null || (Array.isArray(range) && range.includes('*'));
+
+// Mods that are known not to work together but don't say so in their own metadata. Any mod
+// in `a` clashes with any mod in `b`; `range` limits it to those versions of the `b` mod.
+const RENDERERS = ['embeddium', 'rubidium', 'magnesium', 'vulkanmod', 'canvas'];
+const KNOWN_CONFLICTS = [
+  { a: ['sodium'], b: RENDERERS, why: 'both replace Minecraft’s renderer' },
+  { a: ['embeddium'], b: ['rubidium', 'magnesium', 'vulkanmod', 'canvas'], why: 'both replace Minecraft’s renderer' },
+  { a: ['iris'], b: ['oculus', 'canvas', 'vulkanmod'], why: 'both change how shaders load' },
+  {
+    a: ['sodium', 'iris', 'embeddium', 'rubidium', 'oculus'],
+    b: ['optifabric', 'optifine'],
+    message: (a, b) => `${b.name} brings in OptiFine, which changes the same parts of the game as ${a.name}, so they can’t be used together.`,
+  },
+  { a: ['lithium'], b: ['canary', 'radium'], why: 'are versions of the same mod' },
+  { a: ['phosphor'], b: ['starlight'], why: 'both replace the lighting engine' },
+  {
+    a: ['indium'],
+    b: ['sodium'],
+    range: '>=0.6.0-',
+    message: (a, b) => `${a.name} isn’t needed with ${b.name} ${shortVersion(b.version)}, which does its job itself, and the two clash.`,
+    disable: 'a',
+  },
+];
 
 /** Problems with a profile's enabled mods, found by reading their metadata. */
 async function scanMods(profileId) {
@@ -566,7 +592,7 @@ async function scanMods(profileId) {
         const depName = owners.get(depId)?.[0]?.name ?? prettyId(depId);
         add({
           id: `version:${mod.fileName}:${depId}`,
-          message: `${mod.name} needs ${depName} ${describeRange(range)}, but ${have} is installed.`,
+          message: `${mod.name} needs ${depName} ${describeRange(range)}, but ${shortVersion(have)} is installed.`,
           files: [mod.fileName, ...(owners.get(depId)?.map((o) => o.fileName) ?? [])],
           fixes: [disable(mod.fileName, mod.name)],
         });
@@ -577,13 +603,35 @@ async function scanMods(profileId) {
       const others = owners.get(otherId);
       if (!others || otherId === mod.id) continue;
       const other = others[0];
-      if (!isAny(range) && matches(mod.syntax, range, other.version) !== true) continue;
+      const anyVersion = isAny(range);
+      if (!anyVersion && matches(mod.syntax, range, other.version) !== true) continue;
       add({
         id: `breaks:${[mod.fileName, other.fileName].sort().join(':')}`,
-        message: `${mod.name} doesn’t work alongside ${other.name}.`,
+        message: anyVersion
+          ? `${mod.name} doesn’t work alongside ${other.name}.`
+          : `${mod.name} doesn’t work with ${other.name} ${describeRange(range)}, and ${shortVersion(other.version)} is installed. Try another version of either.`,
         files: [mod.fileName, other.fileName],
         fixes: [disable(mod.fileName, mod.name), disable(other.fileName, other.name)],
       });
+    }
+  }
+
+  for (const rule of KNOWN_CONFLICTS) {
+    for (const aId of rule.a) {
+      const a = owners.get(aId)?.[0];
+      if (!a) continue;
+      for (const bId of rule.b) {
+        const b = owners.get(bId)?.[0];
+        if (!b || a.fileName === b.fileName) continue;
+        if (rule.range && fabricMatches(rule.range, b.version) !== true) continue;
+        add({
+          // Same id as a declared "breaks", so a clash is only listed once.
+          id: `breaks:${[a.fileName, b.fileName].sort().join(':')}`,
+          message: rule.message ? rule.message(a, b) : `${a.name} and ${b.name} ${rule.why}, so they can’t be used together.`,
+          files: [a.fileName, b.fileName],
+          fixes: rule.disable === 'a' ? [disable(a.fileName, a.name)] : [disable(b.fileName, b.name), disable(a.fileName, a.name)],
+        });
+      }
     }
   }
 

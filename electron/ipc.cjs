@@ -28,6 +28,7 @@ const storage = require('./storage.cjs');
 const { USER_AGENT } = require('./config.cjs');
 const updater = require('./updater.cjs');
 const opened = require('./opened.cjs');
+const background = require('./background.cjs');
 const { getManifest } = require('./launcher/versions.cjs');
 const { supportedGameVersions, loaderVersions } = require('./launcher/loaders.cjs');
 
@@ -123,6 +124,8 @@ function registerIpc() {
     return profiles.setVersion(id, selection);
   });
   handle('profiles:updateSettings', (_e, id, patch) => profiles.updateSettings(id, patch));
+  handle('profiles:organize', (_e, id, patch) => profiles.organize(String(id), patch));
+  handle('profiles:renameGroup', (_e, from, to) => profiles.renameGroup(String(from), to == null ? null : String(to)));
   handle('profiles:worlds', (_e, id) => worlds.list(String(id)));
   handle('worlds:rename', (_e, id, folder, name) => {
     assertIdle(id, 'renaming a world');
@@ -415,12 +418,28 @@ function registerIpc() {
   });
   handle('system:openDataFolder', () => openDir(paths.root()));
 
-  handle('window:setTheme', async (e, dark) => {
+  handle('window:setLook', async (e, look) => {
+    const color = (c) => (typeof c === 'string' && /^#[0-9a-f]{6}$/i.test(c) ? c : undefined);
+    const zoom = Math.min(1.5, Math.max(0.75, Number(look?.zoom) || 1));
+    const clean = { dark: Boolean(look?.dark), background: color(look?.background), sidebar: color(look?.sidebar), text: color(look?.text), zoom };
     const win = BrowserWindow.fromWebContents(e.sender);
-    if (win && process.platform !== 'darwin') win.setTitleBarOverlay(titleBarOverlay(Boolean(dark)));
-    // Remembered for the next start (see lastDark in main.cjs).
-    await fsp.writeFile(path.join(paths.root(), 'window.json'), JSON.stringify({ dark: Boolean(dark) })).catch(() => {});
+    if (win) {
+      if (Math.abs(win.webContents.getZoomFactor() - zoom) > 0.001) win.webContents.setZoomFactor(zoom);
+      if (clean.background) win.setBackgroundColor(clean.background);
+      if (process.platform !== 'darwin') win.setTitleBarOverlay(titleBarOverlay(clean));
+    }
+    // Remembered for the next start (see lastLook in main.cjs).
+    await fsp.writeFile(path.join(paths.root(), 'window.json'), JSON.stringify(clean)).catch(() => {});
   });
+  handle('appearance:pickBackground', async (e) => {
+    const { canceled, filePaths } = await dialog.showOpenDialog(BrowserWindow.fromWebContents(e.sender), {
+      title: 'Choose a background image',
+      properties: ['openFile'],
+      filters: [{ name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'webp', 'gif'] }],
+    });
+    return canceled ? null : background.set(filePaths[0]);
+  });
+  handle('appearance:removeBackground', () => background.remove());
 }
 
 module.exports = { registerIpc };

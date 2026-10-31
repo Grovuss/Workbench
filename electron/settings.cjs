@@ -9,7 +9,7 @@ const withLock = createLock();
 const totalMemoryMb = () => Math.floor(os.totalmem() / 1024 / 1024);
 
 const LAUNCHER_ON_LAUNCH = ['keep', 'minimize', 'hide'];
-const TOGGLES = ['welcomed', 'autoBackup', 'discordPresence', 'discordShowProfile', 'shareOptions', 'fullscreen'];
+const TOGGLES = ['welcomed', 'autoBackup', 'discordPresence', 'discordShowProfile', 'shareOptions', 'fullscreen', 'checkModsOnLaunch'];
 const TEXTS = ['jvmArgs', 'preLaunchCommand', 'postExitCommand'];
 
 function defaults() {
@@ -24,6 +24,8 @@ function defaults() {
     // The game window for profiles without their own size; null is the game's default.
     resolution: null,
     fullscreen: false,
+    // Look over a profile's mods when Play is pressed, and ask first if something's wrong.
+    checkModsOnLaunch: true,
     // What the launcher window does while the game runs.
     onLaunch: 'keep',
     // Shell commands run in the profile's folder before the game starts and after it closes.

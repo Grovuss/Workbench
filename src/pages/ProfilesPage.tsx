@@ -1,12 +1,15 @@
 import { useMemo, useState } from 'react';
-import { ArrowDownWideNarrow, LayoutGrid, Layers, List, Plus, Search } from 'lucide-react';
+import { ArrowDownWideNarrow, ChevronDown, FolderMinus, LayoutGrid, Layers, List, MoreHorizontal, Pencil, Plus, Search } from 'lucide-react';
 import PageHeader from '../components/PageHeader';
 import ProfileRow from '../components/ProfileRow';
 import ProfileCard from '../components/ProfileCard';
 import ComingSoon from '../components/ComingSoon';
 import CreateProfileModal from '../components/CreateProfileModal';
+import Dropdown from '../components/Dropdown';
+import GroupModal from '../components/GroupModal';
+import { api, errorMessage } from '../api';
 import type { LaunchStatus, Profile } from '../types';
-import { useStoredChoice } from '../stored';
+import { useStoredChoice, useStoredSet } from '../stored';
 
 interface Props {
   profiles: Profile[] | null;
@@ -15,6 +18,8 @@ interface Props {
   onOpen: (id: string) => void;
   onPlay: (profile: Profile) => void;
   onStop: (id: string) => void;
+  onProfilesChanged: (profiles: Profile[]) => void;
+  onError: (message: string) => void;
 }
 
 type View = 'list' | 'grid';
@@ -32,11 +37,13 @@ const SORTS: { id: Sort; label: string; compare: (a: Profile, b: Profile) => num
 const SEARCH_THRESHOLD = 8;
 
 
-export default function ProfilesPage({ profiles, launches, onCreated, onOpen, onPlay, onStop }: Props) {
+export default function ProfilesPage({ profiles, launches, onCreated, onOpen, onPlay, onStop, onProfilesChanged, onError }: Props) {
   const [creating, setCreating] = useState(false);
   const [view, setView] = useStoredChoice<View>('workbench.profilesView', ['list', 'grid'], 'list');
   const [sort, setSort] = useStoredChoice<Sort>('workbench.profilesSort', SORTS.map((s) => s.id), 'recent');
   const [query, setQuery] = useState('');
+  const [collapsed, toggleCollapsed] = useStoredSet('workbench.collapsedGroups');
+  const [renaming, setRenaming] = useState<string | null>(null);
 
 
   const shown = useMemo(() => {
@@ -54,6 +61,40 @@ export default function ProfilesPage({ profiles, launches, onCreated, onOpen, on
   );
 
   const Item = view === 'grid' ? ProfileCard : ProfileRow;
+
+  // Groups in name order, then everything not in one. Without any groups it's one plain list.
+  const groupNames = [...new Set((profiles ?? []).map((p) => p.group).filter((g): g is string => Boolean(g)))].sort((a, b) =>
+    a.localeCompare(b),
+  );
+  const sections = groupNames.length
+    ? [
+        ...groupNames.map((name) => ({ name, items: shown.filter((p) => p.group === name) })),
+        { name: null, items: shown.filter((p) => !p.group) },
+      ].filter((s) => s.items.length > 0)
+    : [{ name: null, items: shown }];
+
+  const renameGroup = async (from: string, to: string | null) => {
+    try {
+      onProfilesChanged(await api.profiles.renameGroup(from, to));
+    } catch (err) {
+      onError(errorMessage(err));
+    }
+  };
+
+  const list = (items: Profile[]) => (
+    <div className={view === 'grid' ? 'profile-grid' : 'profile-list'}>
+      {items.map((p) => (
+        <Item
+          key={p.id}
+          profile={p}
+          launch={launches[p.id]}
+          onOpen={() => onOpen(p.id)}
+          onPlay={() => onPlay(p)}
+          onStop={() => onStop(p.id)}
+        />
+      ))}
+    </div>
+  );
 
   return (
     <>
@@ -100,18 +141,40 @@ export default function ProfilesPage({ profiles, launches, onCreated, onOpen, on
           {shown.length === 0 ? (
             <p className="mod-empty">No profiles match “{query}”.</p>
           ) : (
-            <div className={view === 'grid' ? 'profile-grid' : 'profile-list'}>
-              {shown.map((p) => (
-                <Item
-                  key={p.id}
-                  profile={p}
-                  launch={launches[p.id]}
-                  onOpen={() => onOpen(p.id)}
-                  onPlay={() => onPlay(p)}
-                  onStop={() => onStop(p.id)}
-                />
-              ))}
-            </div>
+            sections.map(({ name, items }) => {
+              if (groupNames.length === 0) return <div key="all">{list(items)}</div>;
+              const key = name ?? '';
+              const open = !collapsed.has(key);
+              return (
+                <section key={key} className="profile-group">
+                  <div className="profile-group-head">
+                    <button className="profile-group-toggle" aria-expanded={open} onClick={() => toggleCollapsed(key)}>
+                      <ChevronDown size={16} className="profile-group-chevron" />
+                      <span className="profile-group-name">{name ?? 'Other profiles'}</span>
+                      <span className="chip-count">{items.length}</span>
+                    </button>
+                    {name && (
+                      <Dropdown
+                        label={<MoreHorizontal size={16} />}
+                        className="icon-btn"
+                        chevron={false}
+                        ariaLabel={`${name} options`}
+                        items={[
+                          { icon: <Pencil size={16} />, label: 'Rename group', onSelect: () => setRenaming(name) },
+                          {
+                            icon: <FolderMinus size={16} />,
+                            label: 'Ungroup',
+                            hint: 'Profiles stay, the group goes',
+                            onSelect: () => renameGroup(name, null),
+                          },
+                        ]}
+                      />
+                    )}
+                  </div>
+                  {open && list(items)}
+                </section>
+              );
+            })
           )}
         </>
       )}
@@ -119,6 +182,16 @@ export default function ProfilesPage({ profiles, launches, onCreated, onOpen, on
       <ComingSoon />
 
       {creating && <CreateProfileModal onClose={() => setCreating(false)} onCreated={onCreated} />}
+      {renaming && (
+        <GroupModal
+          title="Rename group"
+          initial={renaming}
+          groups={[]}
+          submitLabel="Rename"
+          onSubmit={(name) => renameGroup(renaming, name)}
+          onClose={() => setRenaming(null)}
+        />
+      )}
     </>
   );
 }
