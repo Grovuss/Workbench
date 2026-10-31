@@ -5598,3 +5598,168 @@ select.input option {
   padding-inline: 4px;
   scrollbar-width: thin;
 }
+
+/* ---------- Install clashes & held content ---------- */
+.kind-tag.clash-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 8px;
+  background: color-mix(in srgb, var(--warning) 16%, transparent);
+  color: var(--warning);
+  text-transform: none;
+  cursor: help;
+}
+
+/* Unheld locks only show on hover so the list stays quiet. */
+.icon-btn-hold {
+  opacity: 0;
+}
+
+.mod-row:hover .icon-btn-hold,
+.icon-btn-hold:focus-visible,
+.icon-btn-hold[data-held] {
+  opacity: 1;
+}
+
+.icon-btn-hold[data-held] {
+  color: var(--text);
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+.icon-btn-hold[data-held]:hover {
+  background: color-mix(in srgb, var(--accent) 28%, transparent);
+}
+
+/* ---------- Update all profiles ---------- */
+.page-header-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.update-all-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 52vh;
+  margin: 14px 0 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.update-all-item {
+  border-radius: var(--radius-sm);
+  background: var(--bg-muted);
+}
+
+.update-all-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+}
+
+.update-all-check {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent);
+}
+
+.update-all-row .sidebar-pin-icon {
+  width: 30px;
+  height: 30px;
+}
+
+.update-all-row .sidebar-pin-icon img {
+  width: 18px;
+}
+
+.update-all-name {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+}
+
+.update-all-name strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.update-all-name span {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  flex: none;
+  color: var(--text-muted);
+  font-size: 12.5px;
+  font-weight: 700;
+}
+
+.update-all-name .project-version-chevron {
+  margin-left: auto;
+}
+
+.update-all-name[aria-expanded='true'] .project-version-chevron {
+  transform: rotate(180deg);
+}
+
+.update-all-state {
+  display: inline-flex;
+  flex: none;
+  color: var(--text-muted);
+  font-size: 12.5px;
+  font-weight: 700;
+}
+
+.update-all-done,
+.update-all-error {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.update-all-done {
+  color: var(--success);
+}
+
+.update-all-error {
+  color: var(--danger);
+  cursor: help;
+}
+
+.update-all-files {
+  margin: 0;
+  padding: 4px 12px 10px 66px;
+  list-style: none;
+  font-size: 13px;
+}
+
+.update-all-files li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 3px 0;
+}
+
+.update-all-versions {
+  flex: none;
+  color: var(--text-muted);
+}
+
+.update-all-versions strong {
+  color: var(--success);
+}
+
+.update-all-summary {
+  margin: 12px 0 0;
+  color: var(--text-muted);
+  font-size: 13px;
+}

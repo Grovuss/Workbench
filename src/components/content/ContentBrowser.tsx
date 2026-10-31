@@ -1,8 +1,9 @@
-import { useEffect, useRef, useState } from 'react';
-import { ArrowDownWideNarrow, Check, ChevronDown, Download, LoaderCircle, Search } from 'lucide-react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { AlertTriangle, ArrowDownWideNarrow, Check, ChevronDown, Download, LoaderCircle, Search } from 'lucide-react';
 import ContentIcon from './ContentIcon';
 import VersionModal from './VersionModal';
 import ProjectDetails from './ProjectDetails';
+import InstallClashModal from './InstallClashModal';
 import { api, errorMessage } from '../../api';
 import { CONTENT, categoryLabel } from '../../content';
 import { formatCount } from '../../format';
@@ -12,6 +13,7 @@ import type {
   ContentKind,
   ContentSearchHit,
   ContentSort,
+  InstallClash,
   InstalledContent,
   Profile,
 } from '../../types';
@@ -59,6 +61,9 @@ export default function ContentBrowser({ profile, kind, kindOptions, onKindChang
   const [installing, setInstalling] = useState<Set<string>>(new Set());
   const [choosing, setChoosing] = useState<ContentSearchHit | null>(null);
   const [viewing, setViewing] = useState<ContentSearchHit | null>(null);
+  // Mods that would clash with what's installed, by Modrinth slug.
+  const [clashes, setClashes] = useState<Map<string, InstallClash>>(new Map());
+  const [guard, setGuard] = useState<{ hit: ContentSearchHit; clash: InstallClash; run: () => void } | null>(null);
   const requestId = useRef(0);
   // Until a sort is picked: best matches while searching, most downloaded otherwise.
   const effectiveSort: ContentSort = sort ?? (query.trim() ? 'relevance' : 'downloads');
@@ -72,6 +77,30 @@ export default function ContentBrowser({ profile, kind, kindOptions, onKindChang
       .then(setCategories)
       .catch(() => {});
   }, [kind]);
+
+  const refreshClashes = useCallback(() => {
+    if (profile.loader === 'vanilla') return setClashes(new Map());
+    api.diagnose
+      .installClashes(profile.id)
+      .then((list) => setClashes(new Map(list.map((c) => [c.slug, c]))))
+      .catch(() => {});
+  }, [profile.id, profile.loader]);
+
+  useEffect(refreshClashes, [refreshClashes]);
+
+  const installed = (kind: ContentKind, items: InstalledContent[]) => {
+    onInstalled(kind, items);
+    if (kind === 'mod') refreshClashes();
+  };
+
+  const clashFor = (hit: ContentSearchHit) => (hit.kind === 'mod' ? clashes.get(hit.slug) : undefined);
+
+  /** Runs an install straight away, or asks first when the mod clashes with one already installed. */
+  const guarded = (hit: ContentSearchHit, run: () => void) => {
+    const clash = clashFor(hit);
+    if (clash) setGuard({ hit, clash, run });
+    else run();
+  };
 
   const fetchPage = (offset: number) => {
     const options = { query: query.trim(), offset, sort: effectiveSort, category: category || undefined };
@@ -114,7 +143,7 @@ export default function ContentBrowser({ profile, kind, kindOptions, onKindChang
   const install = async (hit: ContentSearchHit) => {
     setInstalling((s) => new Set(s).add(hit.projectId));
     try {
-      onInstalled(hit.kind, await api.content.install({ profileId: profile.id, kind: hit.kind, world }, hit.projectId));
+      installed(hit.kind, await api.content.install({ profileId: profile.id, kind: hit.kind, world }, hit.projectId));
     } catch (err) {
       onError(errorMessage(err));
     } finally {
@@ -137,13 +166,13 @@ export default function ContentBrowser({ profile, kind, kindOptions, onKindChang
     const busy = installing.has(hit.projectId);
     return (
       <div className="split-btn">
-        <button className="btn btn-primary btn-play" onClick={() => install(hit)} disabled={busy}>
+        <button className="btn btn-primary btn-play" onClick={() => guarded(hit, () => install(hit))} disabled={busy}>
           {busy ? <LoaderCircle size={15} className="spin" /> : <Download size={15} />}
           {busy ? 'Installing' : 'Install'}
         </button>
         <button
           className="btn btn-primary split-btn-more"
-          onClick={() => setChoosing(hit)}
+          onClick={() => guarded(hit, () => setChoosing(hit))}
           disabled={busy}
           aria-label={`Choose a version of ${hit.title}`}
           title="Choose a version"
@@ -222,7 +251,9 @@ export default function ContentBrowser({ profile, kind, kindOptions, onKindChang
       ) : (
         <>
           <div className="mod-list">
-            {hits.map((hit) => (
+            {hits.map((hit) => {
+              const clash = installedIds.has(hit.projectId) ? undefined : clashFor(hit);
+              return (
               <div key={hit.projectId} className="mod-row">
                 {/* The icon and text open the project's details. */}
                 <button className="mod-open" onClick={() => setViewing(hit)} title={`More about ${hit.title}`}>
@@ -237,12 +268,18 @@ export default function ContentBrowser({ profile, kind, kindOptions, onKindChang
                       <Download size={12} /> {formatCount(hit.downloads)}
                       <span className="dot">·</span>
                       Updated {timeAgo(hit.updatedAt)}
+                      {clash && (
+                        <span className="kind-tag clash-tag" title={clash.message.replace('{title}', hit.title)}>
+                          <AlertTriangle size={11} /> Clashes with {clash.with}
+                        </span>
+                      )}
                     </span>
                   </div>
                 </button>
                 {installAction(hit)}
               </div>
-            ))}
+              );
+            })}
           </div>
           {hits.length < total && (
             <button className="btn btn-secondary mod-more" onClick={loadMore} disabled={loadingMore}>
@@ -257,7 +294,7 @@ export default function ContentBrowser({ profile, kind, kindOptions, onKindChang
           project={viewing}
           actions={installAction(viewing)}
           target={{ profileId: profile.id, kind: viewing.kind, world }}
-          onInstalled={(items) => onInstalled(viewing.kind, items)}
+          onInstalled={(items) => installed(viewing.kind, items)}
           onClose={() => setViewing(null)}
         />
       )}
@@ -268,8 +305,29 @@ export default function ContentBrowser({ profile, kind, kindOptions, onKindChang
           iconUrl={choosing.iconUrl}
           target={{ profileId: profile.id, kind: choosing.kind, world }}
           projectId={choosing.projectId}
-          onInstalled={(items) => onInstalled(choosing.kind, items)}
+          onInstalled={(items) => installed(choosing.kind, items)}
           onClose={() => setChoosing(null)}
+        />
+      )}
+
+      {guard && (
+        <InstallClashModal
+          title={guard.hit.title}
+          clash={guard.clash}
+          onInstallAnyway={() => {
+            setGuard(null);
+            guard.run();
+          }}
+          onReplace={async () => {
+            try {
+              const items = await api.content.setEnabled({ profileId: profile.id, kind: 'mod' }, guard.clash.file, false);
+              onInstalled('mod', items);
+              guard.run();
+            } catch (err) {
+              onError(errorMessage(err));
+            }
+          }}
+          onClose={() => setGuard(null)}
         />
       )}
     </div>

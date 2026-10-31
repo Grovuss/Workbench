@@ -181,6 +181,7 @@ function toPublic(loc, { fileName, enabled, info, addedAt }) {
     projectId: info.projectId ?? null,
     iconUrl: info.iconUrl ?? null,
     updateVersion: info.update?.versionNumber ?? null,
+    held: Boolean(info.projectId && loc.profile.held?.includes(info.projectId)),
     addedAt,
   };
 }
@@ -314,6 +315,7 @@ async function runSearch(facets, { query = '', offset = 0, sort } = {}, kindOf) 
     total: data.total_hits,
     hits: data.hits.map((h) => ({
       projectId: h.project_id,
+      slug: h.slug,
       kind: kindOf(h),
       title: h.title,
       description: h.description,
@@ -664,7 +666,11 @@ function update(target, fileNames) {
     const loc = await locate(target);
     const ctx = await installContext(loc);
     const wanted = fileNames ? new Set(fileNames.map(safeFileName)) : null;
-    const targets = Object.entries(ctx.meta).filter(([name, m]) => m.update && m.projectId && (!wanted || wanted.has(name)));
+    // Held projects stay where they are.
+    const held = new Set(loc.profile.held ?? []);
+    const targets = Object.entries(ctx.meta).filter(
+      ([name, m]) => m.update && m.projectId && !held.has(m.projectId) && (!wanted || wanted.has(name)),
+    );
     try {
       await runPool(targets, 6, async ([name, m]) => {
         if (ctx.visited.has(m.projectId)) return;
@@ -678,6 +684,38 @@ function update(target, fileNames) {
     }
     return listUnlocked(loc);
   });
+}
+
+/** Holds a file's project at its version (updates skip it), or releases it. Resolves to the refreshed list. */
+async function setHeld(target, fileName, held) {
+  const loc = await locate(target);
+  const info = (await loadMeta(loc))[safeFileName(fileName)];
+  if (!info?.projectId) throw new Error('Only files from Modrinth can be held at a version.');
+  await profiles.setHeld(loc.profile.id, info.projectId, held);
+  return list(target);
+}
+
+// Kinds kept per profile (data packs live in each world).
+const PROFILE_KINDS = ['mod', 'resourcepack', 'shader'];
+
+/**
+ * Checks every kind of content in a profile for updates:
+ * { updates: [{ kind, fileName, title, iconUrl, from, to }], held } where `held` counts updates being skipped.
+ */
+async function pendingUpdates(profileId) {
+  const profile = await profiles.get(profileId);
+  const updates = [];
+  let held = 0;
+  for (const kind of PROFILE_KINDS) {
+    if (kind === 'mod' && profile.loader === 'vanilla') continue;
+    const items = await checkUpdates({ profileId, kind }).catch(() => []);
+    for (const item of items) {
+      if (!item.updateVersion) continue;
+      if (item.held) held++;
+      else updates.push({ kind, fileName: item.fileName, title: item.title, iconUrl: item.iconUrl, from: item.versionNumber, to: item.updateVersion });
+    }
+  }
+  return { updates, held };
 }
 
 const MAX_CHANGELOG_ENTRIES = 15;
@@ -730,6 +768,8 @@ const modsDir = (profileId) => path.join(profiles.gameDir(profileId), KINDS.mod.
 const folder = async (target) => (await locate(target)).dir;
 
 module.exports = {
+  setHeld,
+  pendingUpdates,
   folder,
   list,
   setEnabled,

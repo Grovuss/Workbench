@@ -24,6 +24,8 @@ export interface InstalledContent {
   iconUrl: string | null;
   /** Version number of an available update, from the last update check. */
   updateVersion: string | null;
+  /** Kept at this version: updates skip it in this profile. */
+  held: boolean;
   /** When the file was added to the folder. */
   addedAt: string;
 }
@@ -66,6 +68,7 @@ export interface ConfigFile {
 
 export interface ContentSearchHit {
   projectId: string;
+  slug: string;
   kind: ContentKind;
   title: string;
   description: string;
@@ -74,6 +77,22 @@ export interface ContentSearchHit {
   downloads: number;
   follows: number;
   updatedAt: string;
+}
+
+export interface InstallClash {
+  slug: string;
+  /** The installed mod it clashes with. */
+  with: string;
+  /** That mod's file, so it can be turned off. */
+  file: string;
+  /** Has "{title}" where the new mod's name goes. */
+  message: string;
+}
+
+export interface PendingUpdates {
+  updates: { kind: ContentKind; fileName: string; title: string; iconUrl: string | null; from: string | null; to: string }[];
+  /** Updates skipped because they're held. */
+  held: number;
 }
 
 export interface ContentSearchResult {
@@ -351,6 +370,8 @@ export interface WorkbenchApi {
   diagnose: {
     /** Problems with the profile's enabled mods, read from their metadata. */
     scan(profileId: string): Promise<Problem[]>;
+    /** Mods that would clash with what the profile has, by Modrinth slug. */
+    installClashes(profileId: string): Promise<InstallClash[]>;
     /** Finds a mod on Modrinth by its mod id and installs it. */
     installDependency(profileId: string, modId: string): Promise<InstalledContent[]>;
     openCrashReport(profileId: string, fileName: string): Promise<void>;
@@ -456,6 +477,10 @@ export interface WorkbenchApi {
     performance(profileId: string): Promise<PerformanceMod[]>;
     /** Versions that work on the target, newest first. */
     versions(target: ContentTarget, projectId: string): Promise<ContentVersion[]>;
+    /** Holds a file's project at its version (updates skip it), or releases it. */
+    setHeld(target: ContentTarget, fileName: string, held: boolean): Promise<InstalledContent[]>;
+    /** Checks a profile's mods, resource packs and shaders for updates. */
+    pendingUpdates(profileId: string): Promise<PendingUpdates>;
     /** A project's full Modrinth page: description, gallery, links. */
     project(projectId: string): Promise<ProjectDetails>;
     /** Every version of a project, newest first; `fits` says which work on the target, when given. */

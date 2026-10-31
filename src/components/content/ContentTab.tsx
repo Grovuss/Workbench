@@ -12,6 +12,8 @@ import {
   Info,
   Layers,
   LoaderCircle,
+  Lock,
+  LockOpen,
   Plus,
   Puzzle,
   RefreshCw,
@@ -40,6 +42,9 @@ import type { Changelog, ContentKind, InstalledContent, Problem, ProblemFix, Pro
 
 type Item = InstalledContent & { kind: ContentKind };
 type InstalledSort = 'name' | 'name-desc' | 'added' | 'updates';
+
+/** Held items keep their version, so their updates aren't offered. */
+const hasUpdate = (m: InstalledContent) => Boolean(m.updateVersion) && !m.held;
 type CheckState = 'checking' | 'done' | 'failed';
 
 const SORTS: { id: InstalledSort; label: string }[] = [
@@ -181,7 +186,7 @@ export default function ContentTab({
       name: byName,
       'name-desc': (a, b) => byName(b, a),
       added: (a, b) => b.addedAt.localeCompare(a.addedAt),
-      updates: (a, b) => Number(Boolean(b.updateVersion)) - Number(Boolean(a.updateVersion)) || byName(a, b),
+      updates: (a, b) => Number(hasUpdate(b)) - Number(hasUpdate(a)) || byName(a, b),
     };
     return filtered.sort(compare[sort]);
   }, [all, typeFilter, query, sort]);
@@ -192,7 +197,7 @@ export default function ContentTab({
   const currentPage = Math.min(page, pageCount - 1);
   const paged = pageSize ? shown.slice(currentPage * pageSize, (currentPage + 1) * pageSize) : shown;
 
-  const withUpdates = all.filter((m) => m.updateVersion && (typeFilter === 'all' || m.kind === typeFilter));
+  const withUpdates = all.filter((m) => hasUpdate(m) && (typeFilter === 'all' || m.kind === typeFilter));
   const checking = kinds.some((k) => checks[k] === 'checking');
   const checkFailed = kinds.some((k) => checks[k] === 'failed');
   const enabledCount = shown.filter((m) => m.enabled).length;
@@ -475,12 +480,28 @@ export default function ContentTab({
                         ) : (
                           'Local file'
                         )}
-                        {m.updateVersion && <span className="mod-update-to">→ {m.updateVersion}</span>}
+                        {hasUpdate(m) && <span className="mod-update-to">→ {m.updateVersion}</span>}
                         <span className="dot">·</span>
                         <span className="mod-file">{m.fileName}</span>
                       </span>
                     </div>
-                    {m.updateVersion && (
+                    {m.projectId && (
+                      <button
+                        className="icon-btn icon-btn-hold"
+                        data-held={m.held || undefined}
+                        onClick={() => apply(m.kind, api.content.setHeld(target(m.kind), m.fileName, !m.held))}
+                        aria-pressed={m.held}
+                        aria-label={m.held ? `Let ${m.title} update` : `Hold ${m.title} at this version`}
+                        title={
+                          m.held
+                            ? `Held at ${m.versionNumber ?? 'this version'}. Updates skip it${m.updateVersion ? ` (${m.updateVersion} is out)` : ''}.`
+                            : 'Hold at this version so updates skip it'
+                        }
+                      >
+                        {m.held ? <Lock size={15} /> : <LockOpen size={15} />}
+                      </button>
+                    )}
+                    {hasUpdate(m) && (
                       <button
                         className="icon-btn icon-btn-update"
                         onClick={() => setChangelogFor(m)}

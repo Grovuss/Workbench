@@ -1,5 +1,17 @@
 import { useMemo, useState } from 'react';
-import { ArrowDownWideNarrow, ChevronDown, FolderMinus, LayoutGrid, Layers, List, MoreHorizontal, Pencil, Plus, Search } from 'lucide-react';
+import {
+  ArrowDownWideNarrow,
+  ArrowUpCircle,
+  ChevronDown,
+  FolderMinus,
+  LayoutGrid,
+  Layers,
+  List,
+  MoreHorizontal,
+  Pencil,
+  Plus,
+  Search,
+} from 'lucide-react';
 import PageHeader from '../components/PageHeader';
 import ProfileRow from '../components/ProfileRow';
 import ProfileCard from '../components/ProfileCard';
@@ -7,6 +19,7 @@ import ComingSoon from '../components/ComingSoon';
 import CreateProfileModal from '../components/CreateProfileModal';
 import Dropdown from '../components/Dropdown';
 import GroupModal from '../components/GroupModal';
+import UpdateAllModal from '../components/UpdateAllModal';
 import { api, errorMessage } from '../api';
 import type { LaunchStatus, Profile } from '../types';
 import { useStoredChoice, useStoredSet } from '../stored';
@@ -44,6 +57,7 @@ export default function ProfilesPage({ profiles, launches, onCreated, onOpen, on
   const [query, setQuery] = useState('');
   const [collapsed, toggleCollapsed] = useStoredSet('workbench.collapsedGroups');
   const [renaming, setRenaming] = useState<string | null>(null);
+  const [updatingAll, setUpdatingAll] = useState(false);
 
 
   const shown = useMemo(() => {
@@ -98,7 +112,20 @@ export default function ProfilesPage({ profiles, launches, onCreated, onOpen, on
 
   return (
     <>
-      <PageHeader title="Profiles" subtitle="Your local Minecraft profiles" actions={createButton} />
+      <PageHeader
+        title="Profiles"
+        subtitle="Your local Minecraft profiles"
+        actions={
+          <div className="page-header-actions">
+            {profiles && profiles.length > 0 && (
+              <button className="btn btn-secondary" onClick={() => setUpdatingAll(true)}>
+                <ArrowUpCircle size={16} /> Check for updates
+              </button>
+            )}
+            {createButton}
+          </div>
+        }
+      />
 
       {profiles && profiles.length === 0 && (
         <div className="empty">
@@ -182,6 +209,9 @@ export default function ProfilesPage({ profiles, launches, onCreated, onOpen, on
       <ComingSoon />
 
       {creating && <CreateProfileModal onClose={() => setCreating(false)} onCreated={onCreated} />}
+      {updatingAll && profiles && (
+        <UpdateAllModal profiles={profiles} launches={launches} onClose={() => setUpdatingAll(false)} />
+      )}
       {renaming && (
         <GroupModal
           title="Rename group"

@@ -220,6 +220,7 @@ function registerIpc() {
   handle('screenshots:reveal', (_e, id, fileName) => screenshots.reveal(String(id), fileName));
 
   handle('diagnose:scan', (_e, id) => diagnose.scanMods(String(id)));
+  handle('diagnose:installClashes', (_e, id) => diagnose.installClashes(String(id)));
   handle('diagnose:installDependency', (_e, id, modId) => diagnose.installDependency(String(id), String(modId)));
   handle('diagnose:openCrashReport', async (_e, id, name) => {
     await profiles.get(String(id));
@@ -336,6 +337,8 @@ function registerIpc() {
   });
   handle('content:remove', (_e, t, fileName) => content.remove(contentTarget(t), fileName));
   handle('content:setEnabled', (_e, t, fileName, enabled) => content.setEnabled(contentTarget(t), fileName, Boolean(enabled)));
+  handle('content:setHeld', (_e, t, fileName, held) => content.setHeld(contentTarget(t), String(fileName), Boolean(held)));
+  handle('content:pendingUpdates', (_e, id) => content.pendingUpdates(String(id)));
 
   handle('packs:import', async (e, kind) => {
     const { canceled, filePaths } = await dialog.showOpenDialog(BrowserWindow.fromWebContents(e.sender), {

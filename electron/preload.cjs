@@ -74,6 +74,7 @@ contextBridge.exposeInMainWorld('workbench', {
   },
   diagnose: {
     scan: (id) => invoke('diagnose:scan', id),
+    installClashes: (id) => invoke('diagnose:installClashes', id),
     installDependency: (id, modId) => invoke('diagnose:installDependency', id, modId),
     openCrashReport: (id, name) => invoke('diagnose:openCrashReport', id, name),
   },
@@ -118,6 +119,8 @@ contextBridge.exposeInMainWorld('workbench', {
     performance: (id) => invoke('content:performance', id),
     versions: (target, projectId) => invoke('content:versions', target, projectId),
     project: (projectId) => invoke('content:project', projectId),
+    setHeld: (target, fileName, held) => invoke('content:setHeld', target, fileName, held),
+    pendingUpdates: (id) => invoke('content:pendingUpdates', id),
     allVersions: (projectId, target) => invoke('content:allVersions', projectId, target),
     addFiles: (target, filePaths) => invoke('content:addFiles', target, filePaths),
     addAny: (id, filePaths) => invoke('content:addAny', id, filePaths),

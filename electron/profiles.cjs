@@ -23,6 +23,8 @@ function normalize(p) {
     // A folder on the profiles page, and whether it's in the sidebar.
     group: null,
     pinned: false,
+    // Modrinth projects whose updates are skipped in this profile.
+    held: [],
     ...p,
     settings: {
       memoryMb: null,
@@ -211,6 +213,19 @@ function organize(id, patch) {
   return update(id, clean);
 }
 
+/** Holds a project at its installed version in this profile (updates skip it), or lets it update again. */
+function setHeld(id, projectId, held) {
+  return withLock(async () => {
+    const all = await load();
+    const profile = all.find((p) => p.id === id);
+    if (!profile) throw new Error('Profile not found.');
+    const rest = profile.held.filter((p) => p !== projectId);
+    profile.held = held ? [...rest, projectId] : rest;
+    await writeJson(file(), all);
+    return profile;
+  });
+}
+
 /** Renames a group on every profile in it; a null name takes them out of the group. */
 function renameGroup(from, to) {
   const name = cleanGroup(to);
@@ -283,6 +298,7 @@ module.exports = {
   updateSettings,
   organize,
   renameGroup,
+  setHeld,
   remove,
   readLog,
   gameDir,

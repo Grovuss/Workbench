@@ -453,6 +453,7 @@ const KNOWN_CONFLICTS = [
   {
     a: ['sodium', 'iris', 'embeddium', 'rubidium', 'oculus'],
     b: ['optifabric', 'optifine'],
+    why: 'both change the same parts of the game',
     message: (a, b) => `${b.name} brings in OptiFine, which changes the same parts of the game as ${a.name}, so they can’t be used together.`,
   },
   { a: ['lithium'], b: ['canary', 'radium'], why: 'are versions of the same mod' },
@@ -462,15 +463,13 @@ const KNOWN_CONFLICTS = [
     b: ['sodium'],
     range: '>=0.6.0-',
     message: (a, b) => `${a.name} isn’t needed with ${b.name} ${shortVersion(b.version)}, which does its job itself, and the two clash.`,
+    browse: (b) => `{title} isn’t needed with ${b.name} ${shortVersion(b.version)}, which does its job itself, and the two clash.`,
     disable: 'a',
   },
 ];
 
-/** Problems with a profile's enabled mods, found by reading their metadata. */
-async function scanMods(profileId) {
-  const profile = await profiles.get(profileId);
-  const { loader } = profile;
-  if (loader === 'vanilla') return [];
+/** The profile's enabled mod jars with what they say about themselves. */
+async function enabledJars(profileId) {
   const dir = content.modsDir(profileId);
   const entries = await fsp.readdir(dir, { withFileTypes: true }).catch(() => []);
   const jars = [];
@@ -478,6 +477,15 @@ async function scanMods(profileId) {
     if (!entry.isFile() || !entry.name.toLowerCase().endsWith('.jar')) continue;
     jars.push({ fileName: entry.name, ...(await readJar(path.join(dir, entry.name))) });
   }
+  return jars;
+}
+
+/** Problems with a profile's enabled mods, found by reading their metadata. */
+async function scanMods(profileId) {
+  const profile = await profiles.get(profileId);
+  const { loader } = profile;
+  if (loader === 'vanilla') return [];
+  const jars = await enabledJars(profileId);
 
   const problems = [];
   const add = (problem) => {
@@ -636,6 +644,57 @@ async function scanMods(profileId) {
   }
 
   return problems;
+}
+
+// Mod ids are usually the Modrinth slug too; these are the exceptions.
+const SLUGS = { canvas: 'canvas-renderer' };
+
+/**
+ * Mods that would clash with what the profile has, before they're installed: [{ slug, with, file, message }].
+ * `message` has "{title}" where the new mod's name goes.
+ */
+async function installClashes(profileId) {
+  const profile = await profiles.get(profileId);
+  if (profile.loader === 'vanilla') return [];
+  const installed = new Map(); // mod id → { name, version, fileName, breaks, syntax }
+  for (const jar of await enabledJars(profileId)) {
+    for (const mod of metaFor(jar.meta, profile.loader)?.mods ?? []) {
+      if (!installed.has(mod.id)) installed.set(mod.id, { ...mod, fileName: jar.fileName });
+    }
+  }
+
+  const clashes = new Map();
+  const add = (id, mod, message) => {
+    const slug = SLUGS[id] ?? id;
+    if (!installed.has(id) && !clashes.has(slug)) clashes.set(slug, { slug, with: mod.name, file: mod.fileName, message });
+  };
+  for (const rule of KNOWN_CONFLICTS) {
+    for (const [have, want] of [
+      [rule.a, rule.b],
+      [rule.b, rule.a],
+    ]) {
+      for (const id of have) {
+        const mod = installed.get(id);
+        if (!mod) continue;
+        // A version limit applies to the `b` mod; it can only be checked when that's the installed one.
+        if (rule.range && (have !== rule.b || fabricMatches(rule.range, mod.version) !== true)) continue;
+        if (rule.range && !rule.browse) continue;
+        const message = rule.browse ? rule.browse(mod) : `{title} and ${mod.name} ${rule.why}, so they can’t be used together.`;
+        for (const other of want) add(other, mod, message);
+      }
+    }
+  }
+  // What installed mods say they don't work with.
+  for (const mod of installed.values()) {
+    for (const [id, range] of Object.entries(mod.breaks)) {
+      add(
+        id,
+        mod,
+        isAny(range) ? `{title} doesn’t work alongside ${mod.name}.` : `${mod.name} doesn’t work with {title} ${describeRange(range)}.`,
+      );
+    }
+  }
+  return [...clashes.values()];
 }
 
 /** Mod id → enabled jar that provides it, for pointing at the file behind a crash. */
@@ -859,6 +918,7 @@ async function analyzeCrash(profileId, startedAt, exitCode) {
 }
 
 module.exports = {
+  installClashes,
   scanMods,
   analyzeCrash,
   installDependency,
