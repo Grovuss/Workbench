@@ -24,7 +24,7 @@ function pageList(current: number, count: number): (number | 'gap')[] {
   return out;
 }
 
-/** "Showing 1–50 of 120", a page-size picker and page buttons. pageSize 0 means everything on one page. */
+/** "Showing 1–50 of 120", page buttons in the middle and a page-size picker. pageSize 0 means everything on one page. */
 export default function Pagination({ page, pageSize, total, onPage, onPageSize }: Props) {
   const count = pageSize ? Math.max(1, Math.ceil(total / pageSize)) : 1;
   const from = pageSize ? page * pageSize + 1 : 1;
@@ -35,16 +35,7 @@ export default function Pagination({ page, pageSize, total, onPage, onPageSize }
       <span className="pagination-range">
         {total === 0 ? 'Nothing to show' : `Showing ${from === to ? from : `${from}–${to}`} of ${total}`}
       </span>
-      <label className="select-pill">
-        <select value={pageSize} onChange={(e) => onPageSize(Number(e.target.value) as PageSize)} aria-label="Items per page">
-          {PAGE_SIZES.map((size) => (
-            <option key={size} value={size}>
-              {size ? `${size} per page` : 'Show all'}
-            </option>
-          ))}
-        </select>
-      </label>
-      {count > 1 && (
+      {count > 1 ? (
         <nav className="pagination-pages" aria-label="Pages">
           <button className="page-btn" aria-label="Previous page" disabled={page === 0} onClick={() => onPage(page - 1)}>
             <ChevronLeft size={16} />
@@ -64,7 +55,18 @@ export default function Pagination({ page, pageSize, total, onPage, onPageSize }
             <ChevronRight size={16} />
           </button>
         </nav>
+      ) : (
+        <span />
       )}
+      <label className="select-pill pagination-size">
+        <select value={pageSize} onChange={(e) => onPageSize(Number(e.target.value) as PageSize)} aria-label="Items per page">
+          {PAGE_SIZES.map((size) => (
+            <option key={size} value={size}>
+              {size ? `${size} per page` : 'Show all'}
+            </option>
+          ))}
+        </select>
+      </label>
     </div>
   );
 }

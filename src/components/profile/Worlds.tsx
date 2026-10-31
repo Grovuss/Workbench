@@ -27,7 +27,7 @@ import { timeAgo } from '../../time';
 import type { Profile, QuickPlay, World, WorldBackup } from '../../types';
 
 /** Quick play (open a world from the launcher) arrived in 1.20; year-numbered versions (26.x) have it too. */
-function supportsWorldQuickPlay(mcVersion: string) {
+export function supportsWorldQuickPlay(mcVersion: string) {
   const [major, minor] = mcVersion.split(/[.-]/).map(Number);
   return major > 1 || (major === 1 && minor >= 20);
 }
@@ -46,7 +46,7 @@ const BACKUP_LABELS: Record<WorldBackup['kind'], string> = {
   update: 'Before a modpack update',
 };
 
-function modeLabel(world: World) {
+export function modeLabel(world: World) {
   if (world.hardcore) return 'Hardcore';
   return world.gameMode ? MODE_LABELS[world.gameMode] : null;
 }
@@ -484,7 +484,7 @@ function Backups({
           ))}
         </div>
       )}
-      <p className="content-hint">The last 5 automatic backups of each world are kept. Ones you make stay until you delete them.</p>
+      <p className="content-hint">Older automatic backups are cleared as new ones are made (how many are kept is in Settings). Ones you make stay until you delete them.</p>
 
       {restoring && (
         <Modal

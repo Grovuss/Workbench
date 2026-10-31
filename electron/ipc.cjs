@@ -1,6 +1,7 @@
 const fsp = require('node:fs/promises');
+const os = require('node:os');
 const path = require('node:path');
-const { BrowserWindow, dialog, ipcMain, shell } = require('electron');
+const { app, BrowserWindow, dialog, ipcMain, shell } = require('electron');
 const icons = require('./icons.cjs');
 const content = require('./content.cjs');
 const curseforge = require('./curseforge.cjs');
@@ -23,6 +24,7 @@ const auth = require('./auth.cjs');
 const game = require('./game.cjs');
 const profiles = require('./profiles.cjs');
 const settings = require('./settings.cjs');
+const storage = require('./storage.cjs');
 const { getManifest } = require('./launcher/versions.cjs');
 const { supportedGameVersions, loaderVersions } = require('./launcher/loaders.cjs');
 
@@ -356,7 +358,12 @@ function registerIpc() {
   handle('settings:get', () => settings.get());
   handle('settings:set', async (_e, patch) => {
     const next = await settings.set(patch ?? {});
-    if ('discordPresence' in (patch ?? {})) discord.settingsChanged();
+    if ('discordPresence' in (patch ?? {}) || 'discordShowProfile' in (patch ?? {})) discord.settingsChanged();
+    return next;
+  });
+  handle('settings:reset', async () => {
+    const next = await settings.reset();
+    discord.settingsChanged();
     return next;
   });
 
@@ -365,7 +372,15 @@ function registerIpc() {
     dataDir: paths.root(),
     curseforge: curseforge.enabled(),
     discord: discord.configured(),
+    version: app.getVersion(),
+    os: `${os.type()} ${os.release()} (${process.arch})`,
+    electron: process.versions.electron,
   }));
+  handle('system:usage', () => storage.usage());
+  handle('system:removeJava', async () => {
+    if (Object.keys(game.status()).length) throw new Error('Close the game first.');
+    await storage.removeJava();
+  });
   // Only CurseForge pages, for files a pack import couldn't download.
   handle('system:openCurseForge', (_e, url) => {
     const u = new URL(String(url));

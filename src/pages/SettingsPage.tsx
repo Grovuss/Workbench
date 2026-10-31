@@ -1,10 +1,29 @@
-import { useEffect, useRef, useState } from 'react';
-import { FolderOpen, Monitor, Moon, Sun } from 'lucide-react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
+import {
+  Check,
+  ClipboardCopy,
+  Coffee,
+  FolderOpen,
+  Gamepad2,
+  Globe,
+  HardDrive,
+  LifeBuoy,
+  Monitor,
+  Moon,
+  Palette,
+  RefreshCw,
+  Rocket,
+  RotateCcw,
+  Sun,
+  Users,
+} from 'lucide-react';
 import PageHeader from '../components/PageHeader';
 import Toggle from '../components/Toggle';
+import Modal from '../components/Modal';
 import { api, errorMessage } from '../api';
-import { formatGb, maxMemoryMb } from '../memory';
-import type { Settings, SystemInfo, ThemePreference } from '../types';
+import { formatBytes, formatGb, maxMemoryMb } from '../memory';
+import { reduceMotionStored, setReduceMotion } from '../motion';
+import type { LauncherOnLaunch, Settings, StorageUsage, SystemInfo, ThemePreference } from '../types';
 
 const THEMES: { id: ThemePreference; label: string; icon: typeof Sun }[] = [
   { id: 'light', label: 'Light', icon: Sun },
@@ -12,6 +31,29 @@ const THEMES: { id: ThemePreference; label: string; icon: typeof Sun }[] = [
   { id: 'system', label: 'System', icon: Monitor },
 ];
 
+const ON_LAUNCH: { id: LauncherOnLaunch; label: string }[] = [
+  { id: 'keep', label: 'Stay open' },
+  { id: 'minimize', label: 'Minimize' },
+  { id: 'hide', label: 'Hide' },
+];
+
+const DOWNLOAD_THREADS = [4, 8, 16, 32];
+const DEFAULT_RESOLUTION = { width: 1280, height: 720 };
+
+const SECTIONS = [
+  { id: 'appearance', label: 'Appearance', icon: Palette },
+  { id: 'launching', label: 'Launching', icon: Rocket },
+  { id: 'game', label: 'Game defaults', icon: Gamepad2 },
+  { id: 'worlds', label: 'Worlds', icon: Globe },
+  { id: 'discord', label: 'Discord', icon: Users },
+  { id: 'storage', label: 'Storage', icon: HardDrive },
+  { id: 'help', label: 'Troubleshooting', icon: LifeBuoy },
+] as const;
+
+type SectionId = (typeof SECTIONS)[number]['id'];
+
+// Typing in a text field saves once it pauses for this long.
+const TEXT_SAVE_MS = 500;
 
 interface Props {
   theme: ThemePreference;
@@ -20,136 +62,449 @@ interface Props {
 }
 
 export default function SettingsPage({ theme, onThemeChange, onError }: Props) {
-  const [memoryMb, setMemoryMb] = useState<number | null>(null);
-  const [toggles, setToggles] = useState<Pick<Settings, 'autoBackup' | 'discordPresence' | 'shareOptions'> | null>(null);
+  const [settings, setSettings] = useState<Settings | null>(null);
   const [system, setSystem] = useState<SystemInfo | null>(null);
-  const saveTimer = useRef<number>();
+  const [reduceMotion, setReduceMotionState] = useState(reduceMotionStored);
+  const [active, setActive] = useState<SectionId>('appearance');
+  const timers = useRef<Record<string, number>>({});
 
   useEffect(() => {
     Promise.all([api.settings.get(), api.system.info()])
       .then(([s, info]) => {
-        setMemoryMb(s.memoryMb);
-        setToggles({ autoBackup: s.autoBackup, discordPresence: s.discordPresence, shareOptions: s.shareOptions });
+        setSettings(s);
         setSystem(info);
       })
       .catch((err) => onError(errorMessage(err)));
   }, [onError]);
 
-  const changeMemory = (mb: number) => {
-    setMemoryMb(mb);
-    window.clearTimeout(saveTimer.current);
-    saveTimer.current = window.setTimeout(() => {
-      api.settings.set({ memoryMb: mb }).catch((err) => onError(errorMessage(err)));
-    }, 300);
+  // Highlights the section being read in the side index.
+  useEffect(() => {
+    if (!settings) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const visible = entries.filter((e) => e.isIntersecting).sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top);
+        if (visible[0]) setActive(visible[0].target.id.replace('settings-', '') as SectionId);
+      },
+      { rootMargin: '0px 0px -65% 0px' },
+    );
+    for (const s of SECTIONS) {
+      const el = document.getElementById(`settings-${s.id}`);
+      if (el) observer.observe(el);
+    }
+    return () => observer.disconnect();
+  }, [settings]);
+
+  /** Shows the change straight away and saves it, after a pause for text that's still being typed. Half-typed numbers aren't saved. */
+  const update = (patch: Partial<Settings>, delay = 0, valid = true) => {
+    setSettings((s) => s && { ...s, ...patch });
+    const key = Object.keys(patch).join(',');
+    window.clearTimeout(timers.current[key]);
+    if (!valid) return;
+    timers.current[key] = window.setTimeout(() => {
+      api.settings.set(patch).catch((err) => onError(errorMessage(err)));
+    }, delay);
   };
 
-  const setToggle = (key: keyof NonNullable<typeof toggles>, value: boolean) => {
-    setToggles((t) => t && { ...t, [key]: value });
-    api.settings.set({ [key]: value }).catch((err) => onError(errorMessage(err)));
+  const jumpTo = (id: SectionId) => {
+    setActive(id);
+    document.getElementById(`settings-${id}`)?.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' });
   };
 
-  const maxMemory = system ? maxMemoryMb(system.totalMemoryMb) : 8192;
+  if (!settings || !system) return <PageHeader title="Settings" subtitle="Customize how Workbench looks and behaves" />;
+
+  const maxMemory = maxMemoryMb(system.totalMemoryMb);
+  const resolution = settings.resolution;
+  const setSize = (size: { width: number; height: number }) =>
+    update({ resolution: size }, TEXT_SAVE_MS, size.width >= 320 && size.width <= 7680 && size.height >= 240 && size.height <= 4320);
 
   return (
     <>
       <PageHeader title="Settings" subtitle="Customize how Workbench looks and behaves" />
 
-      <h2 className="section-label section-label-first">Appearance</h2>
-      <div className="settings-group">
-        <div className="settings-row">
-          <div>
-            <h3>Theme</h3>
-            <p>Cream or charcoal, or follow your system.</p>
-          </div>
-          <div className="segmented" role="group" aria-label="Theme">
-            {THEMES.map(({ id, label, icon: Icon }) => (
-              <button key={id} aria-pressed={theme === id} onClick={() => onThemeChange(id)}>
-                <Icon size={14} /> {label}
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
+      <div className="settings-layout">
+        <nav className="settings-nav" aria-label="Settings sections">
+          {SECTIONS.map(({ id, label, icon: Icon }) => (
+            <button key={id} className="settings-nav-item" aria-current={active === id || undefined} onClick={() => jumpTo(id)}>
+              <Icon size={16} /> {label}
+            </button>
+          ))}
+        </nav>
 
-      <h2 className="section-label">Game</h2>
-      <div className="settings-group">
-        <div className="settings-row">
-          <div>
-            <h3>Memory</h3>
-            <p>Maximum RAM Minecraft can use. 4 GB is plenty for vanilla.</p>
-          </div>
-          {memoryMb !== null && (
-            <div className="memory-control">
-              <input
-                type="range"
-                className="range"
-                min={1024}
-                max={maxMemory}
-                step={512}
-                value={Math.min(memoryMb, maxMemory)}
-                onChange={(e) => changeMemory(Number(e.target.value))}
-                aria-label="Memory"
+        <div className="settings-sections">
+          <Section id="appearance" title="Appearance">
+            <Row title="Theme" description="Cream or charcoal, or follow your system.">
+              <div className="segmented" role="group" aria-label="Theme">
+                {THEMES.map(({ id, label, icon: Icon }) => (
+                  <button key={id} aria-pressed={theme === id} onClick={() => onThemeChange(id)}>
+                    <Icon size={14} /> {label}
+                  </button>
+                ))}
+              </div>
+            </Row>
+            <Row title="Reduce motion" description="Turns off sliding, spinning and fading. Your system setting for this is always followed too.">
+              <Toggle
+                label="Reduce motion"
+                checked={reduceMotion}
+                onChange={(on) => {
+                  setReduceMotionState(on);
+                  setReduceMotion(on);
+                }}
               />
-              <span className="memory-value">{formatGb(memoryMb)}</span>
-            </div>
-          )}
-        </div>
-        {toggles && (
-          <div className="settings-row">
-            <div>
-              <h3>Share game settings</h3>
-              <p>New profiles start with the keybinds, video and sound settings of the profile you played last.</p>
-            </div>
-            <Toggle label="Share game settings" checked={toggles.shareOptions} onChange={(on) => setToggle('shareOptions', on)} />
-          </div>
-        )}
-        <div className="settings-row">
-          <div>
-            <h3>Data folder</h3>
-            <p className="path-text">{system?.dataDir ?? '…'}</p>
-          </div>
-          <button
-            className="btn btn-secondary"
-            onClick={() => api.system.openDataFolder().catch((err) => onError(errorMessage(err)))}
-          >
-            <FolderOpen size={15} /> Open
-          </button>
-        </div>
-      </div>
+            </Row>
+          </Section>
 
-      {toggles && (
-        <>
-          <h2 className="section-label">Worlds</h2>
-          <div className="settings-group">
-            <div className="settings-row">
-              <div>
-                <h3>Back up worlds automatically</h3>
-                <p>After you play, worlds that changed are backed up. The last 5 are kept for each world.</p>
+          <Section id="launching" title="Launching">
+            <Row
+              title="While you play"
+              description={
+                settings.onLaunch === 'hide'
+                  ? 'Workbench hides while the game runs, and comes back when it closes.'
+                  : settings.onLaunch === 'minimize'
+                    ? 'Workbench minimizes while the game runs, and comes back when it closes.'
+                    : 'Workbench stays open next to the game.'
+              }
+            >
+              <div className="segmented" role="group" aria-label="While you play">
+                {ON_LAUNCH.map(({ id, label }) => (
+                  <button key={id} aria-pressed={settings.onLaunch === id} onClick={() => update({ onLaunch: id })}>
+                    {label}
+                  </button>
+                ))}
               </div>
-              <Toggle label="Back up worlds automatically" checked={toggles.autoBackup} onChange={(on) => setToggle('autoBackup', on)} />
-            </div>
-          </div>
+            </Row>
+            <Row
+              title="Before launch"
+              description="A command run in the profile’s folder before the game starts. If it fails, the game doesn’t start."
+            >
+              <input
+                className="input input-mono inline-field"
+                value={settings.preLaunchCommand}
+                placeholder="e.g. a backup script"
+                spellCheck={false}
+                onChange={(e) => update({ preLaunchCommand: e.target.value }, TEXT_SAVE_MS)}
+                aria-label="Before launch command"
+              />
+            </Row>
+            <Row title="After the game closes" description="A command run in the profile’s folder once the game has exited.">
+              <input
+                className="input input-mono inline-field"
+                value={settings.postExitCommand}
+                placeholder="e.g. a sync script"
+                spellCheck={false}
+                onChange={(e) => update({ postExitCommand: e.target.value }, TEXT_SAVE_MS)}
+                aria-label="After the game closes command"
+              />
+            </Row>
+            <p className="settings-note">
+              Both commands can use <code>WORKBENCH_GAME_DIR</code>, <code>WORKBENCH_PROFILE_NAME</code>, <code>WORKBENCH_PROFILE_ID</code>,{' '}
+              <code>WORKBENCH_MC_VERSION</code> and <code>WORKBENCH_LOADER</code>.
+            </p>
+          </Section>
 
-          <h2 className="section-label">Discord</h2>
-          <div className="settings-group">
-            <div className="settings-row">
-              <div>
-                <h3>Show what you’re playing</h3>
-                <p>
-                  {system?.discord
-                    ? 'Your Discord status shows Workbench while it’s open, and the profile you’re playing in game.'
-                    : 'Not set up in this build of Workbench yet.'}
-                </p>
+          <Section id="game" title="Game defaults" description="Used by every profile that doesn’t set its own in its Settings tab.">
+            <Row title="Memory" description="Maximum RAM Minecraft can use. 4 GB is plenty for vanilla.">
+              <div className="memory-control">
+                <input
+                  type="range"
+                  className="range"
+                  min={1024}
+                  max={maxMemory}
+                  step={512}
+                  value={Math.min(settings.memoryMb, maxMemory)}
+                  onChange={(e) => update({ memoryMb: Number(e.target.value) }, 300)}
+                  aria-label="Memory"
+                />
+                <span className="memory-value">{formatGb(settings.memoryMb)}</span>
               </div>
+            </Row>
+            <Row title="Java arguments" description="Extra JVM flags for every profile. A profile’s own arguments are added after these.">
+              <input
+                className="input input-mono inline-field"
+                value={settings.jvmArgs}
+                placeholder="-XX:+UseG1GC"
+                spellCheck={false}
+                onChange={(e) => update({ jvmArgs: e.target.value }, TEXT_SAVE_MS)}
+                aria-label="Java arguments"
+              />
+            </Row>
+            <Row title="Window size" description={resolution ? 'Size of the game window when it opens.' : 'Uses the game’s default size.'}>
+              <div className="memory-control">
+                {resolution && (
+                  <div className="resolution-fields">
+                    <input
+                      type="number"
+                      className="input"
+                      value={resolution.width}
+                      min={320}
+                      max={7680}
+                      onChange={(e) => setSize({ ...resolution, width: Number(e.target.value) })}
+                      aria-label="Width"
+                    />
+                    <span>×</span>
+                    <input
+                      type="number"
+                      className="input"
+                      value={resolution.height}
+                      min={240}
+                      max={4320}
+                      onChange={(e) => setSize({ ...resolution, height: Number(e.target.value) })}
+                      aria-label="Height"
+                    />
+                  </div>
+                )}
+                <Toggle label="Custom window size" checked={Boolean(resolution)} onChange={(on) => update({ resolution: on ? DEFAULT_RESOLUTION : null })} />
+              </div>
+            </Row>
+            <Row title="Start in fullscreen" description="The game opens fullscreen. F11 switches back in game.">
+              <Toggle label="Start in fullscreen" checked={settings.fullscreen} onChange={(on) => update({ fullscreen: on })} />
+            </Row>
+            <Row title="Share game settings" description="New profiles start with the keybinds, video and sound settings of the profile you played last.">
+              <Toggle label="Share game settings" checked={settings.shareOptions} onChange={(on) => update({ shareOptions: on })} />
+            </Row>
+          </Section>
+
+          <Section id="worlds" title="Worlds">
+            <Row title="Back up worlds automatically" description="After you play, worlds that changed are backed up.">
+              <Toggle label="Back up worlds automatically" checked={settings.autoBackup} onChange={(on) => update({ autoBackup: on })} />
+            </Row>
+            <Row
+              title="Backups to keep"
+              description="Automatic backups kept for each world; older ones are removed. Backups you make yourself are never removed."
+            >
+              <input
+                type="number"
+                className="input settings-number"
+                value={settings.backupsToKeep}
+                min={1}
+                max={50}
+                disabled={!settings.autoBackup}
+                onChange={(e) => {
+                  const n = Math.round(Number(e.target.value));
+                  update({ backupsToKeep: n }, TEXT_SAVE_MS, n >= 1 && n <= 50);
+                }}
+                aria-label="Backups to keep"
+              />
+            </Row>
+          </Section>
+
+          <Section id="discord" title="Discord">
+            <Row
+              title="Show what you’re playing"
+              description={
+                system.discord
+                  ? 'Your Discord status shows Workbench while it’s open, and what you’re playing in game.'
+                  : 'Not set up in this build of Workbench yet.'
+              }
+            >
               <Toggle
                 label="Show what you’re playing on Discord"
-                checked={toggles.discordPresence && Boolean(system?.discord)}
-                disabled={!system?.discord}
-                onChange={(on) => setToggle('discordPresence', on)}
+                checked={settings.discordPresence && system.discord}
+                disabled={!system.discord}
+                onChange={(on) => update({ discordPresence: on })}
               />
-            </div>
+            </Row>
+            <Row title="Show profile names" description="Off, your status says “Playing Minecraft” with the version, but not which profile.">
+              <Toggle
+                label="Show profile names on Discord"
+                checked={settings.discordShowProfile}
+                disabled={!system.discord || !settings.discordPresence}
+                onChange={(on) => update({ discordShowProfile: on })}
+              />
+            </Row>
+          </Section>
+
+          <Section id="storage" title="Storage">
+            <Row title="Data folder" description={<span className="path-text">{system.dataDir}</span>}>
+              <button className="btn btn-secondary" onClick={() => api.system.openDataFolder().catch((err) => onError(errorMessage(err)))}>
+                <FolderOpen size={15} /> Open
+              </button>
+            </Row>
+            <StorageRow onError={onError} />
+            <Row title="Parallel downloads" description="Files downloaded at once when installing a version. Lower it if installs fail on a slow connection.">
+              <div className="segmented" role="group" aria-label="Parallel downloads">
+                {DOWNLOAD_THREADS.map((n) => (
+                  <button key={n} aria-pressed={settings.downloadThreads === n} onClick={() => update({ downloadThreads: n })}>
+                    {n}
+                  </button>
+                ))}
+              </div>
+            </Row>
+          </Section>
+
+          <Section id="help" title="Troubleshooting">
+            <SystemInfoRow system={system} />
+            <JavaRow onError={onError} />
+            <ResetRow
+              onReset={(next) => {
+                setSettings(next);
+                setReduceMotionState(false);
+                setReduceMotion(false);
+              }}
+              onError={onError}
+            />
+          </Section>
+        </div>
+      </div>
+    </>
+  );
+}
+
+function Section({ id, title, description, children }: { id: SectionId; title: string; description?: string; children: ReactNode }) {
+  return (
+    <section id={`settings-${id}`} className="settings-section" aria-labelledby={`settings-${id}-title`}>
+      <h2 id={`settings-${id}-title`} className="section-label">
+        {title}
+      </h2>
+      {description && <p className="settings-section-text">{description}</p>}
+      <div className="settings-group">{children}</div>
+    </section>
+  );
+}
+
+function Row({ title, description, children }: { title: string; description: ReactNode; children: ReactNode }) {
+  return (
+    <div className="settings-row">
+      <div>
+        <h3>{title}</h3>
+        <p>{description}</p>
+      </div>
+      {children}
+    </div>
+  );
+}
+
+const USAGE_PARTS: { key: keyof StorageUsage; label: string }[] = [
+  { key: 'profiles', label: 'Profiles' },
+  { key: 'shared', label: 'Shared game files' },
+  { key: 'java', label: 'Java' },
+  { key: 'backups', label: 'World backups' },
+];
+
+function StorageRow({ onError }: { onError: (message: string) => void }) {
+  const [usage, setUsage] = useState<StorageUsage | null>(null);
+  useEffect(() => {
+    api.system
+      .usage()
+      .then(setUsage)
+      .catch((err) => onError(errorMessage(err)));
+  }, [onError]);
+
+  const total = usage ? USAGE_PARTS.reduce((sum, p) => sum + usage[p.key], 0) : 0;
+  return (
+    <div className="settings-row settings-row-stacked">
+      <div>
+        <h3>Space used{usage && <span className="settings-usage-total"> · {formatBytes(total)}</span>}</h3>
+        <p>Shared game files are the versions, libraries and sounds every profile reuses.</p>
+      </div>
+      {usage ? (
+        <div className="usage">
+          <div className="usage-bar" aria-hidden>
+            {USAGE_PARTS.map((p) => (
+              <span key={p.key} className={`usage-part usage-${p.key}`} style={{ flexGrow: usage[p.key] }} />
+            ))}
           </div>
-        </>
+          <ul className="usage-legend">
+            {USAGE_PARTS.map((p) => (
+              <li key={p.key}>
+                <span className={`usage-swatch usage-${p.key}`} />
+                {p.label}
+                <strong>{formatBytes(usage[p.key])}</strong>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : (
+        <p className="settings-usage-loading">Adding it up…</p>
+      )}
+    </div>
+  );
+}
+
+function SystemInfoRow({ system }: { system: SystemInfo }) {
+  const [copied, setCopied] = useState(false);
+  const text = [
+    `Workbench ${system.version}`,
+    `OS: ${system.os}`,
+    `Electron: ${system.electron}`,
+    `Memory: ${formatGb(system.totalMemoryMb)}`,
+    `Data folder: ${system.dataDir}`,
+  ].join('\n');
+  const copy = () =>
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1500);
+    });
+  return (
+    <Row title="System info" description={`Workbench ${system.version} on ${system.os}. Paste it into a bug report.`}>
+      <button className="btn btn-secondary" onClick={copy}>
+        {copied ? <Check size={15} /> : <ClipboardCopy size={15} />} {copied ? 'Copied' : 'Copy'}
+      </button>
+    </Row>
+  );
+}
+
+function JavaRow({ onError }: { onError: (message: string) => void }) {
+  const [state, setState] = useState<'idle' | 'working' | 'done'>('idle');
+  const run = async () => {
+    setState('working');
+    try {
+      await api.system.removeJava();
+      setState('done');
+    } catch (err) {
+      onError(errorMessage(err));
+      setState('idle');
+    }
+  };
+  return (
+    <Row
+      title="Download Java again"
+      description={
+        state === 'done'
+          ? 'Done. Java downloads again the next time you play.'
+          : 'If the game won’t start with a Java error, this clears Workbench’s copies of Java so the next launch gets fresh ones.'
+      }
+    >
+      <button className="btn btn-secondary" onClick={run} disabled={state !== 'idle'}>
+        {state === 'done' ? <Check size={15} /> : <Coffee size={15} />} {state === 'working' ? 'Clearing…' : 'Clear Java'}
+      </button>
+    </Row>
+  );
+}
+
+function ResetRow({ onReset, onError }: { onReset: (settings: Settings) => void; onError: (message: string) => void }) {
+  const [confirming, setConfirming] = useState(false);
+  const reset = async () => {
+    try {
+      onReset(await api.settings.reset());
+      setConfirming(false);
+    } catch (err) {
+      onError(errorMessage(err));
+    }
+  };
+  return (
+    <>
+      <Row title="Reset settings" description="Puts everything on this page back to how it started. Profiles, worlds and accounts aren’t touched.">
+        <button className="btn btn-secondary" onClick={() => setConfirming(true)}>
+          <RotateCcw size={15} /> Reset
+        </button>
+      </Row>
+      {confirming && (
+        <Modal
+          title="Reset settings?"
+          onClose={() => setConfirming(false)}
+          footer={
+            <>
+              <button className="btn btn-secondary" onClick={() => setConfirming(false)}>
+                Cancel
+              </button>
+              <button className="btn btn-danger-fill" onClick={reset}>
+                <RefreshCw size={15} /> Reset settings
+              </button>
+            </>
+          }
+        >
+          <p className="modal-text">Memory, launch commands, backups, Discord and the other settings here go back to their defaults.</p>
+        </Modal>
       )}
     </>
   );

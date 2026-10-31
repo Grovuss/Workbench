@@ -150,10 +150,13 @@ contextBridge.exposeInMainWorld('workbench', {
   settings: {
     get: () => invoke('settings:get'),
     set: (patch) => invoke('settings:set', patch),
+    reset: () => invoke('settings:reset'),
   },
   system: {
     info: () => invoke('system:info'),
     openDataFolder: () => invoke('system:openDataFolder'),
+    usage: () => invoke('system:usage'),
+    removeJava: () => invoke('system:removeJava'),
     openCurseForge: (url) => invoke('system:openCurseForge', url),
   },
   window: {

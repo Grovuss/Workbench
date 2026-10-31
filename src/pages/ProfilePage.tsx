@@ -21,6 +21,7 @@ import { LOADER_LABELS, loaderVersionLabel } from '../loaders';
 import PlayButton from '../components/PlayButton';
 import ProgressBar, { progressPercent } from '../components/ProgressBar';
 import WorldsTab from '../components/profile/WorldsTab';
+import RecentWorlds from '../components/profile/RecentWorlds';
 import LogsTab from '../components/profile/LogsTab';
 import ProfileSettingsTab from '../components/profile/ProfileSettingsTab';
 import ContentTab from '../components/content/ContentTab';
@@ -217,6 +218,7 @@ export default function ProfilePage({
               <dd>{new Date(profile.createdAt).toLocaleDateString(undefined, { dateStyle: 'medium' })}</dd>
             </dl>
           </section>
+          <RecentWorlds profile={profile} running={running} launching={Boolean(launch)} onPlay={onPlay} onOpenWorlds={() => setTab('worlds')} />
         </aside>
 
         <div className="profile-main">

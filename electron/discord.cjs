@@ -79,13 +79,14 @@ async function connect() {
   }
 }
 
-function activityFor(current) {
+function activityFor(current, showProfile) {
   const assets = { large_image: 'logo', large_text: 'Workbench' };
   if (!current) return { details: 'In the launcher', timestamps: { start: openedAt }, assets, instance: false };
   const { profile, startedAt } = current;
+  const version = profile.loader === 'vanilla' ? `Minecraft ${profile.mcVersion}` : `${LOADER_NAMES[profile.loader]} ${profile.mcVersion}`;
   return {
-    details: profile.name.slice(0, 128),
-    state: profile.loader === 'vanilla' ? `Minecraft ${profile.mcVersion}` : `${LOADER_NAMES[profile.loader]} ${profile.mcVersion}`,
+    details: showProfile ? profile.name.slice(0, 128) : 'Playing Minecraft',
+    state: version,
     timestamps: { start: startedAt },
     assets,
     instance: false,
@@ -94,14 +95,14 @@ function activityFor(current) {
 
 async function refresh() {
   if (!DISCORD_CLIENT_ID) return;
-  const enabled = (await settings.get()).discordPresence;
+  const { discordPresence: enabled, discordShowProfile } = await settings.get();
   if (!enabled) {
     if (socket) send(OP_FRAME, { cmd: 'SET_ACTIVITY', args: { pid: process.pid, activity: null }, nonce: randomUUID() });
     return;
   }
   if (!(await connect())) return;
   const current = [...playing.values()].at(-1);
-  send(OP_FRAME, { cmd: 'SET_ACTIVITY', args: { pid: process.pid, activity: activityFor(current) }, nonce: randomUUID() });
+  send(OP_FRAME, { cmd: 'SET_ACTIVITY', args: { pid: process.pid, activity: activityFor(current, discordShowProfile) }, nonce: randomUUID() });
 }
 
 /** Shows "In the launcher" from startup, and reconnects whenever Discord comes back. */

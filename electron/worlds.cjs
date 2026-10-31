@@ -12,7 +12,6 @@ const { safeFileName } = require('./content.cjs');
 // Worlds in a profile's saves/ folder, and their backups in <userData>/backups/<profile>/<world>/<stamp>/.
 
 const BACKUP_META = 'workbench-backup.json';
-const KEEP_AUTO_BACKUPS = 5;
 const GAME_MODES = ['survival', 'creative', 'adventure', 'spectator'];
 
 const savesDir = (profileId) => path.join(profiles.gameDir(profileId), 'saves');
@@ -236,7 +235,7 @@ async function backup(profileId, folder, kind = 'manual') {
 
   // Only automatic backups are pruned; ones the player made stay until they delete them.
   const autos = (await listBackups(profileId, folder)).filter((b) => b.kind === 'auto');
-  for (const old of autos.slice(KEEP_AUTO_BACKUPS)) {
+  for (const old of autos.slice((await settings.get()).backupsToKeep)) {
     await fsp.rm(path.join(backupsDir(profileId, path.basename(from)), old.id), { recursive: true, force: true });
   }
   return listBackups(profileId, folder);

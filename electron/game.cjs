@@ -1,3 +1,4 @@
+const { spawn } = require('node:child_process');
 const { BrowserWindow } = require('electron');
 const auth = require('./auth.cjs');
 const diagnose = require('./diagnose.cjs');
@@ -17,6 +18,52 @@ function broadcast(event) {
 
 function setState(profileId, state) {
   broadcast({ type: 'state', profileId, state });
+}
+
+// The launch hooks get the profile through these, e.g. %WORKBENCH_GAME_DIR% or $WORKBENCH_GAME_DIR.
+function hookEnv(profile, gameDir) {
+  return {
+    ...process.env,
+    WORKBENCH_PROFILE_ID: profile.id,
+    WORKBENCH_PROFILE_NAME: profile.name,
+    WORKBENCH_GAME_DIR: gameDir,
+    WORKBENCH_MC_VERSION: profile.mcVersion,
+    WORKBENCH_LOADER: profile.loader,
+  };
+}
+
+/** Runs the before-launch command and waits for it; a failure stops the launch. */
+function runPreLaunch(command, profile, gameDir) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(command, { shell: true, cwd: gameDir, env: hookEnv(profile, gameDir), stdio: 'ignore', windowsHide: true });
+    child.once('error', (err) => reject(new Error(`The before-launch command couldn't run: ${err.message}`)));
+    child.once('exit', (code) => (code === 0 ? resolve() : reject(new Error(`The before-launch command failed (exit code ${code}), so the game wasn't started.`))));
+  });
+}
+
+/** Starts the after-close command and leaves it running on its own. */
+function runPostExit(command, profile, gameDir) {
+  try {
+    spawn(command, { shell: true, cwd: gameDir, env: hookEnv(profile, gameDir), stdio: 'ignore', detached: true, windowsHide: true }).unref();
+  } catch (err) {
+    console.error('[hook]', err);
+  }
+}
+
+/** Minimizes or hides the launcher while the game runs, per the setting. */
+function stepAside(onLaunch) {
+  for (const win of BrowserWindow.getAllWindows()) {
+    if (onLaunch === 'minimize') win.minimize();
+    if (onLaunch === 'hide') win.hide();
+  }
+}
+
+function comeBack(onLaunch) {
+  if (onLaunch === 'keep' || [...sessions.values()].some((s) => s.state === 'running')) return;
+  for (const win of BrowserWindow.getAllWindows()) {
+    if (onLaunch === 'hide') win.show();
+    if (win.isMinimized()) win.restore();
+  }
 }
 
 function status() {
@@ -45,13 +92,18 @@ async function launch(profileId, quickPlay) {
     const account = await auth.getLaunchAccount();
     const profile = await profiles.get(profileId);
     const global = await settings.get();
+    const gameDir = profiles.gameDir(profileId);
+    if (global.preLaunchCommand.trim()) await runPreLaunch(global.preLaunchCommand, profile, gameDir);
     const { child, logFile } = await launchGame({
       profile,
-      gameDir: profiles.gameDir(profileId),
+      gameDir,
       account,
       memoryMb: profile.settings.memoryMb ?? global.memoryMb,
-      jvmArgs: profile.settings.jvmArgs,
-      resolution: profile.settings.resolution,
+      // The profile's own arguments come last, so they win.
+      jvmArgs: [global.jvmArgs, profile.settings.jvmArgs].filter((a) => a.trim()).join(' '),
+      resolution: profile.settings.resolution ?? global.resolution,
+      fullscreen: global.fullscreen,
+      downloadThreads: global.downloadThreads,
       quickPlay,
       onProgress,
     });
@@ -59,6 +111,7 @@ async function launch(profileId, quickPlay) {
     session.state = 'running';
     session.child = child;
     setState(profileId, 'running');
+    stepAside(global.onLaunch);
     discord.started(profile);
     profiles
       .update(profileId, { lastPlayedAt: new Date().toISOString() })
@@ -84,6 +137,8 @@ async function launch(profileId, quickPlay) {
       sessions.delete(profileId);
       setState(profileId, 'idle');
       discord.stopped(profileId);
+      comeBack(global.onLaunch);
+      if (global.postExitCommand.trim()) runPostExit(global.postExitCommand, profile, gameDir);
       // Worlds played this session get a backup, if they changed.
       require('./worlds.cjs')
         .backupChanged(profileId)

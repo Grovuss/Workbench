@@ -1343,6 +1343,10 @@ img.import-option-icon {
   .profile-side {
     position: sticky;
     top: 0;
+    /* Short windows scroll the panel itself rather than hiding its end. */
+    max-height: calc(100vh - var(--titlebar-height) - 48px);
+    overflow-y: auto;
+    scrollbar-width: thin;
     flex-direction: column;
     flex-wrap: nowrap;
     align-items: stretch;
@@ -1472,6 +1476,84 @@ img.import-option-icon {
   gap: 10px 16px;
   margin: 0;
   font-size: 13px;
+}
+
+/* Recent worlds, each with quick play. Shares the Profile info card's look. */
+.recent-worlds {
+  padding: 14px 10px 10px 16px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+}
+
+.recent-worlds header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.recent-worlds h2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.recent-worlds h2 svg {
+  color: var(--accent);
+}
+
+.recent-worlds ul {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.recent-worlds li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 0;
+}
+
+.recent-worlds .world-icon {
+  width: 36px;
+  height: 36px;
+}
+
+.recent-world-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.recent-world-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.recent-world-meta {
+  font-size: 12px;
+  color: var(--text-faint);
+}
+
+.recent-world-play {
+  color: var(--accent);
+}
+
+.recent-worlds-empty {
+  margin: 0 6px 4px 0;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--text-muted);
 }
 
 .profile-info dt {
@@ -2424,12 +2506,56 @@ select.input option {
   margin-left: auto;
 }
 
-.pagination {
+/* Sits on top of the content list as its header row. */
+.list-head {
   display: flex;
-  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  min-height: 46px;
+  padding: 6px 8px 6px 16px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-bottom: 0;
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+}
+
+.list-head:not(:has(+ .mod-list)) {
+  border-bottom: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  margin-bottom: 14px;
+}
+
+.list-head + .mod-list {
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+}
+
+.list-head-summary {
+  flex: 1;
+  min-width: 0;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text-faint);
+}
+
+.list-head-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: none;
+}
+
+/* Range, pages centred, page size; the side columns share the width so the pages stay centred. */
+.pagination {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   align-items: center;
   gap: 10px 14px;
   margin-top: 12px;
+}
+
+.pagination-size {
+  justify-self: end;
 }
 
 .pagination-range {
@@ -2443,7 +2569,6 @@ select.input option {
   display: flex;
   align-items: center;
   gap: 4px;
-  margin-left: auto;
 }
 
 .page-btn {
@@ -3757,17 +3882,24 @@ select.input option {
   display: grid;
   grid-template-columns: minmax(200px, 260px) minmax(0, 1fr);
   gap: 14px;
-  height: max(360px, calc(100vh - 330px));
+  /* Fills the window below the tab bar. */
+  height: max(420px, calc(100vh - var(--titlebar-height) - 136px));
 }
 
+/* A card like the editor beside it, so the two panes line up. */
 .configs-files {
   display: flex;
   flex-direction: column;
+  min-width: 0;
   min-height: 0;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-surface);
 }
 
 .configs-files .search-field {
-  margin-bottom: 8px;
+  margin-bottom: 6px;
 }
 
 .configs-list {
@@ -3776,14 +3908,18 @@ select.input option {
   gap: 1px;
   flex: 1;
   min-height: 0;
+  overflow-x: hidden;
   overflow-y: auto;
-  padding-right: 4px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
 }
 
 .config-file {
   position: relative;
   display: flex;
   flex-direction: column;
+  min-width: 0;
+  flex: none;
   padding: 7px 10px;
   border-radius: var(--radius-sm);
   text-align: left;
@@ -3904,12 +4040,24 @@ select.input option {
   align-items: center;
   justify-content: center;
   gap: 8px;
+  padding: 24px;
+  text-align: center;
   color: var(--text-faint);
-  font-weight: 700;
+}
+
+.configs-placeholder h2 {
+  margin: 6px 0 0;
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--text);
 }
 
 .configs-placeholder p {
+  max-width: 340px;
   margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-muted);
 }
 
 .code-editor {
@@ -4031,4 +4179,207 @@ select.input option {
   .configs-editor {
     height: 60vh;
   }
+}
+
+.configs-editor textarea,
+.configs-editor pre {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
+}
+
+/* ---------- Launcher settings ---------- */
+.settings-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 28px;
+}
+
+.settings-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.settings-nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-align: left;
+}
+
+.settings-nav-item svg {
+  flex: none;
+}
+
+.settings-nav-item:hover {
+  background: var(--bg-muted);
+  color: var(--text);
+}
+
+.settings-nav-item[aria-current] {
+  background: var(--nav-active-bg);
+  color: var(--text);
+}
+
+.settings-nav-item[aria-current] svg {
+  color: var(--accent);
+}
+
+@media (min-width: 1100px) {
+  .settings-layout {
+    grid-template-columns: 200px minmax(0, 1fr);
+    align-items: start;
+  }
+
+  /* The index stays beside whichever section is being read. */
+  .settings-nav {
+    position: sticky;
+    top: 0;
+    flex-direction: column;
+    flex-wrap: nowrap;
+  }
+}
+
+.settings-sections {
+  min-width: 0;
+  max-width: 860px;
+}
+
+.settings-section {
+  scroll-margin-top: 8px;
+}
+
+.settings-section:first-child .section-label {
+  margin-top: 0;
+}
+
+.settings-section-text {
+  margin: -6px 0 12px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.settings-note {
+  margin: 0;
+  padding: 12px 18px 14px;
+  border-top: 1px solid var(--border);
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 1.6;
+  color: var(--text-faint);
+}
+
+.settings-note code {
+  font-family: ui-monospace, 'Cascadia Code', Consolas, monospace;
+  font-size: 11.5px;
+  color: var(--text-muted);
+}
+
+.settings-number {
+  flex: none;
+  width: 84px;
+  text-align: center;
+}
+
+.settings-row-stacked {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 14px;
+}
+
+.settings-usage-total {
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+}
+
+.settings-usage-loading {
+  font-size: 13px;
+  color: var(--text-faint);
+}
+
+.usage-bar {
+  display: flex;
+  gap: 2px;
+  height: 10px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--bg-muted);
+}
+
+.usage-part {
+  flex-basis: 0;
+  min-width: 0;
+}
+
+.usage-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 22px;
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.usage-legend li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.usage-legend strong {
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+
+.usage-swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+}
+
+.usage-profiles {
+  background: var(--accent);
+}
+
+.usage-shared {
+  background: color-mix(in srgb, var(--accent) 45%, var(--bg-muted));
+}
+
+.usage-java {
+  background: var(--text-faint);
+}
+
+.usage-backups {
+  background: var(--success);
+}
+
+/* Settings → Reduce motion, on top of the system's own setting. */
+:root[data-reduce-motion] *,
+:root[data-reduce-motion] *::before,
+:root[data-reduce-motion] *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+  scroll-behavior: auto !important;
+}
+
+/* .input sets width: 100%; a text box beside a setting's label keeps to its own width. */
+.input.inline-field {
+  width: min(340px, 50%);
+}
+
+/* The label side takes the room the control doesn't need, so it never squeezes into a narrow column. */
+.settings-row > div:first-child {
+  flex: 1;
+  min-width: 0;
 }

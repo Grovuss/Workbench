@@ -221,11 +221,32 @@ export interface AccountsState {
   accounts: Account[];
 }
 
+export type LauncherOnLaunch = 'keep' | 'minimize' | 'hide';
+
 export interface Settings {
   memoryMb: number;
+  /** Added before each profile's own Java arguments. */
+  jvmArgs: string;
+  /** Window size for profiles without their own; null is the game's default. */
+  resolution: Resolution | null;
+  fullscreen: boolean;
+  onLaunch: LauncherOnLaunch;
+  preLaunchCommand: string;
+  postExitCommand: string;
   autoBackup: boolean;
+  backupsToKeep: number;
   discordPresence: boolean;
+  discordShowProfile: boolean;
   shareOptions: boolean;
+  downloadThreads: number;
+}
+
+/** Bytes used in the data folder. */
+export interface StorageUsage {
+  profiles: number;
+  backups: number;
+  java: number;
+  shared: number;
 }
 
 export interface SystemInfo {
@@ -235,6 +256,9 @@ export interface SystemInfo {
   curseforge: boolean;
   /** Whether a Discord application id is configured, for Rich Presence. */
   discord: boolean;
+  version: string;
+  os: string;
+  electron: string;
 }
 
 export type GameState = 'idle' | 'installing' | 'running';
@@ -390,6 +414,7 @@ export interface WorkbenchApi {
   settings: {
     get(): Promise<Settings>;
     set(patch: Partial<Settings>): Promise<Settings>;
+    reset(): Promise<Settings>;
   };
   content: {
     list(target: ContentTarget): Promise<InstalledContent[]>;
@@ -440,6 +465,9 @@ export interface WorkbenchApi {
   system: {
     info(): Promise<SystemInfo>;
     openDataFolder(): Promise<void>;
+    usage(): Promise<StorageUsage>;
+    /** Deletes the downloaded Java runtimes so the next launch fetches them fresh. */
+    removeJava(): Promise<void>;
     openCurseForge(url: string): Promise<void>;
   };
   window: {

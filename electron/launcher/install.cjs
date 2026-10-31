@@ -8,7 +8,8 @@ const { isAllowed, osName } = require('./rules.cjs');
 
 const LIBRARIES_URL = 'https://libraries.minecraft.net/';
 const RESOURCES_URL = 'https://resources.download.minecraft.net/';
-const CONCURRENCY = 16;
+// Files downloaded at once, unless the launcher setting says otherwise.
+const DEFAULT_CONCURRENCY = 16;
 
 const exists = (p) => fsp.access(p).then(() => true, () => false);
 
@@ -80,7 +81,7 @@ async function extractNatives(natives, dir) {
   await fsp.writeFile(marker, '');
 }
 
-async function installAssets(version, gameDir, onProgress) {
+async function installAssets(version, gameDir, onProgress, concurrency) {
   const { assetIndex } = version;
   const assetsDir = paths.assetsDir();
   const indexFile = path.join(assetsDir, 'indexes', `${assetIndex.id}.json`);
@@ -93,7 +94,7 @@ async function installAssets(version, gameDir, onProgress) {
 
   let done = 0;
   onProgress(done, unique.length);
-  await runPool(unique, CONCURRENCY, async ({ hash, size }) => {
+  await runPool(unique, concurrency, async ({ hash, size }) => {
     await download(`${RESOURCES_URL}${hash.slice(0, 2)}/${hash}`, objectPath(hash), { sha1: hash, size });
     onProgress(++done, unique.length);
   });
@@ -114,7 +115,7 @@ async function installAssets(version, gameDir, onProgress) {
 }
 
 /** Downloads everything a version needs. onProgress({ stage, label, done, total }). */
-async function installVersion(version, gameDir, onProgress) {
+async function installVersion(version, gameDir, onProgress, concurrency = DEFAULT_CONCURRENCY) {
   // `clientFrom` is the vanilla version whose jar gets downloaded; `jar` is the name it's
   // launched under. Forge expects a copy named after its own version id.
   const clientId = version.clientFrom ?? version.id;
@@ -138,7 +139,7 @@ async function installVersion(version, gameDir, onProgress) {
   let done = 0;
   const report = () => onProgress({ stage: 'files', label: 'Downloading game files', done, total: files.length });
   report();
-  await runPool(files, CONCURRENCY, async (f) => {
+  await runPool(files, concurrency, async (f) => {
     await download(f.url, f.dest, f);
     done++;
     report();
@@ -154,6 +155,7 @@ async function installVersion(version, gameDir, onProgress) {
 
   const gameAssets = await installAssets(version, gameDir, (d, total) =>
     onProgress({ stage: 'assets', label: 'Downloading assets', done: d, total }),
+    concurrency,
   );
 
   return { classpath: [...libs.classpath, clientJar], nativesDir, gameAssets, loggingArg };

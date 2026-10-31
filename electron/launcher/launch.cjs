@@ -39,7 +39,7 @@ function splitArgs(text) {
 const supportsQuickPlay = (version, feature) =>
   (version.arguments?.game ?? []).some((arg) => typeof arg !== 'string' && arg.rules?.some((r) => r.features?.[feature]));
 
-function buildArgs(version, install, vars, { memoryMb, jvmArgs, resolution, quickPlay }) {
+function buildArgs(version, install, vars, { memoryMb, jvmArgs, resolution, fullscreen, quickPlay }) {
   const quickServer = Boolean(quickPlay?.server) && supportsQuickPlay(version, 'is_quick_play_multiplayer');
   const features = {
     has_custom_resolution: Boolean(resolution),
@@ -53,6 +53,7 @@ function buildArgs(version, install, vars, { memoryMb, jvmArgs, resolution, quic
   if (resolution && !version.arguments?.game) {
     game = [...game, '--width', '${resolution_width}', '--height', '${resolution_height}'];
   }
+  if (fullscreen) game = [...game, '--fullscreen'];
   // Before quick play, the game took the server as --server/--port.
   if (quickPlay?.server && !quickServer) {
     const [host, port = '25565'] = quickPlay.server.split(':');
@@ -74,7 +75,7 @@ function buildArgs(version, install, vars, { memoryMb, jvmArgs, resolution, quic
  * `quickPlay` ({ server } or { world }) joins a server or opens a world straight away.
  * Returns the spawned process; output goes to <gameDir>/logs/workbench-launch.log.
  */
-async function launchGame({ profile, gameDir, account, memoryMb, jvmArgs, resolution, quickPlay, onProgress }) {
+async function launchGame({ profile, gameDir, account, memoryMb, jvmArgs, resolution, fullscreen, downloadThreads, quickPlay, onProgress }) {
   const vanilla = await getVersionJson(profile.mcVersion);
   await fsp.mkdir(gameDir, { recursive: true });
 
@@ -86,7 +87,7 @@ async function launchGame({ profile, gameDir, account, memoryMb, jvmArgs, resolu
   if (quickPlay?.world && !supportsQuickPlay(version, 'is_quick_play_singleplayer')) {
     throw new Error('Opening a world from the launcher needs Minecraft 1.20 or newer.');
   }
-  const install = await installVersion(version, gameDir, onProgress);
+  const install = await installVersion(version, gameDir, onProgress, downloadThreads);
 
   const vars = {
     auth_player_name: account.name,
@@ -114,7 +115,7 @@ async function launchGame({ profile, gameDir, account, memoryMb, jvmArgs, resolu
     quickPlayMultiplayer: quickPlay?.server ?? '',
     quickPlaySingleplayer: quickPlay?.world ?? '',
   };
-  const args = buildArgs(version, install, vars, { memoryMb, jvmArgs, resolution, quickPlay });
+  const args = buildArgs(version, install, vars, { memoryMb, jvmArgs, resolution, fullscreen, quickPlay });
 
   const logFile = path.join(gameDir, 'logs', 'workbench-launch.log');
   await fsp.mkdir(path.dirname(logFile), { recursive: true });

@@ -423,7 +423,14 @@ export default function ContentTab({
                 })}
               </div>
             )}
-            <div className="filter-row-end">
+          </div>
+
+          {/* Joined to the top of the list: what's on, and the actions for the whole list. */}
+          <div className="list-head">
+            <span className="list-head-summary">
+              {loaded && all.length > 0 && `${enabledCount} of ${shown.length} enabled${hint ? ` · ${hint}` : ''}`}
+            </span>
+            <div className="list-head-actions">
               {checking ? (
                 <span className="mods-update-status">
                   <LoaderCircle size={14} className="spin" /> Checking for updates
@@ -521,9 +528,6 @@ export default function ContentTab({
               {shown.length > PAGE_SIZES[0] && (
                 <Pagination page={currentPage} pageSize={pageSize} total={shown.length} onPage={goToPage} onPageSize={setPageSize} />
               )}
-              <p className="content-hint">
-                {enabledCount} of {shown.length} enabled{hint ? ` · ${hint}` : ''}
-              </p>
             </>
           )}
         </>

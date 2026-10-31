@@ -202,8 +202,12 @@ export default function ConfigsTab({ profileId, running, onError, onSuccess }: P
             </>
           ) : (
             <div className="configs-placeholder">
-              <FileCog size={32} strokeWidth={1.5} />
-              <p>Pick a file to edit it.</p>
+              <FileCog size={36} strokeWidth={1.5} />
+              <h2>Pick a file to edit it</h2>
+              <p>
+                {files.length} config {files.length === 1 ? 'file' : 'files'} in this profile. Saving writes straight to the file, and most mods read
+                theirs when the game starts.
+              </p>
             </div>
           )}
         </div>

@@ -262,7 +262,7 @@ function GameSection({ profile, onUpdated, onError }: SectionProps) {
       <div className="settings-row">
         <div>
           <h3>Window size</h3>
-          <p>{resolution ? 'Game window size when it opens.' : 'Uses the game’s default size.'}</p>
+          <p>{resolution ? 'Game window size when it opens.' : 'Uses the default from Settings.'}</p>
         </div>
         <div className="memory-control">
           {resolution && (
