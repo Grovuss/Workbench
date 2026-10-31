@@ -3,7 +3,7 @@ import { FolderOpen } from 'lucide-react';
 import logo from '../assets/logo.svg';
 import LoaderBadge from '../components/LoaderBadge';
 import Modal from '../components/Modal';
-import { LOADER_LABELS } from '../loaders';
+import { LOADER_LABELS, loaderVersionLabel } from '../loaders';
 import PlayButton from '../components/PlayButton';
 import ProgressBar, { progressPercent } from '../components/ProgressBar';
 import WorldsTab from '../components/profile/WorldsTab';
@@ -64,7 +64,8 @@ export default function ProfilePage({ profile, launch, onPlay, onStop, onUpdated
               <>
                 <span className="dot">·</span>
                 <span>
-                  {LOADER_LABELS[profile.loader]} {profile.loaderVersion}
+                  {LOADER_LABELS[profile.loader]}{' '}
+                  {loaderVersionLabel(profile.loader, profile.mcVersion, profile.loaderVersion)}
                 </span>
               </>
             )}

@@ -13,7 +13,7 @@ export interface World {
 
 export type ThemePreference = 'light' | 'dark' | 'system';
 
-export type Loader = 'vanilla' | 'fabric' | 'quilt';
+export type Loader = 'vanilla' | 'fabric' | 'quilt' | 'forge' | 'neoforge';
 export type ModLoader = Exclude<Loader, 'vanilla'>;
 
 export interface VersionSelection {
@@ -45,6 +45,8 @@ export interface Profile extends VersionSelection {
 export interface LoaderVersion {
   version: string;
   stable: boolean;
+  /** Forge's "recommended" build for this Minecraft version. */
+  recommended?: boolean;
 }
 
 export interface McVersion {
@@ -79,7 +81,7 @@ export interface SystemInfo {
 export type GameState = 'idle' | 'installing' | 'running';
 
 export interface Progress {
-  stage: 'java' | 'files' | 'assets';
+  stage: 'java' | 'loader' | 'files' | 'assets';
   label: string;
   done: number;
   total: number;

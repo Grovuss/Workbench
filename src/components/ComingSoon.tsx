@@ -1,5 +1,5 @@
 const ITEMS = [
-  { title: 'Forge & NeoForge', body: 'More mod loaders for your profiles' },
+  { title: 'Mods Tab', body: 'Manage the mods in each profile' },
   { title: 'Modrinth Search', body: 'Browse and install mods directly' },
   { title: 'Update All Mods', body: 'Check for and apply updates' },
   { title: 'Export Pack', body: 'Export your profile as a .mrpack' },

@@ -5,6 +5,7 @@ const { spawn } = require('node:child_process');
 const paths = require('../paths.cjs');
 const { MSA_CLIENT_ID } = require('../config.cjs');
 const { version: launcherVersion } = require('../../package.json');
+const { getVersionJson } = require('./versions.cjs');
 const { resolveVersion } = require('./loaders.cjs');
 const { ensureJava } = require('./java.cjs');
 const { installVersion } = require('./install.cjs');
@@ -59,13 +60,14 @@ function buildArgs(version, install, vars, { memoryMb, jvmArgs, resolution }) {
  * Returns the spawned process; output goes to <gameDir>/logs/workbench-launch.log.
  */
 async function launchGame({ profile, gameDir, account, memoryMb, jvmArgs, resolution, onProgress }) {
-  const version = await resolveVersion(profile);
+  const vanilla = await getVersionJson(profile.mcVersion);
   await fsp.mkdir(gameDir, { recursive: true });
 
-  const component = version.javaVersion?.component ?? 'jre-legacy';
+  const component = vanilla.javaVersion?.component ?? 'jre-legacy';
   const java = await ensureJava(component, (done, total) =>
     onProgress({ stage: 'java', label: 'Downloading Java', done, total }),
   );
+  const version = await resolveVersion(profile, { vanilla, java, onProgress });
   const install = await installVersion(version, gameDir, onProgress);
 
   const vars = {

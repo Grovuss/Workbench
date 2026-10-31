@@ -28,6 +28,18 @@ async function fetchJson(url) {
   return (await fetchWithRetry(url)).json();
 }
 
+const CACHE_MS = 10 * 60_000;
+const jsonCache = new Map();
+
+/** fetchJson with a short in-memory cache, for version lists that change rarely. */
+async function cachedJson(url) {
+  const hit = jsonCache.get(url);
+  if (hit && Date.now() - hit.at < CACHE_MS) return hit.data;
+  const data = await fetchJson(url);
+  jsonCache.set(url, { at: Date.now(), data });
+  return data;
+}
+
 const sha1 = (buf) => crypto.createHash('sha1').update(buf).digest('hex');
 
 async function isPresent(dest, { sha1: expected, size, verify }) {
@@ -80,4 +92,4 @@ async function runPool(items, limit, worker) {
   await Promise.all(lanes);
 }
 
-module.exports = { fetchJson, download, runPool };
+module.exports = { fetchJson, cachedJson, download, runPool, sha1 };

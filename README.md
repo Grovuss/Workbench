@@ -34,6 +34,8 @@ and Workbench shows "This Azure app isn't approved for Minecraft sign-in yet."
 
 - **versions.cjs**: Mojang's version manifest and per-version JSON
 - **loaders.cjs**: Fabric/Quilt metadata, merged on top of the vanilla version JSON
+- **forge.cjs**: Forge/NeoForge: runs the official installer's processors once per loader version
+  (Forge 1.8+, all NeoForge). Processor output goes to `meta/loaders/<loader>/<version>/install.log`.
 - **java.cjs**: downloads the matching Mojang Java runtime
 - **install.cjs**: libraries, natives, client jar and assets (shared across profiles in `meta/`)
 - **launch.cjs**: builds JVM and game arguments and starts the game

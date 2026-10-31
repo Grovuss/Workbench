@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { api, errorMessage } from '../api';
-import { LOADER_LABELS, LOADER_OPTIONS } from '../loaders';
+import { LOADER_LABELS, LOADER_OPTIONS, defaultLoaderVersion, loaderVersionLabel } from '../loaders';
 import type { Loader, LoaderVersion, McVersion, VersionSelection } from '../types';
 
 interface Props {
@@ -79,9 +79,7 @@ export default function VersionPicker({ initial, onChange }: Props) {
         if (cancelled) return;
         setLoaderVersions(list);
         setSel((s) =>
-          list.some((v) => v.version === s.loaderVersion)
-            ? s
-            : { ...s, loaderVersion: (list.find((v) => v.stable) ?? list[0])?.version ?? null },
+          list.some((v) => v.version === s.loaderVersion) ? s : { ...s, loaderVersion: defaultLoaderVersion(list) },
         );
       })
       .catch((err) => !cancelled && setError(errorMessage(err)));
@@ -100,16 +98,9 @@ export default function VersionPicker({ initial, onChange }: Props) {
       <div className="field">
         <span className="field-label">Loader</span>
         <div className="segmented" role="group" aria-label="Loader">
-          {LOADER_OPTIONS.map((l) => (
-            <button
-              key={l.id}
-              type="button"
-              aria-pressed={sel.loader === l.id}
-              disabled={!l.available}
-              title={l.available ? undefined : 'Coming soon'}
-              onClick={() => l.available && setLoader(l.id as Loader)}
-            >
-              {l.label}
+          {LOADER_OPTIONS.map((loader) => (
+            <button key={loader} type="button" aria-pressed={sel.loader === loader} onClick={() => setLoader(loader)}>
+              {LOADER_LABELS[loader]}
             </button>
           ))}
         </div>
@@ -148,8 +139,8 @@ export default function VersionPicker({ initial, onChange }: Props) {
               {loaderVersions?.length === 0 && <option value="">None available</option>}
               {loaderVersions?.map((v) => (
                 <option key={v.version} value={v.version}>
-                  {v.version}
-                  {v.stable ? '' : ' (beta)'}
+                  {loaderVersionLabel(sel.loader, sel.mcVersion, v.version)}
+                  {v.recommended ? ' (recommended)' : v.stable ? '' : ' (beta)'}
                 </option>
               ))}
             </select>

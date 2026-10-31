@@ -115,14 +115,17 @@ async function installAssets(version, gameDir, onProgress) {
 
 /** Downloads everything a version needs. onProgress({ stage, label, done, total }). */
 async function installVersion(version, gameDir, onProgress) {
-  // Loader versions point `jar` at the vanilla version they build on.
+  // `clientFrom` is the vanilla version whose jar gets downloaded; `jar` is the name it's
+  // launched under. Forge expects a copy named after its own version id.
+  const clientId = version.clientFrom ?? version.id;
   const jarId = version.jar ?? version.id;
+  const vanillaJar = path.join(paths.versionsDir(), clientId, `${clientId}.jar`);
   const clientJar = path.join(paths.versionsDir(), jarId, `${jarId}.jar`);
   const libs = planLibraries(version);
   const files = [...libs.files];
 
   const client = version.downloads?.client;
-  if (client) files.push({ url: client.url, dest: clientJar, sha1: client.sha1, size: client.size });
+  if (client) files.push({ url: client.url, dest: vanillaJar, sha1: client.sha1, size: client.size });
 
   let loggingArg = null;
   const logging = version.logging?.client;
@@ -141,7 +144,12 @@ async function installVersion(version, gameDir, onProgress) {
     report();
   });
 
-  const nativesDir = path.join(paths.nativesDir(), jarId);
+  if (clientJar !== vanillaJar && !(await exists(clientJar))) {
+    await fsp.mkdir(path.dirname(clientJar), { recursive: true });
+    await fsp.copyFile(vanillaJar, clientJar);
+  }
+
+  const nativesDir = path.join(paths.nativesDir(), clientId);
   await extractNatives(libs.natives, nativesDir);
 
   const gameAssets = await installAssets(version, gameDir, (d, total) =>
@@ -151,4 +159,4 @@ async function installVersion(version, gameDir, onProgress) {
   return { classpath: [...libs.classpath, clientJar], nativesDir, gameAssets, loggingArg };
 }
 
-module.exports = { installVersion };
+module.exports = { installVersion, mavenPath };
