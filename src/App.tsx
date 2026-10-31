@@ -12,6 +12,7 @@ import SkinsPage from './pages/SkinsPage';
 import SettingsPage from './pages/SettingsPage';
 import { api, errorMessage } from './api';
 import { useTheme } from './useTheme';
+import { hideSplash } from './splash';
 import { useToasts } from './useToasts';
 import { useLaunches } from './useLaunches';
 import type { AccountsState, CrashReport, Page, Profile, QuickPlay, Route, UpdateStatus } from './types';
@@ -99,6 +100,15 @@ export default function App() {
     if (choice === 'browse') navigate({ page: 'browse' });
     if (choice === 'new' || choice === 'import') setCreating({ mode: choice });
   };
+
+  // The splash goes once there's something to show (or loading failed and a toast explains).
+  useEffect(() => {
+    if (profiles !== null && welcomed !== null) hideSplash();
+  }, [profiles, welcomed]);
+  useEffect(() => {
+    const fallback = window.setTimeout(hideSplash, 5000);
+    return () => window.clearTimeout(fallback);
+  }, []);
 
   // Someone who already has profiles (from before the welcome existed) doesn't need it.
   const showWelcome = welcomed === false && profiles !== null && profiles.length === 0;

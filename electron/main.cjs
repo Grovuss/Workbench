@@ -1,4 +1,5 @@
 const { app, BrowserWindow, nativeTheme, protocol } = require('electron');
+const fs = require('node:fs');
 const path = require('node:path');
 const { registerIpc } = require('./ipc.cjs');
 const { titleBarOverlay } = require('./titlebar.cjs');
@@ -58,11 +59,21 @@ function registerProtocol() {
   });
 }
 
+/** Whether the app was dark when it last ran, so the window opens in the right colours. */
+function lastDark() {
+  try {
+    return Boolean(JSON.parse(fs.readFileSync(path.join(app.getPath('userData'), 'window.json'), 'utf8')).dark);
+  } catch {
+    return nativeTheme.shouldUseDarkColors;
+  }
+}
+
 function createWindow() {
+  const dark = lastDark();
   const frame =
     process.platform === 'darwin'
       ? { titleBarStyle: 'hidden', trafficLightPosition: { x: 16, y: 16 } }
-      : { titleBarStyle: 'hidden', titleBarOverlay: titleBarOverlay(nativeTheme.shouldUseDarkColors) };
+      : { titleBarStyle: 'hidden', titleBarOverlay: titleBarOverlay(dark) };
 
   const win = new BrowserWindow({
     ...frame,
@@ -72,7 +83,9 @@ function createWindow() {
     minHeight: 600,
     title: 'Workbench',
     icon: path.join(__dirname, '..', 'build', 'icon.png'),
-    backgroundColor: nativeTheme.shouldUseDarkColors ? '#1c1c1d' : '#fef3dd',
+    backgroundColor: dark ? '#1c1c1d' : '#fef3dd',
+    // Shown once the splash has painted, so it never opens blank.
+    show: false,
     autoHideMenuBar: true,
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
@@ -80,6 +93,8 @@ function createWindow() {
       nodeIntegration: false,
     },
   });
+
+  win.once('ready-to-show', () => win.show());
 
   if (process.env.VITE_DEV_SERVER_URL) {
     win.loadURL(process.env.VITE_DEV_SERVER_URL);

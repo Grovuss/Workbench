@@ -413,9 +413,11 @@ function registerIpc() {
   });
   handle('system:openDataFolder', () => openDir(paths.root()));
 
-  handle('window:setTheme', (e, dark) => {
+  handle('window:setTheme', async (e, dark) => {
     const win = BrowserWindow.fromWebContents(e.sender);
     if (win && process.platform !== 'darwin') win.setTitleBarOverlay(titleBarOverlay(Boolean(dark)));
+    // Remembered for the next start (see lastDark in main.cjs).
+    await fsp.writeFile(path.join(paths.root(), 'window.json'), JSON.stringify({ dark: Boolean(dark) })).catch(() => {});
   });
 }
 

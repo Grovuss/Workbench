@@ -5,8 +5,98 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="icon" type="image/png" href="./favicon.png" />
     <title>Workbench</title>
+    <script>
+      // The saved theme, before anything paints, so the first frame is already the right colour.
+      try {
+        var pref = localStorage.getItem('workbench.theme');
+        var dark = pref === 'dark' || (pref !== 'light' && matchMedia('(prefers-color-scheme: dark)').matches);
+        document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+      } catch (e) {}
+    </script>
+    <style>
+      /* The splash shows until the app has its profiles; styles.css hasn't loaded yet, so it's all here. */
+      html,
+      body {
+        margin: 0;
+        background: #fef3dd;
+      }
+      html[data-theme='dark'],
+      html[data-theme='dark'] body {
+        background: #1c1c1d;
+      }
+      #splash {
+        position: fixed;
+        inset: 0;
+        z-index: 100;
+        display: grid;
+        place-items: center;
+        background: inherit;
+        transition: opacity 180ms ease-out;
+      }
+      #splash.splash-done {
+        opacity: 0;
+        pointer-events: none;
+      }
+      .splash-mark {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 22px;
+      }
+      .splash-mark img {
+        width: 76px;
+        height: 76px;
+        animation: splash-in 420ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+      }
+      .splash-bar {
+        position: relative;
+        width: 96px;
+        height: 3px;
+        overflow: hidden;
+        border-radius: 3px;
+        background: rgba(42, 42, 43, 0.12);
+      }
+      html[data-theme='dark'] .splash-bar {
+        background: rgba(254, 243, 221, 0.1);
+      }
+      .splash-bar::after {
+        content: '';
+        position: absolute;
+        inset: 0 auto 0 -40%;
+        width: 40%;
+        border-radius: 3px;
+        background: #fec424;
+        animation: splash-slide 900ms ease-in-out infinite;
+      }
+      @keyframes splash-in {
+        from {
+          opacity: 0;
+          transform: scale(0.88);
+        }
+      }
+      @keyframes splash-slide {
+        to {
+          left: 100%;
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .splash-mark img,
+        .splash-bar::after {
+          animation: none;
+        }
+        .splash-bar::after {
+          left: 30%;
+        }
+      }
+    </style>
   </head>
   <body>
+    <div id="splash" aria-hidden="true">
+      <div class="splash-mark">
+        <img src="/src/assets/logo.svg" alt="" />
+        <div class="splash-bar"></div>
+      </div>
+    </div>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
