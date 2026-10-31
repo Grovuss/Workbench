@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react';
-import { FileArchive, FolderOpen, ImagePlus, Info, QrCode, Server, Share } from 'lucide-react';
+import { FileArchive, FolderOpen, ImagePlus, Info, MoreHorizontal, QrCode, Server, Settings } from 'lucide-react';
 import LoaderBadge from '../components/LoaderBadge';
 import ProfileIcon from '../components/ProfileIcon';
 import Modal from '../components/Modal';
@@ -118,27 +118,33 @@ export default function ProfilePage({
           </div>
         </div>
         <div className="profile-hero-actions">
-          <button
-            className="btn btn-secondary"
-            onClick={() => api.profiles.openFolder(profile.id).catch((err) => onError(errorMessage(err)))}
-          >
-            <FolderOpen size={16} /> Folder
-          </button>
+          <PlayButton launch={launch} onPlay={() => onPlay()} onStop={onStop} large />
           <Dropdown
-            label={
-              <>
-                <Share size={16} /> Share
-              </>
-            }
+            label={<MoreHorizontal size={20} />}
+            className="btn btn-secondary hero-more"
+            chevron={false}
+            ariaLabel="More options"
             items={[
-              { icon: <FileArchive size={16} />, label: '.workbench file', hint: 'Everything, including config', onSelect: () => setSharing('workbench') },
+              {
+                icon: <FolderOpen size={16} />,
+                label: 'Open folder',
+                onSelect: () => api.profiles.openFolder(profile.id).catch((err) => onError(errorMessage(err))),
+              },
+              { icon: <ImagePlus size={16} />, label: 'Change icon', onSelect: changeIcon },
+              { icon: <Settings size={16} />, label: 'Profile settings', onSelect: () => setTab('settings') },
+              {
+                section: 'Share',
+                icon: <FileArchive size={16} />,
+                label: 'Export .workbench file',
+                hint: 'Everything, including config',
+                onSelect: () => setSharing('workbench'),
+              },
               { icon: <QrCode size={16} />, label: 'Share code', hint: 'Text to paste to a friend', onSelect: () => setSharing('code') },
               ...(profile.loader !== 'vanilla'
                 ? [{ icon: <Server size={16} />, label: 'Server pack', hint: 'Run this profile as a server', onSelect: () => setSharing('server') }]
                 : []),
             ]}
           />
-          <PlayButton launch={launch} onPlay={() => onPlay()} onStop={onStop} large />
         </div>
         {launch?.state === 'installing' && (
           <div className="profile-hero-progress">

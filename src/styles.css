@@ -535,6 +535,16 @@ button.crumb:hover {
   background: var(--border);
 }
 
+.menu-section span {
+  display: block;
+  padding: 6px 8px 2px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
 .skin-head {
   position: relative;
   flex: none;
@@ -1356,7 +1366,7 @@ img.import-option-icon {
 }
 
 /* Narrow windows: the buttons get their own row so the name and versions keep theirs. */
-@media (max-width: 1100px) {
+@media (max-width: 760px) {
   .profile-hero {
     grid-template-columns: auto minmax(0, 1fr);
   }
@@ -1381,6 +1391,14 @@ img.import-option-icon {
   min-width: 112px;
   padding: 11px 24px;
   font-size: 16px;
+}
+
+/* Square, as tall as the big Play button next to it. */
+.hero-more {
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
 }
 
 /* Tabs */

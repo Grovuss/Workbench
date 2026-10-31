@@ -9,6 +9,8 @@ export interface DropdownItem {
   onSelect: () => void;
   disabled?: boolean;
   danger?: boolean;
+  /** Starts a new group in the menu, under this heading. */
+  section?: string;
 }
 
 interface Props {
@@ -57,7 +59,13 @@ export default function Dropdown({ label, className = 'btn btn-secondary', disab
       </button>
       {open && (
         <div className="dropdown-popover" role="menu">
-          {items.map((item) => (
+          {items.map((item, i) => [
+            item.section && (
+              <div key={`section-${item.section}`} className="menu-section" role="presentation">
+                {i > 0 && <div className="menu-sep" />}
+                <span>{item.section}</span>
+              </div>
+            ),
             <button
               key={item.label}
               role="menuitem"
@@ -73,8 +81,8 @@ export default function Dropdown({ label, className = 'btn btn-secondary', disab
                 <span>{item.label}</span>
                 {item.hint && <small>{item.hint}</small>}
               </span>
-            </button>
-          ))}
+            </button>,
+          ])}
         </div>
       )}
     </div>
