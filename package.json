@@ -1,0 +1,33 @@
+{
+  "name": "workbench",
+  "productName": "Workbench",
+  "version": "0.2.0",
+  "description": "Workbench – a Minecraft launcher and modpack manager",
+  "private": true,
+  "main": "electron/main.cjs",
+  "scripts": {
+    "dev": "concurrently -k -n vite,electron -c yellow,gray \"vite\" \"wait-on tcp:5173 && cross-env VITE_DEV_SERVER_URL=http://localhost:5173 node scripts/electron.cjs\"",
+    "build": "tsc --noEmit && vite build",
+    "start": "npm run build && node scripts/electron.cjs",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@fontsource/baloo-2": "^5.1.0",
+    "@fontsource/nunito-sans": "^5.1.0",
+    "adm-zip": "^0.5.16",
+    "lucide-react": "^0.460.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "^4.3.4",
+    "concurrently": "^9.1.0",
+    "cross-env": "^7.0.3",
+    "electron": "^33.2.0",
+    "typescript": "^5.6.3",
+    "vite": "^5.4.11",
+    "wait-on": "^8.0.1"
+  }
+}
