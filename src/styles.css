@@ -4797,8 +4797,9 @@ select.input option {
 
 .markdown blockquote {
   margin: 0 0 12px;
-  padding: 2px 0 2px 12px;
-  border-left: 3px solid var(--border-strong);
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-muted);
 }
 
 .project-side {
