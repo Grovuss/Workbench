@@ -2878,17 +2878,33 @@ select.input option {
 .mod-version-btn {
   display: inline-flex;
   align-items: center;
-  gap: 2px;
-  margin: -2px -4px;
-  padding: 2px 4px;
-  border-radius: 6px;
+  gap: 4px;
+  max-width: 220px;
+  padding: 1px 6px 1px 8px;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  background: var(--bg-surface);
   font: inherit;
-  color: inherit;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: border-color 120ms, color 120ms, background 120ms;
 }
 
-.mod-version-btn:hover {
-  background: var(--bg-muted);
+.mod-version-btn span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mod-version-btn svg {
+  flex: none;
+}
+
+.mod-version-btn:hover,
+.mod-version-btn:focus-visible {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, var(--bg-surface));
   color: var(--text);
+  outline: none;
 }
 
 .version-picker {

@@ -5,6 +5,7 @@ import {
   ArrowLeft,
   ArrowUpCircle,
   ChevronDown,
+  ChevronsUpDown,
   Compass,
   FolderOpen,
   Info,
@@ -414,9 +415,9 @@ export default function ContentTab({ profile, kinds, world, running, onOpenSetti
                         )}
                         {typeFilter === 'all' && kinds.length > 1 && <span className="kind-tag">{CONTENT[m.kind].noun}</span>}
                         {m.projectId ? (
-                          <button className="mod-version-btn" onClick={() => setVersionFor(m)} title="Change version">
-                            {m.versionNumber ?? 'Version'}
-                            <ChevronDown size={12} />
+                          <button className="mod-version-btn" onClick={() => setVersionFor(m)} title="Choose a different version">
+                            <span>{m.versionNumber ?? 'Version'}</span>
+                            <ChevronsUpDown size={12} />
                           </button>
                         ) : (
                           'Local file'
