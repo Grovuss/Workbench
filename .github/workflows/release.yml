@@ -41,7 +41,8 @@ jobs:
       # Written into the build only; electron/secrets.cjs is git-ignored.
       - name: Add API keys
         if: ${{ env.CURSEFORGE_KEY != '' }}
-        run: node -e "require('fs').writeFileSync('electron/secrets.cjs', 'module.exports = ' + JSON.stringify({ CURSEFORGE_API_KEY: process.env.CURSEFORGE_KEY }) + ';')"
+        run: |
+          node -e "require('fs').writeFileSync('electron/secrets.cjs', 'module.exports = ' + JSON.stringify({ CURSEFORGE_API_KEY: process.env.CURSEFORGE_KEY }) + ';')"
 
       - run: npm run release
         env:
