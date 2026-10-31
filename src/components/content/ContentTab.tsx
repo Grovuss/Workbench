@@ -20,6 +20,7 @@ import {
 import ContentBrowser, { type BrowseKind } from './ContentBrowser';
 import ContentIcon from './ContentIcon';
 import ProblemList, { applyFix } from './ProblemList';
+import VersionModal from './VersionModal';
 import Markdown from '../Markdown';
 import Modal from '../Modal';
 import Toggle from '../Toggle';
@@ -84,6 +85,7 @@ export default function ContentTab({ profile, kinds, world, running, onOpenSetti
   const [problems, setProblems] = useState<Problem[]>([]);
   const [problemsOpen, setProblemsOpen] = useState<boolean | null>(null);
   const [changelogFor, setChangelogFor] = useState<Item | null>(null);
+  const [versionFor, setVersionFor] = useState<Item | null>(null);
   const dragDepth = useRef(0);
   const kindsKey = kinds.join(',');
   const singleKind = kinds.length === 1 ? kinds[0] : null;
@@ -411,7 +413,14 @@ export default function ContentTab({ profile, kinds, world, running, onOpenSetti
                           <AlertTriangle size={13} className="mod-problem" aria-label="Has a problem" />
                         )}
                         {typeFilter === 'all' && kinds.length > 1 && <span className="kind-tag">{CONTENT[m.kind].noun}</span>}
-                        {m.versionNumber ?? 'Local file'}
+                        {m.projectId ? (
+                          <button className="mod-version-btn" onClick={() => setVersionFor(m)} title="Change version">
+                            {m.versionNumber ?? 'Version'}
+                            <ChevronDown size={12} />
+                          </button>
+                        ) : (
+                          'Local file'
+                        )}
                         {m.updateVersion && <span className="mod-update-to">→ {m.updateVersion}</span>}
                         <span className="dot">·</span>
                         <span className="mod-file">{m.fileName}</span>
@@ -450,6 +459,21 @@ export default function ContentTab({ profile, kinds, world, running, onOpenSetti
             </>
           )}
         </>
+      )}
+
+      {versionFor && (
+        <VersionModal
+          title={versionFor.title}
+          iconUrl={versionFor.iconUrl}
+          target={target(versionFor.kind)}
+          projectId={versionFor.projectId!}
+          currentVersionId={versionFor.versionId}
+          onInstalled={(items) => {
+            setList(versionFor.kind, items);
+            checkUpdates(versionFor.kind);
+          }}
+          onClose={() => setVersionFor(null)}
+        />
       )}
 
       {changelogFor && (

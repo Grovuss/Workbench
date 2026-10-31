@@ -183,6 +183,7 @@ function toPublic(loc, { fileName, enabled, info, addedAt }) {
     size: info.size,
     title: info.title ?? fileName.slice(0, -loc.spec.ext.length),
     versionNumber: info.versionNumber ?? null,
+    versionId: info.versionId ?? null,
     projectId: info.projectId ?? null,
     iconUrl: info.iconUrl ?? null,
     updateVersion: info.update?.versionNumber ?? null,
@@ -445,14 +446,15 @@ async function placeVersion(ctx, projectId, version, { title, iconUrl }, enabled
   }
 }
 
-async function installProject(ctx, projectId, isRoot) {
+async function installProject(ctx, projectId, isRoot, versionId = null) {
   if (ctx.visited.has(projectId)) return;
   ctx.visited.add(projectId);
   const { kind, profile, spec } = ctx.loc;
   const [version, project] = await Promise.all([
-    newestCompatible(projectId, kind, profile),
+    versionId ? modrinth(`/version/${encodeURIComponent(versionId)}`) : newestCompatible(projectId, kind, profile),
     modrinth(`/project/${encodeURIComponent(projectId)}`),
   ]);
+  if (versionId && version.project_id !== project.id) throw new Error('That version belongs to a different project.');
   if (!version) {
     if (isRoot) throw new Error(`${project.title} has no ${spec.noun} version for ${profile.mcVersion} on this profile.`);
     return; // Optional-in-practice dependency we can't satisfy; the game will say if it matters.
@@ -460,18 +462,43 @@ async function installProject(ctx, projectId, isRoot) {
   await placeVersion(ctx, projectId, version, { title: project.title, iconUrl: project.icon_url ?? null });
 }
 
-/** Installs the newest compatible version of a project (plus required dependencies for mods). */
-function install(target, projectId) {
+/**
+ * Installs a project (plus required dependencies for mods): the given version, or the newest
+ * compatible one. Any other installed version of the project is replaced, so this also switches versions.
+ */
+function install(target, projectId, versionId = null) {
   return withLock(async () => {
     const loc = await locate(target);
     const ctx = await installContext(loc);
     try {
-      await installProject(ctx, projectId, true);
+      await installProject(ctx, projectId, true, versionId);
     } finally {
       await saveMeta(loc, ctx.meta);
     }
     return listUnlocked(loc);
   });
+}
+
+/** A project's versions that work on the target (loader and Minecraft version), newest first. */
+async function versions(target, projectId) {
+  const loc = await locate(target);
+  const params = new URLSearchParams({
+    loaders: JSON.stringify(modrinthLoaders(loc.kind, loc.profile)),
+    game_versions: JSON.stringify([loc.profile.mcVersion]),
+  });
+  const list = await modrinth(`/project/${encodeURIComponent(projectId)}/version?${params}`);
+  return list
+    .filter((v) => v.files.some((f) => f.filename.toLowerCase().endsWith(loc.spec.ext)))
+    .map((v) => ({
+      id: v.id,
+      name: v.name,
+      versionNumber: v.version_number,
+      type: v.version_type,
+      date: v.date_published,
+      downloads: v.downloads,
+      gameVersions: v.game_versions,
+      changelog: v.changelog ?? '',
+    }));
 }
 
 // ---------- Updates ----------
@@ -595,6 +622,7 @@ module.exports = {
   searchAll,
   categories,
   install,
+  versions,
   checkUpdates,
   update,
   changelog,

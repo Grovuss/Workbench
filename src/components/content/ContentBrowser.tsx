@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
-import { ArrowDownWideNarrow, Check, Download, LoaderCircle, Search } from 'lucide-react';
+import { ArrowDownWideNarrow, Check, ChevronDown, Download, LoaderCircle, Search } from 'lucide-react';
 import ContentIcon from './ContentIcon';
+import VersionModal from './VersionModal';
 import { api, errorMessage } from '../../api';
 import { CONTENT } from '../../content';
 import { timeAgo } from '../../time';
@@ -58,6 +59,7 @@ export default function ContentBrowser({ profile, kind, kindOptions, onKindChang
   const [total, setTotal] = useState(0);
   const [loadingMore, setLoadingMore] = useState(false);
   const [installing, setInstalling] = useState<Set<string>>(new Set());
+  const [choosing, setChoosing] = useState<ContentSearchHit | null>(null);
   const requestId = useRef(0);
   // Until a sort is picked: best matches while searching, most downloaded otherwise.
   const effectiveSort: ContentSort = sort ?? (query.trim() ? 'relevance' : 'downloads');
@@ -216,10 +218,21 @@ export default function ContentBrowser({ profile, kind, kindOptions, onKindChang
                       <Check size={15} /> Installed
                     </span>
                   ) : (
-                    <button className="btn btn-primary btn-play" onClick={() => install(hit)} disabled={busy}>
-                      {busy ? <LoaderCircle size={15} className="spin" /> : <Download size={15} />}
-                      {busy ? 'Installing' : 'Install'}
-                    </button>
+                    <div className="split-btn">
+                      <button className="btn btn-primary btn-play" onClick={() => install(hit)} disabled={busy}>
+                        {busy ? <LoaderCircle size={15} className="spin" /> : <Download size={15} />}
+                        {busy ? 'Installing' : 'Install'}
+                      </button>
+                      <button
+                        className="btn btn-primary split-btn-more"
+                        onClick={() => setChoosing(hit)}
+                        disabled={busy}
+                        aria-label={`Choose a version of ${hit.title}`}
+                        title="Choose a version"
+                      >
+                        <ChevronDown size={15} />
+                      </button>
+                    </div>
                   )}
                 </div>
               );
@@ -231,6 +244,17 @@ export default function ContentBrowser({ profile, kind, kindOptions, onKindChang
             </button>
           )}
         </>
+      )}
+
+      {choosing && (
+        <VersionModal
+          title={choosing.title}
+          iconUrl={choosing.iconUrl}
+          target={{ profileId: profile.id, kind: choosing.kind, world }}
+          projectId={choosing.projectId}
+          onInstalled={(items) => onInstalled(choosing.kind, items)}
+          onClose={() => setChoosing(null)}
+        />
       )}
     </div>
   );

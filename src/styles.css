@@ -2851,3 +2851,134 @@ select.input option {
     grid-template-columns: 1fr;
   }
 }
+
+/* ---------- Picking a version ---------- */
+.modal-wide {
+  width: min(720px, 100%);
+}
+
+.split-btn {
+  display: inline-flex;
+  flex: none;
+}
+
+.split-btn .btn:first-child {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+.split-btn-more {
+  padding-left: 8px;
+  padding-right: 9px;
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+  border-left: 1px solid color-mix(in srgb, var(--accent-text) 18%, transparent);
+}
+
+.mod-version-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin: -2px -4px;
+  padding: 2px 4px;
+  border-radius: 6px;
+  font: inherit;
+  color: inherit;
+}
+
+.mod-version-btn:hover {
+  background: var(--bg-muted);
+  color: var(--text);
+}
+
+.version-picker {
+  display: grid;
+  grid-template-columns: minmax(0, 260px) minmax(0, 1fr);
+  gap: 14px;
+  height: min(380px, 52vh);
+  margin-bottom: 8px;
+}
+
+.version-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-right: 4px;
+  overflow-y: auto;
+}
+
+.version-option {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 6px;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  text-align: left;
+}
+
+.version-option:hover {
+  background: var(--bg-muted);
+}
+
+.version-option[aria-checked='true'] {
+  background: var(--nav-active-bg);
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
+.version-number {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13.5px;
+  font-weight: 800;
+}
+
+.version-when {
+  width: 100%;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--text-faint);
+}
+
+.version-option .kind-tag {
+  margin-right: 0;
+}
+
+.kind-tag.version-beta,
+.kind-tag.version-alpha {
+  background: color-mix(in srgb, var(--warning) 16%, transparent);
+  color: var(--warning);
+}
+
+.kind-tag.version-current {
+  background: color-mix(in srgb, var(--success) 16%, transparent);
+  color: var(--success);
+}
+
+.version-changelog {
+  padding: 12px 14px;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-surface);
+}
+
+.version-changelog-head {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: 8px;
+}
+
+.version-changelog-head strong {
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.version-changelog-head span {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-faint);
+}

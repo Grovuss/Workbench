@@ -171,7 +171,10 @@ function registerIpc() {
   handle('content:search', (_e, t, options) => content.search(contentTarget(t), options));
   handle('content:searchAll', (_e, id, options) => content.searchAll(String(id), options));
   handle('content:categories', (_e, kind) => content.categories(String(kind)));
-  handle('content:install', (_e, t, projectId) => content.install(contentTarget(t), String(projectId)));
+  handle('content:install', (_e, t, projectId, versionId) =>
+    content.install(contentTarget(t), String(projectId), versionId == null ? null : String(versionId)),
+  );
+  handle('content:versions', (_e, t, projectId) => content.versions(contentTarget(t), String(projectId)));
   handle('content:addFiles', (_e, t, filePaths) => {
     const target = contentTarget(t);
     if (!Array.isArray(filePaths) || !filePaths.length) throw new Error('No files to add.');

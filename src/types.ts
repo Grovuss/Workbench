@@ -17,6 +17,8 @@ export interface InstalledContent {
   size: number;
   title: string;
   versionNumber: string | null;
+  /** Modrinth version id, when identified. */
+  versionId: string | null;
   /** Modrinth project, when the file was identified. */
   projectId: string | null;
   iconUrl: string | null;
@@ -261,8 +263,10 @@ export interface WorkbenchApi {
     /** Mods, resource packs and shaders at once, whichever the profile can use. */
     searchAll(profileId: string, options: SearchOptions): Promise<ContentSearchResult>;
     categories(kind: ContentKind | 'modpack'): Promise<ContentCategory[]>;
-    /** Installs the newest compatible version (plus required dependencies for mods). */
-    install(target: ContentTarget, projectId: string): Promise<InstalledContent[]>;
+    /** Installs a version (the newest compatible one by default) plus required dependencies for mods. Replaces any other installed version. */
+    install(target: ContentTarget, projectId: string, versionId?: string): Promise<InstalledContent[]>;
+    /** Versions that work on the target, newest first. */
+    versions(target: ContentTarget, projectId: string): Promise<ContentVersion[]>;
     /** Asks Modrinth for newer compatible versions; fills in `updateVersion`. */
     checkUpdates(target: ContentTarget): Promise<InstalledContent[]>;
     /** Changelogs between the installed version and its update. */
@@ -442,4 +446,16 @@ export interface ModpackVersion {
   gameVersions: string[];
   loaders: string[];
   date: string;
+}
+
+export interface ContentVersion {
+  id: string;
+  name: string;
+  versionNumber: string;
+  type: 'release' | 'beta' | 'alpha';
+  date: string;
+  downloads: number;
+  gameVersions: string[];
+  /** Markdown. */
+  changelog: string;
 }
