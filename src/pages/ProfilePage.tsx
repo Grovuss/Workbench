@@ -20,7 +20,7 @@ type Tab = 'content' | 'worlds' | 'logs' | 'settings';
 
 const TABS: { id: Tab; label: string }[] = [
   { id: 'content', label: 'Content' },
-  { id: 'worlds', label: 'Worlds & servers' },
+  { id: 'worlds', label: 'Worlds' },
   { id: 'logs', label: 'Logs' },
   { id: 'settings', label: 'Settings' },
 ];
