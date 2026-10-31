@@ -10,6 +10,7 @@ contextBridge.exposeInMainWorld('workbench', {
   platform: process.platform,
   profiles: {
     list: () => invoke('profiles:list'),
+    counts: (id) => invoke('profiles:counts', id),
     create: (input) => invoke('profiles:create', input),
     delete: (id) => invoke('profiles:delete', id),
     rename: (id, name) => invoke('profiles:rename', id, name),

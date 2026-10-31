@@ -164,6 +164,11 @@ function registerIpc() {
     if (game.isActive(String(id))) throw new Error('Close the game before duplicating this profile.');
     return profiles.duplicate(String(id), name);
   });
+  handle('profiles:counts', async (_e, id) => {
+    await profiles.get(String(id));
+    const [byKind, worldCount] = await Promise.all([content.counts(String(id)), worlds.count(String(id))]);
+    return { ...byKind, worlds: worldCount };
+  });
   handle('profiles:openFolder', async (_e, id, sub) => {
     if (sub !== undefined && !PROFILE_SUBFOLDERS.has(sub)) throw new Error('Unknown folder.');
     await profiles.get(id);

@@ -102,6 +102,21 @@ const saveMeta = (loc, files) => writeJson(loc.metaFile, { files });
 
 // ---------- Installed content ----------
 
+/** How many files of each kind a profile has, on or off. Only reads folder listings, so it's cheap. */
+async function counts(profileId) {
+  const dir = profiles.gameDir(profileId);
+  const out = {};
+  for (const kind of ['mod', 'resourcepack', 'shader']) {
+    const { folder, ext } = KINDS[kind];
+    const entries = await fsp.readdir(path.join(dir, folder), { withFileTypes: true }).catch(() => []);
+    out[kind] = entries.filter((e) => {
+      const lower = e.name.toLowerCase();
+      return e.isFile() && (lower.endsWith(ext) || lower.endsWith(`${ext}.disabled`));
+    }).length;
+  }
+  return out;
+}
+
 async function scan(loc) {
   const { dir, spec } = loc;
   const entries = await fsp.readdir(dir, { withFileTypes: true }).catch(() => []);
@@ -676,6 +691,7 @@ const folder = async (target) => (await locate(target)).dir;
 
 module.exports = {
   IRIS_PROJECT_ID,
+  counts,
   folder,
   list,
   setEnabled,

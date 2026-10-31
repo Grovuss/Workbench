@@ -43,8 +43,8 @@ function createWindow() {
 
   const win = new BrowserWindow({
     ...frame,
-    width: 1160,
-    height: 770,
+    width: 1280,
+    height: 800,
     minWidth: 900,
     minHeight: 600,
     title: 'Workbench',

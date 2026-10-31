@@ -1307,16 +1307,177 @@ img.import-option-icon {
 }
 
 /* ---------- Profile page ---------- */
-.profile-hero {
+/* The profile sits in a column on the left (identity, Play, what's in it) and its
+   sections take the rest. Narrower windows stack the column on top. */
+.profile-layout {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 18px;
-  padding: 20px;
-  margin-bottom: 18px;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 20px;
+}
+
+.profile-side {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 12px;
+  min-width: 0;
+}
+
+.profile-side > * {
+  flex: 1 1 320px;
+  min-width: 0;
+}
+
+.profile-side > .pack-update {
+  flex-basis: 100%;
+}
+
+@media (min-width: 1180px) {
+  .profile-layout {
+    grid-template-columns: 284px minmax(0, 1fr);
+    align-items: start;
+    gap: 28px;
+  }
+
+  /* Play stays in reach while a long mod list scrolls. */
+  .profile-side {
+    position: sticky;
+    top: 0;
+    flex-direction: column;
+    flex-wrap: nowrap;
+    align-items: stretch;
+  }
+
+  .profile-side > * {
+    flex: none;
+  }
+}
+
+.profile-main {
+  min-width: 0;
+}
+
+
+.profile-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 16px;
   background: var(--bg-surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
+}
+
+.profile-panel-head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+}
+
+.profile-panel-info {
+  min-width: 0;
+}
+
+.profile-name {
+  display: -webkit-box;
+  margin: 0;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 800;
+  line-height: 1.15;
+  overflow-wrap: anywhere;
+}
+
+.profile-panel-version {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.profile-panel-detail {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.profile-panel-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.profile-panel-actions .btn-play-lg {
+  flex: 1;
+  justify-content: center;
+}
+
+.profile-side .pack-update {
+  flex-wrap: wrap;
+  margin: 0;
+}
+
+.profile-side .pack-update p {
+  flex: 1 1 160px;
+}
+
+/* What's in the profile; each opens the matching list. */
+.profile-counts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(60px, 1fr));
+  gap: 8px;
+}
+
+.count-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: 12px 4px 10px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  color: var(--text-muted);
+  transition: background 120ms, border-color 120ms;
+}
+
+.count-tile:hover {
+  background: var(--bg-surface-hover);
+  border-color: var(--border-strong);
+}
+
+.count-tile:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.count-tile svg {
+  color: var(--accent);
+  margin-bottom: 2px;
+}
+
+.count-tile strong {
+  color: var(--text);
+  font-size: 18px;
+  font-weight: 800;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+
+.count-tile span {
+  font-size: 11.5px;
+  font-weight: 700;
+  line-height: 1.2;
+  text-align: center;
 }
 
 .profile-hero-icon {
@@ -1332,49 +1493,46 @@ img.import-option-icon {
   width: 44px;
 }
 
-.profile-hero-info .page-title {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.profile-hero-meta {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 4px 8px;
-  white-space: nowrap;
-  margin-top: 6px;
-  color: var(--text-muted);
-  font-weight: 700;
-  font-size: 13.5px;
-}
-
-.profile-hero-meta .dot {
-  color: var(--text-faint);
-}
-
-.profile-hero-played {
-  margin-top: 6px;
-  color: var(--text-muted);
-  font-size: 12.5px;
-  font-weight: 600;
-}
-
-.profile-hero-actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-/* Narrow windows: the buttons get their own row so the name and versions keep theirs. */
-@media (max-width: 760px) {
-  .profile-hero {
-    grid-template-columns: auto minmax(0, 1fr);
+/* Stacked: Play beside the name, and the counts as one compact row. */
+@media (max-width: 1179px) {
+  .profile-panel {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 10px 16px;
   }
 
-  .profile-hero-actions {
+  .profile-panel-detail {
+    grid-row: 2;
+  }
+
+  .profile-panel-actions {
     grid-column: 2;
+    grid-row: 1 / span 2;
+  }
+
+  .profile-panel-actions .btn-play-lg {
+    flex: none;
+    min-width: 150px;
+  }
+
+  .profile-card .profile-hero-progress {
+    grid-column: 1 / -1;
+  }
+
+  .count-tile {
+    flex-direction: row;
+    justify-content: center;
+    gap: 8px;
+    padding: 10px 8px;
+  }
+
+  .count-tile svg {
+    margin-bottom: 0;
+  }
+
+  .count-tile strong {
+    font-size: 16px;
   }
 }
 
