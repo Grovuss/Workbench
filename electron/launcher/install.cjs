@@ -46,7 +46,7 @@ function planLibraries(version) {
     // Maven-style entries (used by mod loaders) have no downloads block.
     if (!artifact && !lib.downloads) {
       const rel = mavenPath(lib.name);
-      artifact = { path: rel, url: (lib.url ?? LIBRARIES_URL) + rel };
+      artifact = { path: rel, url: (lib.url ?? LIBRARIES_URL) + rel, sha1: lib.sha1, size: lib.size };
     }
     if (artifact) {
       const dest = add(artifact);
@@ -115,7 +115,9 @@ async function installAssets(version, gameDir, onProgress) {
 
 /** Downloads everything a version needs. onProgress({ stage, label, done, total }). */
 async function installVersion(version, gameDir, onProgress) {
-  const clientJar = path.join(paths.versionsDir(), version.id, `${version.id}.jar`);
+  // Loader versions point `jar` at the vanilla version they build on.
+  const jarId = version.jar ?? version.id;
+  const clientJar = path.join(paths.versionsDir(), jarId, `${jarId}.jar`);
   const libs = planLibraries(version);
   const files = [...libs.files];
 
@@ -139,7 +141,7 @@ async function installVersion(version, gameDir, onProgress) {
     report();
   });
 
-  const nativesDir = path.join(paths.nativesDir(), version.id);
+  const nativesDir = path.join(paths.nativesDir(), jarId);
   await extractNatives(libs.natives, nativesDir);
 
   const gameAssets = await installAssets(version, gameDir, (d, total) =>

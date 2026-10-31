@@ -137,7 +137,7 @@ export default function App() {
             launch={launches[currentProfile.id]}
             onPlay={() => play(currentProfile)}
             onStop={() => stop(currentProfile.id)}
-            onRenamed={(p) => setProfiles((ps) => ps?.map((x) => (x.id === p.id ? p : x)) ?? null)}
+            onUpdated={(p) => setProfiles((ps) => ps?.map((x) => (x.id === p.id ? p : x)) ?? null)}
             onDeleted={() => {
               setProfiles((ps) => ps?.filter((x) => x.id !== currentProfile.id) ?? null);
               setHistory([{ page: 'profiles' }]);

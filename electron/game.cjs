@@ -39,12 +39,14 @@ async function launch(profileId) {
   try {
     const account = await auth.getLaunchAccount();
     const profile = await profiles.get(profileId);
-    const { memoryMb } = await settings.get();
+    const global = await settings.get();
     const { child, logFile } = await launchGame({
       profile,
       gameDir: profiles.gameDir(profileId),
       account,
-      memoryMb,
+      memoryMb: profile.settings.memoryMb ?? global.memoryMb,
+      jvmArgs: profile.settings.jvmArgs,
+      resolution: profile.settings.resolution,
       onProgress,
     });
 

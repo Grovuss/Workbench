@@ -33,6 +33,7 @@ and Workbench shows "This Azure app isn't approved for Minecraft sign-in yet."
 `electron/launcher/` is a small launcher core:
 
 - **versions.cjs**: Mojang's version manifest and per-version JSON
+- **loaders.cjs**: Fabric/Quilt metadata, merged on top of the vanilla version JSON
 - **java.cjs**: downloads the matching Mojang Java runtime
 - **install.cjs**: libraries, natives, client jar and assets (shared across profiles in `meta/`)
 - **launch.cjs**: builds JVM and game arguments and starts the game

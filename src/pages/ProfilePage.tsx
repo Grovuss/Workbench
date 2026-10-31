@@ -1,7 +1,9 @@
 import { useState } from 'react';
 import { FolderOpen } from 'lucide-react';
 import logo from '../assets/logo.svg';
+import LoaderBadge from '../components/LoaderBadge';
 import Modal from '../components/Modal';
+import { LOADER_LABELS } from '../loaders';
 import PlayButton from '../components/PlayButton';
 import ProgressBar, { progressPercent } from '../components/ProgressBar';
 import WorldsTab from '../components/profile/WorldsTab';
@@ -25,12 +27,12 @@ interface Props {
   launch?: LaunchStatus;
   onPlay: () => void;
   onStop: () => void;
-  onRenamed: (profile: Profile) => void;
+  onUpdated: (profile: Profile) => void;
   onDeleted: () => void;
   onError: (message: string) => void;
 }
 
-export default function ProfilePage({ profile, launch, onPlay, onStop, onRenamed, onDeleted, onError }: Props) {
+export default function ProfilePage({ profile, launch, onPlay, onStop, onUpdated, onDeleted, onError }: Props) {
   const [tab, setTab] = useState<Tab>('worlds');
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -56,8 +58,16 @@ export default function ProfilePage({ profile, launch, onPlay, onStop, onRenamed
         <div className="profile-hero-info">
           <h1 className="page-title">{profile.name}</h1>
           <div className="profile-hero-meta">
-            <span className="badge badge-vanilla">Vanilla</span>
+            <LoaderBadge loader={profile.loader} />
             <span>Minecraft {profile.mcVersion}</span>
+            {profile.loaderVersion && (
+              <>
+                <span className="dot">·</span>
+                <span>
+                  {LOADER_LABELS[profile.loader]} {profile.loaderVersion}
+                </span>
+              </>
+            )}
             <span className="dot">·</span>
             <span>{profile.lastPlayedAt ? `Played ${timeAgo(profile.lastPlayedAt)}` : 'Never played'}</span>
           </div>
@@ -106,7 +116,7 @@ export default function ProfilePage({ profile, launch, onPlay, onStop, onRenamed
           <ProfileSettingsTab
             profile={profile}
             busy={Boolean(launch)}
-            onRenamed={onRenamed}
+            onUpdated={onUpdated}
             onDelete={() => setConfirmingDelete(true)}
             onError={onError}
           />

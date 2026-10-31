@@ -1,5 +1,6 @@
 import type { KeyboardEvent, MouseEvent } from 'react';
 import logo from '../assets/logo.svg';
+import LoaderBadge from './LoaderBadge';
 import PlayButton from './PlayButton';
 import ProgressBar, { progressPercent } from './ProgressBar';
 import { timeAgo } from '../time';
@@ -49,7 +50,7 @@ export default function ProfileRow({ profile, launch, onOpen, onPlay, onStop }: 
           </div>
         ) : (
           <div className="profile-meta">
-            <span className="badge badge-vanilla">Vanilla</span>
+            <LoaderBadge loader={profile.loader} />
             {profile.mcVersion}
             <span className="dot">·</span>
             {profile.lastPlayedAt ? `Played ${timeAgo(profile.lastPlayedAt)}` : 'Never played'}

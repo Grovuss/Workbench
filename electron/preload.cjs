@@ -13,12 +13,18 @@ contextBridge.exposeInMainWorld('workbench', {
     create: (input) => invoke('profiles:create', input),
     delete: (id) => invoke('profiles:delete', id),
     rename: (id, name) => invoke('profiles:rename', id, name),
+    setVersion: (id, selection) => invoke('profiles:setVersion', id, selection),
+    updateSettings: (id, patch) => invoke('profiles:updateSettings', id, patch),
     worlds: (id) => invoke('profiles:worlds', id),
     readLog: (id) => invoke('profiles:readLog', id),
     openFolder: (id, sub) => invoke('profiles:openFolder', id, sub),
   },
   versions: {
     list: () => invoke('versions:list'),
+  },
+  loaders: {
+    games: (loader) => invoke('loaders:games', loader),
+    versions: (loader, mcVersion) => invoke('loaders:versions', loader, mcVersion),
   },
   accounts: {
     list: () => invoke('accounts:list'),

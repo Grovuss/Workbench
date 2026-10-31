@@ -13,15 +13,38 @@ export interface World {
 
 export type ThemePreference = 'light' | 'dark' | 'system';
 
-export type Loader = 'vanilla';
+export type Loader = 'vanilla' | 'fabric' | 'quilt';
+export type ModLoader = Exclude<Loader, 'vanilla'>;
 
-export interface Profile {
+export interface VersionSelection {
+  mcVersion: string;
+  loader: Loader;
+  loaderVersion: string | null;
+}
+
+export interface Resolution {
+  width: number;
+  height: number;
+}
+
+/** Per-profile overrides; null/empty means "use the global setting". */
+export interface ProfileSettings {
+  memoryMb: number | null;
+  jvmArgs: string;
+  resolution: Resolution | null;
+}
+
+export interface Profile extends VersionSelection {
   id: string;
   name: string;
-  loader: Loader;
-  mcVersion: string;
+  settings: ProfileSettings;
   createdAt: string;
   lastPlayedAt: string | null;
+}
+
+export interface LoaderVersion {
+  version: string;
+  stable: boolean;
 }
 
 export interface McVersion {
@@ -77,7 +100,9 @@ export interface WorkbenchApi {
   platform: string;
   profiles: {
     list(): Promise<Profile[]>;
-    create(input: { name: string; mcVersion: string }): Promise<Profile>;
+    create(input: { name: string } & VersionSelection): Promise<Profile>;
+    setVersion(id: string, selection: VersionSelection): Promise<Profile>;
+    updateSettings(id: string, patch: Partial<ProfileSettings>): Promise<Profile>;
     delete(id: string): Promise<void>;
     rename(id: string, name: string): Promise<Profile>;
     worlds(id: string): Promise<World[]>;
@@ -87,6 +112,11 @@ export interface WorkbenchApi {
   };
   versions: {
     list(): Promise<McVersion[]>;
+  };
+  loaders: {
+    /** Minecraft versions the loader supports. */
+    games(loader: ModLoader): Promise<string[]>;
+    versions(loader: ModLoader, mcVersion: string): Promise<LoaderVersion[]>;
   };
   accounts: {
     list(): Promise<AccountsState>;

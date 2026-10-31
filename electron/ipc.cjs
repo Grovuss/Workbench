@@ -8,6 +8,7 @@ const game = require('./game.cjs');
 const profiles = require('./profiles.cjs');
 const settings = require('./settings.cjs');
 const { getManifest } = require('./launcher/versions.cjs');
+const { supportedGameVersions, loaderVersions } = require('./launcher/loaders.cjs');
 
 // Errors cross IPC as { ok: false, error } so the renderer sees our message,
 // not Electron's "Error invoking remote method" wrapper.
@@ -38,6 +39,11 @@ function registerIpc() {
     return profiles.remove(id);
   });
   handle('profiles:rename', (_e, id, name) => profiles.rename(id, name));
+  handle('profiles:setVersion', (_e, id, selection) => {
+    if (game.isActive(id)) throw new Error('Stop the game before changing its version.');
+    return profiles.setVersion(id, selection);
+  });
+  handle('profiles:updateSettings', (_e, id, patch) => profiles.updateSettings(id, patch));
   handle('profiles:worlds', (_e, id) => profiles.listWorlds(id));
   handle('profiles:readLog', (_e, id) => profiles.readLog(id));
   handle('profiles:openFolder', async (_e, id, sub) => {
@@ -51,6 +57,9 @@ function registerIpc() {
       .filter((v) => v.type === 'release' || v.type === 'snapshot')
       .map(({ id, type, releaseTime }) => ({ id, type, releaseTime })),
   );
+
+  handle('loaders:games', (_e, loader) => supportedGameVersions(loader));
+  handle('loaders:versions', (_e, loader, mcVersion) => loaderVersions(loader, mcVersion));
 
   handle('accounts:list', () => auth.listAccounts());
   handle('accounts:login', (e) => auth.login(BrowserWindow.fromWebContents(e.sender)));

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { FolderOpen, Monitor, Moon, Sun } from 'lucide-react';
 import PageHeader from '../components/PageHeader';
 import { api, errorMessage } from '../api';
+import { formatGb, maxMemoryMb } from '../memory';
 import type { SystemInfo, ThemePreference } from '../types';
 
 const THEMES: { id: ThemePreference; label: string; icon: typeof Sun }[] = [
@@ -10,7 +11,6 @@ const THEMES: { id: ThemePreference; label: string; icon: typeof Sun }[] = [
   { id: 'system', label: 'System', icon: Monitor },
 ];
 
-const formatGb = (mb: number) => `${(mb / 1024).toFixed(mb % 1024 === 0 ? 0 : 1)} GB`;
 
 interface Props {
   theme: ThemePreference;
@@ -40,8 +40,7 @@ export default function SettingsPage({ theme, onThemeChange, onError }: Props) {
     }, 300);
   };
 
-  // Leave a little headroom for the OS.
-  const maxMemory = system ? Math.max(1024, Math.floor((system.totalMemoryMb - 1024) / 512) * 512) : 8192;
+  const maxMemory = system ? maxMemoryMb(system.totalMemoryMb) : 8192;
 
   return (
     <>

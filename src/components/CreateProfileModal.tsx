@@ -1,14 +1,11 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useState, type FormEvent } from 'react';
 import Modal from './Modal';
+import VersionPicker, { isCompleteSelection } from './VersionPicker';
 import { api, errorMessage } from '../api';
-import type { McVersion, Profile } from '../types';
+import { LOADER_LABELS } from '../loaders';
+import type { Profile, VersionSelection } from '../types';
 
-const LOADERS = [
-  { id: 'vanilla', label: 'Vanilla', available: true },
-  { id: 'fabric', label: 'Fabric', available: false },
-  { id: 'forge', label: 'Forge', available: false },
-  { id: 'neoforge', label: 'NeoForge', available: false },
-];
+const INITIAL_SELECTION: VersionSelection = { mcVersion: '', loader: 'vanilla', loaderVersion: null };
 
 interface Props {
   onClose: () => void;
@@ -17,44 +14,28 @@ interface Props {
 
 export default function CreateProfileModal({ onClose, onCreated }: Props) {
   const [name, setName] = useState('');
-  const [versions, setVersions] = useState<McVersion[] | null>(null);
-  const [showSnapshots, setShowSnapshots] = useState(false);
-  const [version, setVersion] = useState('');
+  const [selection, setSelection] = useState(INITIAL_SELECTION);
   const [error, setError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
-
-  useEffect(() => {
-    api.versions
-      .list()
-      .then((vs) => {
-        setVersions(vs);
-        setVersion(vs.find((v) => v.type === 'release')?.id ?? '');
-      })
-      .catch((err) => setError(errorMessage(err)));
-  }, []);
-
-  const visible = versions?.filter((v) => showSnapshots || v.type === 'release') ?? [];
-
-  const toggleSnapshots = (on: boolean) => {
-    setShowSnapshots(on);
-    if (!on && versions?.find((v) => v.id === version)?.type === 'snapshot') {
-      setVersion(versions.find((v) => v.type === 'release')?.id ?? '');
-    }
-  };
+  const ready = isCompleteSelection(selection);
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
-    if (!version || creating) return;
+    if (!ready || creating) return;
     setCreating(true);
     setError(null);
     try {
-      onCreated(await api.profiles.create({ name, mcVersion: version }));
+      onCreated(await api.profiles.create({ name, ...selection }));
       onClose();
     } catch (err) {
       setError(errorMessage(err));
       setCreating(false);
     }
   };
+
+  const placeholder = selection.mcVersion
+    ? `${selection.loader === 'vanilla' ? 'Minecraft' : LOADER_LABELS[selection.loader]} ${selection.mcVersion}`
+    : 'My profile';
 
   return (
     <Modal
@@ -65,7 +46,7 @@ export default function CreateProfileModal({ onClose, onCreated }: Props) {
           <button type="button" className="btn btn-secondary" onClick={onClose}>
             Cancel
           </button>
-          <button type="submit" form="create-profile" className="btn btn-primary" disabled={!version || creating}>
+          <button type="submit" form="create-profile" className="btn btn-primary" disabled={!ready || creating}>
             {creating ? 'Creating…' : 'Create'}
           </button>
         </>
@@ -78,51 +59,13 @@ export default function CreateProfileModal({ onClose, onCreated }: Props) {
             className="input"
             value={name}
             maxLength={48}
-            placeholder={version ? `Minecraft ${version}` : 'My profile'}
+            placeholder={placeholder}
             onChange={(e) => setName(e.target.value)}
             autoFocus
           />
         </label>
 
-        <div className="field">
-          <span className="field-label">Loader</span>
-          <div className="segmented" role="group" aria-label="Loader">
-            {LOADERS.map((l) => (
-              <button
-                key={l.id}
-                type="button"
-                aria-pressed={l.id === 'vanilla'}
-                disabled={!l.available}
-                title={l.available ? undefined : 'Coming soon'}
-              >
-                {l.label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <label className="field">
-          <span className="field-label">Minecraft version</span>
-          <select
-            className="input"
-            value={version}
-            disabled={!versions}
-            onChange={(e) => setVersion(e.target.value)}
-          >
-            {!versions && <option>Loading versions…</option>}
-            {visible.map((v) => (
-              <option key={v.id} value={v.id}>
-                {v.id}
-                {v.type === 'snapshot' ? ' (snapshot)' : ''}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        <label className="checkbox">
-          <input type="checkbox" checked={showSnapshots} onChange={(e) => toggleSnapshots(e.target.checked)} />
-          Show snapshots
-        </label>
+        <VersionPicker initial={INITIAL_SELECTION} onChange={setSelection} />
 
         {error && <p className="form-error">{error}</p>}
       </form>
