@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type DragEvent, type FormEvent } from 'react';
+import { useCallback, useEffect, useRef, useState, type DragEvent, type FormEvent, type ReactNode } from 'react';
 import {
   ArchiveRestore,
   ChevronLeft,
@@ -58,11 +58,13 @@ interface Props {
   onPlay: (quickPlay: QuickPlay) => void;
   onError: (message: string) => void;
   onSuccess: (message: string) => void;
+  /** The Worlds/Servers switch, shown at the start of the toolbar. */
+  switcher: ReactNode;
 }
 
 type Action = { type: 'rename' | 'copyTo' | 'moveTo' | 'delete'; world: World };
 
-export default function Worlds({ profile, running, launching, onPlay, onError, onSuccess }: Props) {
+export default function Worlds({ profile, running, launching, onPlay, onError, onSuccess, switcher }: Props) {
   const [worlds, setWorlds] = useState<World[] | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
   const [action, setAction] = useState<Action | null>(null);
@@ -172,9 +174,12 @@ export default function Worlds({ profile, running, launching, onPlay, onError, o
       )}
 
       <div className="toolbar">
-        <span className="toolbar-title">
-          {worlds.length} {worlds.length === 1 ? 'world' : 'worlds'}
-        </span>
+        <div className="toolbar-lead">
+          {switcher}
+          <span className="toolbar-title">
+            {worlds.length} {worlds.length === 1 ? 'world' : 'worlds'}
+          </span>
+        </div>
         <div className="toolbar-actions">
           <button
             className="btn btn-ghost"

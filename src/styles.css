@@ -1330,7 +1330,8 @@ img.import-option-icon {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 4px 8px;
+  white-space: nowrap;
   margin-top: 6px;
   color: var(--text-muted);
   font-weight: 700;
@@ -1341,10 +1342,28 @@ img.import-option-icon {
   color: var(--text-faint);
 }
 
+.profile-hero-played {
+  margin-top: 6px;
+  color: var(--text-muted);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
 .profile-hero-actions {
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+/* Narrow windows: the buttons get their own row so the name and versions keep theirs. */
+@media (max-width: 1100px) {
+  .profile-hero {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .profile-hero-actions {
+    grid-column: 2;
+  }
 }
 
 .profile-hero-progress {
@@ -1556,6 +1575,9 @@ img.import-option-icon {
 }
 
 .world-meta {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-size: 12.5px;
   font-weight: 600;
   color: var(--text-muted);
@@ -2337,6 +2359,13 @@ select.input option {
 /* ---------- Worlds & servers ---------- */
 .worlds-switch {
   margin-bottom: 16px;
+}
+
+.toolbar-lead {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
 }
 
 .world-header-play {

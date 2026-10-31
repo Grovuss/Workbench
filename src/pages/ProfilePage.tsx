@@ -98,6 +98,7 @@ export default function ProfilePage({
         </button>
         <div className="profile-hero-info">
           <h1 className="page-title">{profile.name}</h1>
+          {/* Versions on one line, play history on the next, so neither wraps midway. */}
           <div className="profile-hero-meta">
             <LoaderBadge loader={profile.loader} />
             <span>Minecraft {profile.mcVersion}</span>
@@ -110,14 +111,10 @@ export default function ProfilePage({
                 </span>
               </>
             )}
-            <span className="dot">·</span>
-            <span>{profile.lastPlayedAt ? `Played ${timeAgo(profile.lastPlayedAt)}` : 'Never played'}</span>
-            {playtime && (
-              <>
-                <span className="dot">·</span>
-                <span>{playtime} played</span>
-              </>
-            )}
+          </div>
+          <div className="profile-hero-played">
+            {profile.lastPlayedAt ? `Played ${timeAgo(profile.lastPlayedAt)}` : 'Never played'}
+            {playtime && ` · ${playtime} in total`}
           </div>
         </div>
         <div className="profile-hero-actions">

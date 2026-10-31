@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { Globe, Pencil, Play, Plus, Server as ServerIcon, Trash2, Users } from 'lucide-react';
 import Worlds from './Worlds';
 import Modal from '../Modal';
@@ -18,9 +18,8 @@ interface Props {
 export default function WorldsTab({ profile, running, launching, onPlay, onError, onSuccess }: Props) {
   const [view, setView] = useState<'worlds' | 'servers'>('worlds');
 
-  return (
-    <>
-      <div className="segmented worlds-switch" role="group" aria-label="Worlds or servers">
+  const switcher = (
+      <div className="segmented" role="group" aria-label="Worlds or servers">
         <button aria-pressed={view === 'worlds'} onClick={() => setView('worlds')}>
           <Globe size={14} /> Worlds
         </button>
@@ -28,12 +27,20 @@ export default function WorldsTab({ profile, running, launching, onPlay, onError
           <ServerIcon size={14} /> Servers
         </button>
       </div>
-      {view === 'worlds' ? (
-        <Worlds profile={profile} running={running} launching={launching} onPlay={onPlay} onError={onError} onSuccess={onSuccess} />
-      ) : (
-        <Servers profile={profile} launching={launching} onPlay={onPlay} onError={onError} />
-      )}
-    </>
+  );
+
+  return view === 'worlds' ? (
+    <Worlds
+      profile={profile}
+      running={running}
+      launching={launching}
+      onPlay={onPlay}
+      onError={onError}
+      onSuccess={onSuccess}
+      switcher={switcher}
+    />
+  ) : (
+    <Servers profile={profile} launching={launching} onPlay={onPlay} onError={onError} switcher={switcher} />
   );
 }
 
@@ -41,7 +48,13 @@ export default function WorldsTab({ profile, running, launching, onPlay, onError
 
 type Ping = { state: 'pinging' } | { state: 'online'; status: ServerStatus } | { state: 'offline'; error: string };
 
-function Servers({ profile, launching, onPlay, onError }: Pick<Props, 'profile' | 'launching' | 'onPlay' | 'onError'>) {
+function Servers({
+  profile,
+  launching,
+  onPlay,
+  onError,
+  switcher,
+}: Pick<Props, 'profile' | 'launching' | 'onPlay' | 'onError'> & { switcher: ReactNode }) {
   const [servers, setServers] = useState<Server[] | null>(null);
   const [pings, setPings] = useState<Record<string, Ping>>({});
   const [editing, setEditing] = useState<Server | 'new' | null>(null);
@@ -82,9 +95,12 @@ function Servers({ profile, launching, onPlay, onError }: Pick<Props, 'profile' 
   return (
     <>
       <div className="toolbar">
-        <span className="toolbar-title">
-          {servers.length} {servers.length === 1 ? 'server' : 'servers'}
-        </span>
+        <div className="toolbar-lead">
+          {switcher}
+          <span className="toolbar-title">
+            {servers.length} {servers.length === 1 ? 'server' : 'servers'}
+          </span>
+        </div>
         <div className="toolbar-actions">
           <button className="btn btn-primary" onClick={() => setEditing('new')}>
             <Plus size={16} /> Add server
