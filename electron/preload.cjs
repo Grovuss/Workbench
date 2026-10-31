@@ -24,15 +24,17 @@ contextBridge.exposeInMainWorld('workbench', {
   versions: {
     list: () => invoke('versions:list'),
   },
-  mods: {
-    list: (id) => invoke('mods:list', id),
-    search: (id, query) => invoke('mods:search', id, query),
-    install: (id, projectId) => invoke('mods:install', id, projectId),
-    addFiles: (id, filePaths) => invoke('mods:addFiles', id, filePaths),
-    checkUpdates: (id) => invoke('mods:checkUpdates', id),
-    update: (id, fileNames) => invoke('mods:update', id, fileNames),
-    remove: (id, fileName) => invoke('mods:remove', id, fileName),
-    setEnabled: (id, fileName, enabled) => invoke('mods:setEnabled', id, fileName, enabled),
+  // `target` is { profileId, kind: 'mod' | 'resourcepack' | 'shader' | 'datapack', world? }.
+  content: {
+    list: (target) => invoke('content:list', target),
+    openFolder: (target) => invoke('content:openFolder', target),
+    search: (target, query) => invoke('content:search', target, query),
+    install: (target, projectId) => invoke('content:install', target, projectId),
+    addFiles: (target, filePaths) => invoke('content:addFiles', target, filePaths),
+    checkUpdates: (target) => invoke('content:checkUpdates', target),
+    update: (target, fileNames) => invoke('content:update', target, fileNames),
+    remove: (target, fileName) => invoke('content:remove', target, fileName),
+    setEnabled: (target, fileName, enabled) => invoke('content:setEnabled', target, fileName, enabled),
   },
   packs: {
     import: (kind) => invoke('packs:import', kind),
@@ -68,6 +70,7 @@ contextBridge.exposeInMainWorld('workbench', {
   system: {
     info: () => invoke('system:info'),
     openDataFolder: () => invoke('system:openDataFolder'),
+    openCurseForge: (url) => invoke('system:openCurseForge', url),
   },
   window: {
     setTheme: (dark) => invoke('window:setTheme', dark),

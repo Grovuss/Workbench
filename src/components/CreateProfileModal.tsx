@@ -1,12 +1,12 @@
 import { useEffect, useState, type DragEvent, type FormEvent } from 'react';
-import { FileDown, Package, Upload } from 'lucide-react';
+import { ExternalLink, FileDown, Package, Upload } from 'lucide-react';
 import logo from '../assets/logo.svg';
 import Modal from './Modal';
 import ProgressBar from './ProgressBar';
 import VersionPicker, { isCompleteSelection } from './VersionPicker';
 import { api, errorMessage } from '../api';
 import { LOADER_LABELS } from '../loaders';
-import type { ImportProgress, PackKind, Profile, VersionSelection } from '../types';
+import type { ImportProgress, ImportResult, MissingPackFile, PackKind, Profile, VersionSelection } from '../types';
 
 const INITIAL_SELECTION: VersionSelection = { mcVersion: '', loader: 'vanilla', loaderVersion: null };
 
@@ -25,6 +25,9 @@ export default function CreateProfileModal({ onClose, onCreated }: Props) {
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState<ImportProgress | null>(null);
   const [dragging, setDragging] = useState(false);
+  const [curseforge, setCurseforge] = useState(false);
+  // An import that finished with files the player has to download themselves.
+  const [partial, setPartial] = useState<ImportResult | null>(null);
   const ready = isCompleteSelection(selection);
 
   useEffect(
@@ -35,19 +38,27 @@ export default function CreateProfileModal({ onClose, onCreated }: Props) {
     [],
   );
 
+  useEffect(() => {
+    api.system
+      .info()
+      .then((info) => setCurseforge(info.curseforge))
+      .catch(() => {});
+  }, []);
+
   const finish = (profile: Profile) => {
     onCreated(profile);
     onClose();
   };
 
-  const run = async (pending: () => Promise<Profile | null>) => {
+  const run = async (pending: () => Promise<ImportResult | null>) => {
     if (busy) return;
     setBusy(true);
     setError(null);
     setProgress(null);
     try {
-      const profile = await pending();
-      if (profile) return finish(profile);
+      const result = await pending();
+      if (result?.missing.length) return setPartial(result);
+      if (result) return finish(result.profile);
     } catch (err) {
       setError(errorMessage(err));
     }
@@ -57,7 +68,7 @@ export default function CreateProfileModal({ onClose, onCreated }: Props) {
 
   const submit = (e: FormEvent) => {
     e.preventDefault();
-    if (ready) run(() => api.profiles.create({ name, ...selection }));
+    if (ready) run(async () => ({ profile: await api.profiles.create({ name, ...selection }), missing: [] }));
   };
 
   const pick = (kind: PackKind) => run(() => api.packs.import(kind));
@@ -68,12 +79,23 @@ export default function CreateProfileModal({ onClose, onCreated }: Props) {
     const file = e.dataTransfer.files[0];
     if (!file) return;
     const path = api.pathForFile(file);
-    if (!/\.(workbench|mrpack)$/i.test(path)) {
-      setError('Drop a .workbench or .mrpack file.');
+    const pattern = curseforge ? /\.(workbench|mrpack|zip)$/i : /\.(workbench|mrpack)$/i;
+    if (!pattern.test(path)) {
+      setError(curseforge ? 'Drop a .workbench, .mrpack or CurseForge .zip file.' : 'Drop a .workbench or .mrpack file.');
       return;
     }
     run(() => api.packs.importFile(path));
   };
+
+  if (partial) {
+    return (
+      <MissingFilesModal
+        result={partial}
+        onDone={() => finish(partial.profile)}
+        onError={(message) => setError(message)}
+      />
+    );
+  }
 
   const placeholder = selection.mcVersion
     ? `${selection.loader === 'vanilla' ? 'Minecraft' : LOADER_LABELS[selection.loader]} ${selection.mcVersion}`
@@ -155,15 +177,19 @@ export default function CreateProfileModal({ onClose, onCreated }: Props) {
                 <small>Mods download straight from Modrinth.</small>
               </span>
             </button>
-            <button className="import-option" disabled>
+            <button className="import-option" disabled={!curseforge} onClick={() => pick('curseforge')}>
               <span className="import-option-icon import-option-curseforge">
                 <Package size={18} />
               </span>
               <span>
                 <strong>CurseForge pack</strong> <code>.zip</code>
-                <small>Needs a CurseForge API key, coming later.</small>
+                <small>
+                  {curseforge
+                    ? 'Some authors don’t allow launcher downloads; you’ll get links for those.'
+                    : 'Waiting on a CurseForge API key.'}
+                </small>
               </span>
-              <span className="soon-pill soon-pill-inline">Soon</span>
+              {!curseforge && <span className="soon-pill soon-pill-inline">Soon</span>}
             </button>
           </div>
 
@@ -185,5 +211,69 @@ export default function CreateProfileModal({ onClose, onCreated }: Props) {
         </div>
       )}
     </Modal>
+  );
+}
+
+/** After a CurseForge import: files the player needs to fetch from CurseForge themselves. */
+function MissingFilesModal({
+  result,
+  onDone,
+  onError,
+}: {
+  result: ImportResult;
+  onDone: () => void;
+  onError: (message: string) => void;
+}) {
+  const open = (url: string) => api.system.openCurseForge(url).catch((err) => onError(errorMessage(err)));
+  const byAuthor = result.missing.filter((m) => m.reason === 'author');
+  const unsupported = result.missing.filter((m) => m.reason === 'unsupported');
+
+  return (
+    <Modal
+      title={`“${result.profile.name}” is almost ready`}
+      onClose={onDone}
+      footer={
+        <button className="btn btn-primary" onClick={onDone}>
+          Go to profile
+        </button>
+      }
+    >
+      {byAuthor.length > 0 && (
+        <>
+          <p className="modal-text">
+            {byAuthor.length === 1 ? 'One file’s author doesn’t' : `${byAuthor.length} files’ authors don’t`} allow
+            launchers to download them. Download each from CurseForge, then drag the files into the profile’s Mods tab.
+          </p>
+          <MissingList files={byAuthor} onOpen={open} />
+        </>
+      )}
+      {unsupported.length > 0 && (
+        <>
+          <p className="modal-text">
+            Workbench skipped {unsupported.length === 1 ? 'this file' : 'these files'}, since {unsupported.length === 1 ? 'it isn’t' : 'they aren’t'} a
+            mod, resource pack or shader:
+          </p>
+          <MissingList files={unsupported} onOpen={open} />
+        </>
+      )}
+    </Modal>
+  );
+}
+
+function MissingList({ files, onOpen }: { files: MissingPackFile[]; onOpen: (url: string) => void }) {
+  return (
+    <ul className="missing-list">
+      {files.map((f) => (
+        <li key={f.fileName}>
+          <span>
+            <strong>{f.name}</strong>
+            <code>{f.fileName}</code>
+          </span>
+          <button className="btn btn-secondary btn-sm" onClick={() => onOpen(f.url)}>
+            <ExternalLink size={14} /> CurseForge
+          </button>
+        </li>
+      ))}
+    </ul>
   );
 }

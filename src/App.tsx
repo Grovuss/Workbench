@@ -4,7 +4,7 @@ import TitleBar, { type Crumb } from './components/TitleBar';
 import Toasts from './components/Toasts';
 import ProfilesPage from './pages/ProfilesPage';
 import ProfilePage from './pages/ProfilePage';
-import ModsPage from './pages/ModsPage';
+import BrowsePage from './pages/BrowsePage';
 import SettingsPage from './pages/SettingsPage';
 import { api, errorMessage } from './api';
 import { useTheme } from './useTheme';
@@ -14,7 +14,7 @@ import type { AccountsState, Page, Profile, Route } from './types';
 
 const PAGE_TITLES: Record<Page, string> = {
   profiles: 'Profiles',
-  mods: 'Mods',
+  browse: 'Browse',
   settings: 'Settings',
 };
 
@@ -147,7 +147,7 @@ export default function App() {
             onSuccess={(message) => pushToast(message, 'success')}
           />
         )}
-        {route.page === 'mods' && <ModsPage profiles={profiles} onError={pushToast} />}
+        {route.page === 'browse' && <BrowsePage profiles={profiles} onError={pushToast} />}
         {route.page === 'settings' && (
           <SettingsPage theme={preference} onThemeChange={setPreference} onError={pushToast} />
         )}

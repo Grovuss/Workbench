@@ -1,3 +1,9 @@
+// Optional git-ignored overrides for values that shouldn't live in a public repo.
+let secrets = {};
+try {
+  secrets = require('./secrets.cjs');
+} catch {}
+
 // Azure app registration (public client) used for Microsoft sign-in.
 // Client IDs are not secrets. See README.md → "Microsoft sign-in" for setup.
 const MSA_CLIENT_ID = process.env.WORKBENCH_MSA_CLIENT_ID || '8d61a8f9-4212-4bef-9692-95315345180f';
@@ -7,4 +13,8 @@ const MSA_CLIENT_ID = process.env.WORKBENCH_MSA_CLIENT_ID || '8d61a8f9-4212-4bef
 // Set to '' to disable.
 const DEV_OFFLINE_NAME = 'Grovus';
 
-module.exports = { MSA_CLIENT_ID, DEV_OFFLINE_NAME };
+// CurseForge API key; CurseForge pack import stays disabled without one.
+// Put it in electron/secrets.cjs as `module.exports = { CURSEFORGE_API_KEY: '…' }`.
+const CURSEFORGE_API_KEY = process.env.WORKBENCH_CURSEFORGE_KEY || secrets.CURSEFORGE_API_KEY || '';
+
+module.exports = { MSA_CLIENT_ID, DEV_OFFLINE_NAME, CURSEFORGE_API_KEY };

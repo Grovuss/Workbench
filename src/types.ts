@@ -1,20 +1,30 @@
-export type Page = 'profiles' | 'mods' | 'settings';
+export type Page = 'profiles' | 'browse' | 'settings';
 
-export interface InstalledMod {
-  /** File name in mods/, without a ".disabled" suffix. */
+export type ContentKind = 'mod' | 'resourcepack' | 'shader' | 'datapack';
+
+/** Where content lives: a profile's mods/resourcepacks/shaderpacks, or a world's datapacks. */
+export interface ContentTarget {
+  profileId: string;
+  kind: ContentKind;
+  /** World folder name; data packs only. */
+  world?: string;
+}
+
+export interface InstalledContent {
+  /** File name in the content folder, without a ".disabled" suffix. */
   fileName: string;
   enabled: boolean;
   size: number;
   title: string;
   versionNumber: string | null;
-  /** Modrinth project, when the jar was identified. */
+  /** Modrinth project, when the file was identified. */
   projectId: string | null;
   iconUrl: string | null;
   /** Version number of an available update, from the last update check. */
   updateVersion: string | null;
 }
 
-export interface ModSearchHit {
+export interface ContentSearchHit {
   projectId: string;
   title: string;
   description: string;
@@ -23,12 +33,26 @@ export interface ModSearchHit {
   downloads: number;
 }
 
-export interface ModSearchResult {
+export interface ContentSearchResult {
   total: number;
-  hits: ModSearchHit[];
+  hits: ContentSearchHit[];
 }
 
-export type PackKind = 'workbench' | 'mrpack';
+export type PackKind = 'workbench' | 'mrpack' | 'curseforge';
+
+/** A pack file Workbench couldn't download, with the page to get it from. */
+export interface MissingPackFile {
+  name: string;
+  fileName: string;
+  url: string;
+  /** 'author': the author doesn't allow launchers to download it; 'unsupported': not a mod, resource pack or shader. */
+  reason: 'author' | 'unsupported';
+}
+
+export interface ImportResult {
+  profile: Profile;
+  missing: MissingPackFile[];
+}
 
 /** Extra profile folders/files a .workbench export can include. */
 export type ExportItem = 'config' | 'resourcepacks' | 'shaderpacks' | 'options.txt' | 'saves';
@@ -41,7 +65,7 @@ export interface ImportProgress {
 
 export type Route = { page: Page } | { page: 'profile'; id: string };
 
-export type ProfileFolder = 'saves' | 'screenshots' | 'logs' | 'resourcepacks' | 'mods';
+export type ProfileFolder = 'saves' | 'screenshots' | 'logs' | 'resourcepacks' | 'shaderpacks' | 'mods';
 
 export interface World {
   folder: string;
@@ -118,6 +142,8 @@ export interface Settings {
 export interface SystemInfo {
   totalMemoryMb: number;
   dataDir: string;
+  /** Whether a CurseForge API key is configured. */
+  curseforge: boolean;
 }
 
 export type GameState = 'idle' | 'installing' | 'running';
@@ -183,24 +209,25 @@ export interface WorkbenchApi {
     get(): Promise<Settings>;
     set(patch: Partial<Settings>): Promise<Settings>;
   };
-  mods: {
-    list(profileId: string): Promise<InstalledMod[]>;
-    search(profileId: string, query: { query: string; offset: number }): Promise<ModSearchResult>;
-    /** Installs the newest compatible version plus required dependencies. */
-    install(profileId: string, projectId: string): Promise<InstalledMod[]>;
+  content: {
+    list(target: ContentTarget): Promise<InstalledContent[]>;
+    openFolder(target: ContentTarget): Promise<void>;
+    search(target: ContentTarget, query: { query: string; offset: number }): Promise<ContentSearchResult>;
+    /** Installs the newest compatible version (plus required dependencies for mods). */
+    install(target: ContentTarget, projectId: string): Promise<InstalledContent[]>;
     /** Asks Modrinth for newer compatible versions; fills in `updateVersion`. */
-    checkUpdates(profileId: string): Promise<InstalledMod[]>;
-    /** Copies .jar files from disk into the profile's mods folder. */
-    addFiles(profileId: string, filePaths: string[]): Promise<InstalledMod[]>;
-    /** Updates the given mods, or every mod with an update when fileNames is omitted. */
-    update(profileId: string, fileNames?: string[]): Promise<InstalledMod[]>;
-    remove(profileId: string, fileName: string): Promise<InstalledMod[]>;
-    setEnabled(profileId: string, fileName: string, enabled: boolean): Promise<InstalledMod[]>;
+    checkUpdates(target: ContentTarget): Promise<InstalledContent[]>;
+    /** Copies .jar/.zip files from disk into the target folder. */
+    addFiles(target: ContentTarget, filePaths: string[]): Promise<InstalledContent[]>;
+    /** Updates the given files, or every file with an update when fileNames is omitted. */
+    update(target: ContentTarget, fileNames?: string[]): Promise<InstalledContent[]>;
+    remove(target: ContentTarget, fileName: string): Promise<InstalledContent[]>;
+    setEnabled(target: ContentTarget, fileName: string, enabled: boolean): Promise<InstalledContent[]>;
   };
   packs: {
     /** Opens a file picker; resolves to the new profile, or null if cancelled. */
-    import(kind?: PackKind): Promise<Profile | null>;
-    importFile(filePath: string): Promise<Profile>;
+    import(kind?: PackKind): Promise<ImportResult | null>;
+    importFile(filePath: string): Promise<ImportResult>;
     /** Opens a save dialog; resolves to the written path, or null if cancelled. */
     export(profileId: string, include: ExportItem[]): Promise<string | null>;
   };
@@ -209,6 +236,7 @@ export interface WorkbenchApi {
   system: {
     info(): Promise<SystemInfo>;
     openDataFolder(): Promise<void>;
+    openCurseForge(url: string): Promise<void>;
   };
   window: {
     setTheme(dark: boolean): Promise<void>;

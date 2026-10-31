@@ -9,20 +9,28 @@ import ProgressBar, { progressPercent } from '../components/ProgressBar';
 import WorldsTab from '../components/profile/WorldsTab';
 import LogsTab from '../components/profile/LogsTab';
 import ProfileSettingsTab from '../components/profile/ProfileSettingsTab';
-import ModsTab from '../components/profile/ModsTab';
+import ContentTab from '../components/content/ContentTab';
 import ExportModal from '../components/profile/ExportModal';
 import { api, errorMessage } from '../api';
 import { formatPlaytime, timeAgo } from '../time';
-import type { LaunchStatus, Profile } from '../types';
+import type { ContentKind, LaunchStatus, Profile } from '../types';
 
-type Tab = 'worlds' | 'mods' | 'logs' | 'settings';
+type Tab = 'worlds' | 'mods' | 'resourcepacks' | 'shaders' | 'logs' | 'settings';
 
 const TABS: { id: Tab; label: string }[] = [
   { id: 'worlds', label: 'Worlds' },
   { id: 'mods', label: 'Mods' },
+  { id: 'resourcepacks', label: 'Resource packs' },
+  { id: 'shaders', label: 'Shaders' },
   { id: 'logs', label: 'Logs' },
   { id: 'settings', label: 'Settings' },
 ];
+
+const TAB_CONTENT: Partial<Record<Tab, ContentKind>> = {
+  mods: 'mod',
+  resourcepacks: 'resourcepack',
+  shaders: 'shader',
+};
 
 interface Props {
   profile: Profile;
@@ -37,6 +45,7 @@ interface Props {
 
 export default function ProfilePage({ profile, launch, onPlay, onStop, onUpdated, onDeleted, onError, onSuccess }: Props) {
   const [tab, setTab] = useState<Tab>('worlds');
+  const contentKind = TAB_CONTENT[tab];
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [exporting, setExporting] = useState(false);
@@ -132,10 +141,12 @@ export default function ProfilePage({ profile, launch, onPlay, onStop, onUpdated
       </div>
 
       <div role="tabpanel">
-        {tab === 'worlds' && <WorldsTab profileId={profile.id} running={running} onError={onError} />}
-        {tab === 'mods' && (
-          <ModsTab
+        {tab === 'worlds' && <WorldsTab profile={profile} running={running} onError={onError} onSuccess={onSuccess} />}
+        {contentKind && (
+          <ContentTab
+            key={contentKind}
             profile={profile}
+            target={{ profileId: profile.id, kind: contentKind }}
             running={running}
             onOpenSettings={() => setTab('settings')}
             onError={onError}

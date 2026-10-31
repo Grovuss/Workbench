@@ -43,12 +43,25 @@ and Workbench shows "This Azure app isn't approved for Minecraft sign-in yet."
 Each profile gets its own game directory under `profiles/<id>`. The game's output goes to
 `logs/workbench-launch.log` inside that folder.
 
-## Mods and packs
+## Mods, resource packs, shaders and data packs
 
-- **electron/mods.cjs**: Modrinth search, install and updates (newest compatible release plus required
-  dependencies), enable/disable (`.jar.disabled`), and identifying hand-added jars by SHA-1.
-  Metadata is cached in `workbench-mods.json` in each profile folder.
-- **electron/packs.cjs**: imports `.workbench` and Modrinth `.mrpack` files and exports `.workbench`.
+- **electron/content.cjs**: one module for all four. Modrinth search, install and updates (newest
+  compatible release; required dependencies for mods), enable/disable (renamed to `<file>.disabled`),
+  drag-and-drop, and identifying hand-added files by SHA-1. Mods, resource packs and shaders live in
+  the profile; data packs live in a world (`saves/<world>/datapacks`). Metadata is cached in
+  `workbench-<folder>.json` next to each folder.
+- **electron/packs.cjs**: imports `.workbench`, Modrinth `.mrpack` and CurseForge `.zip` files and
+  exports `.workbench`.
+- **electron/curseforge.cjs**: CurseForge API client. CurseForge import is disabled until a key is set,
+  either as the `WORKBENCH_CURSEFORGE_KEY` environment variable or in a git-ignored
+  `electron/secrets.cjs`:
+
+  ```js
+  module.exports = { CURSEFORGE_API_KEY: 'your key' };
+  ```
+
+  Files whose authors don't allow third-party downloads aren't fetched; the player gets links to
+  download them from CurseForge instead.
 
 ### The `.workbench` format (format 1)
 

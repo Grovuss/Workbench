@@ -1,8 +1,7 @@
 const ITEMS = [
-  { title: 'Update All Mods', body: 'Check for and apply mod updates' },
-  { title: 'CurseForge Packs', body: 'Import CurseForge modpacks' },
-  { title: 'Resource Packs', body: 'Browse resource packs and shaders' },
+  { title: 'CurseForge Packs', body: 'Import CurseForge modpacks (waiting on an API key)' },
   { title: 'Open .workbench Files', body: 'Double-click a pack to import it' },
+  { title: 'Windows Installer', body: 'Install Workbench like any other app' },
 ];
 
 export default function ComingSoon() {

@@ -2008,3 +2008,110 @@ select.input option {
   font-weight: 600;
   color: var(--text-muted);
 }
+
+/* ---------- Content tabs ---------- */
+.content-notice {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
+  padding: 12px 14px;
+  background: var(--nav-active-bg);
+  border: 1px solid color-mix(in srgb, var(--accent) 40%, var(--border));
+  border-radius: var(--radius-md);
+  color: var(--text);
+}
+
+.content-notice svg {
+  flex: none;
+  color: var(--text-muted);
+}
+
+.content-notice p {
+  flex: 1;
+  margin: 0;
+  font-size: 13.5px;
+  font-weight: 600;
+  line-height: 1.45;
+}
+
+.content-hint {
+  margin: 12px 2px 0;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text-faint);
+}
+
+.browse-kinds {
+  margin-bottom: 16px;
+}
+
+/* World cards open the world's data packs. */
+.world-card-button {
+  width: 100%;
+  text-align: left;
+  transition: background 120ms, border-color 120ms;
+}
+
+.world-card-button:hover {
+  background: var(--bg-surface-hover);
+  border-color: var(--border-strong);
+}
+
+.world-chevron {
+  flex: none;
+  margin-left: auto;
+  color: var(--text-faint);
+}
+
+.world-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.world-header .btn {
+  margin-right: 4px;
+}
+
+/* ---------- CurseForge files to download by hand ---------- */
+.missing-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 4px 0 14px;
+  padding: 0;
+  list-style: none;
+}
+
+.missing-list li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+
+.missing-list li > span {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+
+.missing-list strong {
+  font-size: 13.5px;
+  font-weight: 800;
+}
+
+.missing-list code {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: ui-monospace, 'Cascadia Code', Consolas, monospace;
+  font-size: 12px;
+  color: var(--text-muted);
+}

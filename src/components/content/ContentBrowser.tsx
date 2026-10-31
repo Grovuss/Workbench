@@ -1,35 +1,40 @@
 import { useEffect, useRef, useState } from 'react';
 import { Check, Download, LoaderCircle, Search } from 'lucide-react';
-import ModIcon from './ModIcon';
+import ContentIcon from './ContentIcon';
 import { api, errorMessage } from '../../api';
-import type { InstalledMod, ModSearchHit, Profile } from '../../types';
+import { CONTENT } from '../../content';
+import type { ContentSearchHit, ContentTarget, InstalledContent, Profile } from '../../types';
 
 const compact = new Intl.NumberFormat('en', { notation: 'compact', maximumFractionDigits: 1 });
 
 interface Props {
   profile: Profile;
-  installed: InstalledMod[];
-  onInstalled: (mods: InstalledMod[]) => void;
+  target: ContentTarget;
+  installed: InstalledContent[];
+  onInstalled: (items: InstalledContent[]) => void;
   onError: (message: string) => void;
 }
 
-/** Modrinth search filtered to the profile's loader and game version. */
-export default function ModBrowser({ profile, installed, onInstalled, onError }: Props) {
+/** Modrinth search filtered to what works on the profile's loader and game version. */
+export default function ContentBrowser({ profile, target, installed, onInstalled, onError }: Props) {
   const [query, setQuery] = useState('');
-  const [hits, setHits] = useState<ModSearchHit[] | null>(null);
+  const [hits, setHits] = useState<ContentSearchHit[] | null>(null);
   const [total, setTotal] = useState(0);
   const [loadingMore, setLoadingMore] = useState(false);
   const [installing, setInstalling] = useState<Set<string>>(new Set());
   const requestId = useRef(0);
+  const { kind, world } = target;
+  const labels = CONTENT[kind];
 
   const installedIds = new Set(installed.map((m) => m.projectId).filter(Boolean));
 
   // Debounced search; newer requests win over slower older ones.
   useEffect(() => {
     const id = ++requestId.current;
+    setHits(null);
     const timer = window.setTimeout(() => {
-      api.mods
-        .search(profile.id, { query: query.trim(), offset: 0 })
+      api.content
+        .search({ profileId: profile.id, kind, world }, { query: query.trim(), offset: 0 })
         .then((res) => {
           if (id !== requestId.current) return;
           setHits(res.hits);
@@ -38,14 +43,14 @@ export default function ModBrowser({ profile, installed, onInstalled, onError }:
         .catch((err) => id === requestId.current && onError(errorMessage(err)));
     }, query ? 300 : 0);
     return () => window.clearTimeout(timer);
-  }, [profile.id, profile.loader, profile.mcVersion, query, onError]);
+  }, [profile.id, profile.loader, profile.mcVersion, kind, world, query, onError]);
 
   const loadMore = async () => {
     if (!hits) return;
     setLoadingMore(true);
     const id = requestId.current;
     try {
-      const res = await api.mods.search(profile.id, { query: query.trim(), offset: hits.length });
+      const res = await api.content.search(target, { query: query.trim(), offset: hits.length });
       if (id === requestId.current) setHits([...hits, ...res.hits]);
     } catch (err) {
       onError(errorMessage(err));
@@ -54,10 +59,10 @@ export default function ModBrowser({ profile, installed, onInstalled, onError }:
     }
   };
 
-  const install = async (hit: ModSearchHit) => {
+  const install = async (hit: ContentSearchHit) => {
     setInstalling((s) => new Set(s).add(hit.projectId));
     try {
-      onInstalled(await api.mods.install(profile.id, hit.projectId));
+      onInstalled(await api.content.install(target, hit.projectId));
     } catch (err) {
       onError(errorMessage(err));
     } finally {
@@ -76,7 +81,7 @@ export default function ModBrowser({ profile, installed, onInstalled, onError }:
         <input
           className="input"
           value={query}
-          placeholder={`Search Modrinth for ${profile.mcVersion} mods…`}
+          placeholder={`Search Modrinth for ${profile.mcVersion} ${labels.nounPlural}…`}
           onChange={(e) => setQuery(e.target.value)}
           autoFocus
         />
@@ -87,7 +92,10 @@ export default function ModBrowser({ profile, installed, onInstalled, onError }:
           <LoaderCircle size={22} className="spin" />
         </div>
       ) : hits.length === 0 ? (
-        <p className="mod-empty">No mods found for {profile.mcVersion} on this loader.</p>
+        <p className="mod-empty">
+          No {labels.nounPlural} found for {profile.mcVersion}
+          {kind === 'mod' || kind === 'shader' ? ' on this loader' : ''}.
+        </p>
       ) : (
         <>
           <div className="mod-list">
@@ -96,7 +104,7 @@ export default function ModBrowser({ profile, installed, onInstalled, onError }:
               const busy = installing.has(hit.projectId);
               return (
                 <div key={hit.projectId} className="mod-row">
-                  <ModIcon url={hit.iconUrl} />
+                  <ContentIcon url={hit.iconUrl} />
                   <div className="mod-info">
                     <div className="mod-title">
                       {hit.title} <span className="mod-author">by {hit.author}</span>

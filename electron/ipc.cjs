@@ -2,7 +2,8 @@ const fsp = require('node:fs/promises');
 const path = require('node:path');
 const { BrowserWindow, dialog, ipcMain, shell } = require('electron');
 const icons = require('./icons.cjs');
-const mods = require('./mods.cjs');
+const content = require('./content.cjs');
+const curseforge = require('./curseforge.cjs');
 const packs = require('./packs.cjs');
 const paths = require('./paths.cjs');
 const { titleBarOverlay } = require('./titlebar.cjs');
@@ -21,17 +22,27 @@ function handle(channel, fn) {
       return { ok: true, value: await fn(event, ...args) };
     } catch (err) {
       console.error(`[${channel}]`, err);
-      return { ok: false, error: err?.message ?? String(err) };
+      // Windows locks files the game has open.
+      const locked = err?.code === 'EBUSY' || err?.code === 'EPERM';
+      return { ok: false, error: locked ? 'Minecraft is using that file. Close the game and try again.' : (err?.message ?? String(err)) };
     }
   });
 }
 
-const PROFILE_SUBFOLDERS = new Set(['saves', 'screenshots', 'logs', 'resourcepacks', 'mods']);
+const PROFILE_SUBFOLDERS = new Set(['saves', 'screenshots', 'logs', 'resourcepacks', 'shaderpacks', 'mods']);
+
+/** Validates a content target from the renderer: { profileId, kind, world? }. */
+const contentTarget = (t) => ({ profileId: String(t?.profileId), kind: String(t?.kind), world: t?.world == null ? undefined : String(t.world) });
+
+function assertNotRunning(target, action) {
+  if (game.isActive(target.profileId)) throw new Error(`Close the game before ${action}.`);
+}
 
 const PACK_FILTERS = {
   workbench: [{ name: 'Workbench pack', extensions: ['workbench'] }],
   mrpack: [{ name: 'Modrinth pack', extensions: ['mrpack'] }],
-  any: [{ name: 'Modpacks', extensions: ['workbench', 'mrpack'] }],
+  curseforge: [{ name: 'CurseForge pack', extensions: ['zip'] }],
+  any: [{ name: 'Modpacks', extensions: ['workbench', 'mrpack', 'zip'] }],
 };
 
 let importing = false;
@@ -40,9 +51,9 @@ async function importPackFile(filePath) {
   if (importing) throw new Error('Another pack is already importing.');
   importing = true;
   try {
-    const profile = await packs.importPack(filePath, (p) => game.broadcast({ type: 'import-progress', ...p }));
+    const result = await packs.importPack(filePath, (p) => game.broadcast({ type: 'import-progress', ...p }));
     game.broadcast({ type: 'profiles-changed' });
-    return profile;
+    return result;
   } finally {
     importing = false;
   }
@@ -90,21 +101,24 @@ function registerIpc() {
       .map(({ id, type, releaseTime }) => ({ id, type, releaseTime })),
   );
 
-  handle('mods:list', (_e, id) => mods.list(id));
-  handle('mods:search', (_e, id, query) => mods.search(id, query));
-  handle('mods:install', (_e, id, projectId) => mods.install(id, projectId));
-  handle('mods:addFiles', (_e, id, filePaths) => {
+  handle('content:list', (_e, t) => content.list(contentTarget(t)));
+  handle('content:openFolder', async (_e, t) => openDir(await content.folder(contentTarget(t))));
+  handle('content:search', (_e, t, query) => content.search(contentTarget(t), query));
+  handle('content:install', (_e, t, projectId) => content.install(contentTarget(t), String(projectId)));
+  handle('content:addFiles', (_e, t, filePaths) => {
+    const target = contentTarget(t);
     if (!Array.isArray(filePaths) || !filePaths.length) throw new Error('No files to add.');
-    if (game.isActive(id)) throw new Error('Close the game before adding mods.');
-    return mods.addFiles(id, filePaths.map(String));
+    assertNotRunning(target, 'adding files');
+    return content.addFiles(target, filePaths.map(String));
   });
-  handle('mods:checkUpdates', (_e, id) => mods.checkUpdates(id));
-  handle('mods:update', (_e, id, fileNames) => {
-    if (game.isActive(id)) throw new Error('Close the game before updating mods.');
-    return mods.update(id, Array.isArray(fileNames) ? fileNames : null);
+  handle('content:checkUpdates', (_e, t) => content.checkUpdates(contentTarget(t)));
+  handle('content:update', (_e, t, fileNames) => {
+    const target = contentTarget(t);
+    assertNotRunning(target, 'updating');
+    return content.update(target, Array.isArray(fileNames) ? fileNames : null);
   });
-  handle('mods:remove', (_e, id, fileName) => mods.remove(id, fileName));
-  handle('mods:setEnabled', (_e, id, fileName, enabled) => mods.setEnabled(id, fileName, enabled));
+  handle('content:remove', (_e, t, fileName) => content.remove(contentTarget(t), fileName));
+  handle('content:setEnabled', (_e, t, fileName, enabled) => content.setEnabled(contentTarget(t), fileName, Boolean(enabled)));
 
   handle('packs:import', async (e, kind) => {
     const { canceled, filePaths } = await dialog.showOpenDialog(BrowserWindow.fromWebContents(e.sender), {
@@ -146,7 +160,17 @@ function registerIpc() {
   handle('settings:get', () => settings.get());
   handle('settings:set', (_e, patch) => settings.set(patch));
 
-  handle('system:info', () => ({ totalMemoryMb: settings.totalMemoryMb(), dataDir: paths.root() }));
+  handle('system:info', () => ({
+    totalMemoryMb: settings.totalMemoryMb(),
+    dataDir: paths.root(),
+    curseforge: curseforge.enabled(),
+  }));
+  // Only CurseForge pages, for files a pack import couldn't download.
+  handle('system:openCurseForge', (_e, url) => {
+    const u = new URL(String(url));
+    if (u.protocol !== 'https:' || u.hostname !== 'www.curseforge.com') throw new Error('Not a CurseForge link.');
+    return shell.openExternal(u.href);
+  });
   handle('system:openDataFolder', () => openDir(paths.root()));
 
   handle('window:setTheme', (e, dark) => {
