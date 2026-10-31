@@ -93,6 +93,11 @@ function registerIpc() {
   handle('mods:list', (_e, id) => mods.list(id));
   handle('mods:search', (_e, id, query) => mods.search(id, query));
   handle('mods:install', (_e, id, projectId) => mods.install(id, projectId));
+  handle('mods:checkUpdates', (_e, id) => mods.checkUpdates(id));
+  handle('mods:update', (_e, id, fileNames) => {
+    if (game.isActive(id)) throw new Error('Close the game before updating mods.');
+    return mods.update(id, Array.isArray(fileNames) ? fileNames : null);
+  });
   handle('mods:remove', (_e, id, fileName) => mods.remove(id, fileName));
   handle('mods:setEnabled', (_e, id, fileName, enabled) => mods.setEnabled(id, fileName, enabled));
 

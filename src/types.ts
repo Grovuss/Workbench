@@ -10,6 +10,8 @@ export interface InstalledMod {
   /** Modrinth project, when the jar was identified. */
   projectId: string | null;
   iconUrl: string | null;
+  /** Version number of an available update, from the last update check. */
+  updateVersion: string | null;
 }
 
 export interface ModSearchHit {
@@ -186,6 +188,10 @@ export interface WorkbenchApi {
     search(profileId: string, query: { query: string; offset: number }): Promise<ModSearchResult>;
     /** Installs the newest compatible version plus required dependencies. */
     install(profileId: string, projectId: string): Promise<InstalledMod[]>;
+    /** Asks Modrinth for newer compatible versions; fills in `updateVersion`. */
+    checkUpdates(profileId: string): Promise<InstalledMod[]>;
+    /** Updates the given mods, or every mod with an update when fileNames is omitted. */
+    update(profileId: string, fileNames?: string[]): Promise<InstalledMod[]>;
     remove(profileId: string, fileName: string): Promise<InstalledMod[]>;
     setEnabled(profileId: string, fileName: string, enabled: boolean): Promise<InstalledMod[]>;
   };

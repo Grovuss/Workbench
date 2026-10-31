@@ -133,7 +133,7 @@ export default function ProfilePage({ profile, launch, onPlay, onStop, onUpdated
 
       <div role="tabpanel">
         {tab === 'worlds' && <WorldsTab profileId={profile.id} running={running} onError={onError} />}
-        {tab === 'mods' && <ModsTab profile={profile} onOpenSettings={() => setTab('settings')} onError={onError} />}
+        {tab === 'mods' && <ModsTab profile={profile} running={running} onOpenSettings={() => setTab('settings')} onError={onError} />}
         {tab === 'logs' && <LogsTab profileId={profile.id} running={running} onError={onError} />}
         {tab === 'settings' && (
           <ProfileSettingsTab

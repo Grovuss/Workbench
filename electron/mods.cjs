@@ -2,7 +2,7 @@ const fsp = require('node:fs/promises');
 const path = require('node:path');
 const profiles = require('./profiles.cjs');
 const { readJson, writeJson, createLock } = require('./store.cjs');
-const { download, sha1 } = require('./launcher/http.cjs');
+const { download, runPool, sha1 } = require('./launcher/http.cjs');
 const { version: appVersion } = require('../package.json');
 
 const MODRINTH_API = 'https://api.modrinth.com/v2';
@@ -122,6 +122,7 @@ function toPublic({ fileName, enabled, info }) {
     versionNumber: info.versionNumber ?? null,
     projectId: info.projectId ?? null,
     iconUrl: info.iconUrl ?? null,
+    updateVersion: info.update?.versionNumber ?? null,
   };
 }
 
@@ -194,57 +195,138 @@ async function newestCompatible(projectId, profile) {
   return versions.find((v) => v.version_type === 'release') ?? versions[0] ?? null;
 }
 
+const exists = (file) => fsp.access(file).then(() => true, () => false);
+
+/** Shared state for one install/update run: the profile, its mod metadata and what's been handled. */
+async function installContext(profileId) {
+  const profile = await profiles.get(profileId);
+  const meta = await loadMeta(profileId);
+  return {
+    profile,
+    dir: modsDir(profileId),
+    meta,
+    installed: new Set(Object.values(meta).map((m) => m.projectId).filter(Boolean)),
+    visited: new Set(),
+  };
+}
+
+/** Downloads a version's jar in place of any other version of the project, then its required dependencies. */
+async function placeVersion(ctx, projectId, version, { title, iconUrl }, enabled = true) {
+  const file = version.files.find((f) => f.primary) ?? version.files[0];
+  const fileName = safeFileName(file.filename);
+
+  for (const [name, m] of Object.entries(ctx.meta)) {
+    if (m.projectId === projectId && m.versionId !== version.id) {
+      await fsp.rm(path.join(ctx.dir, name), { force: true });
+      await fsp.rm(path.join(ctx.dir, `${name}.disabled`), { force: true });
+      delete ctx.meta[name];
+    }
+  }
+  await download(file.url, path.join(ctx.dir, enabled ? fileName : `${fileName}.disabled`), {
+    sha1: file.hashes.sha1,
+    size: file.size,
+  });
+  ctx.meta[fileName] = {
+    sha1: file.hashes.sha1,
+    size: file.size,
+    projectId,
+    versionId: version.id,
+    versionNumber: version.version_number,
+    title,
+    iconUrl,
+    url: file.url,
+    checked: true,
+  };
+  ctx.installed.add(projectId);
+
+  for (const dep of version.dependencies ?? []) {
+    if (dep.dependency_type !== 'required') continue;
+    const depId = dep.project_id ?? (dep.version_id && (await modrinth(`/version/${dep.version_id}`)).project_id);
+    if (depId && !ctx.installed.has(depId)) await installProject(ctx, depId, false);
+  }
+}
+
+async function installProject(ctx, projectId, isRoot) {
+  if (ctx.visited.has(projectId)) return;
+  ctx.visited.add(projectId);
+  const [version, project] = await Promise.all([
+    newestCompatible(projectId, ctx.profile),
+    modrinth(`/project/${encodeURIComponent(projectId)}`),
+  ]);
+  if (!version) {
+    if (isRoot) throw new Error(`${project.title} has no version for ${ctx.profile.mcVersion} on this loader.`);
+    return; // Optional-in-practice dependency we can't satisfy; the game will say if it matters.
+  }
+  await placeVersion(ctx, projectId, version, { title: project.title, iconUrl: project.icon_url ?? null });
+}
+
 /** Installs the newest compatible version of a project plus its required dependencies. */
 function install(profileId, projectId) {
   return withLock(async () => {
+    const ctx = await installContext(profileId);
+    try {
+      await installProject(ctx, projectId, true);
+    } finally {
+      await saveMeta(profileId, ctx.meta);
+    }
+    return listUnlocked(profileId);
+  });
+}
+
+// ---------- Updates ----------
+
+/**
+ * Looks up the newest compatible version of every identified mod and records it as `update`.
+ * Mods on a release stay on releases even when a newer beta exists.
+ */
+function checkUpdates(profileId) {
+  return withLock(async () => {
     const profile = await profiles.get(profileId);
-    const dir = modsDir(profileId);
-    const meta = await loadMeta(profileId);
-    const installed = new Set(Object.values(meta).map((m) => m.projectId).filter(Boolean));
-    const visited = new Set();
-
-    const installOne = async (pid, isRoot) => {
-      if (visited.has(pid)) return;
-      visited.add(pid);
-      const [version, project] = await Promise.all([newestCompatible(pid, profile), modrinth(`/project/${encodeURIComponent(pid)}`)]);
-      if (!version) {
-        if (isRoot) throw new Error(`${project.title} has no version for ${profile.mcVersion} on this loader.`);
-        return; // Optional-in-practice dependency we can't satisfy; the game will say if it matters.
-      }
-      const file = version.files.find((f) => f.primary) ?? version.files[0];
-      const fileName = safeFileName(file.filename);
-
-      // Replace any other version of the same project.
-      for (const [name, m] of Object.entries(meta)) {
-        if (m.projectId === pid && name !== fileName) {
-          await fsp.rm(path.join(dir, name), { force: true });
-          await fsp.rm(path.join(dir, `${name}.disabled`), { force: true });
-          delete meta[name];
+    const items = await scanMods(profileId);
+    const known = items.filter((i) => i.info.projectId);
+    if (known.length) {
+      const hashes = known.map((i) => i.info.sha1);
+      const [current, latest] = await Promise.all([
+        modrinth('/version_files', { hashes, algorithm: 'sha1' }),
+        modrinth('/version_files/update', {
+          hashes,
+          algorithm: 'sha1',
+          loaders: modLoaders(profile),
+          game_versions: [profile.mcVersion],
+        }),
+      ]);
+      await runPool(known, 6, async ({ info }) => {
+        const cur = current[info.sha1];
+        let next = latest[info.sha1];
+        if (next && cur?.version_type === 'release' && next.version_type !== 'release') {
+          next = await newestCompatible(info.projectId, profile);
         }
-      }
-      await download(file.url, path.join(dir, fileName), { sha1: file.hashes.sha1, size: file.size });
-      meta[fileName] = {
-        sha1: file.hashes.sha1,
-        size: file.size,
-        projectId: pid,
-        versionId: version.id,
-        versionNumber: version.version_number,
-        title: project.title,
-        iconUrl: project.icon_url ?? null,
-        url: file.url,
-        checked: true,
-      };
-      installed.add(pid);
+        const currentId = cur?.id ?? info.versionId;
+        info.update = next && next.id !== currentId ? { versionId: next.id, versionNumber: next.version_number } : null;
+      });
+      await saveMeta(profileId, Object.fromEntries(items.map((i) => [i.fileName, i.info])));
+    }
+    return listUnlocked(profileId);
+  });
+}
 
-      for (const dep of version.dependencies ?? []) {
-        if (dep.dependency_type !== 'required') continue;
-        const depId = dep.project_id ?? (dep.version_id && (await modrinth(`/version/${dep.version_id}`)).project_id);
-        if (depId && !installed.has(depId)) await installOne(depId, false);
-      }
-    };
-
-    await installOne(projectId, true);
-    await saveMeta(profileId, meta);
+/** Applies updates found by checkUpdates, for the given files or all of them. Keeps disabled mods disabled. */
+function update(profileId, fileNames) {
+  return withLock(async () => {
+    const ctx = await installContext(profileId);
+    const wanted = fileNames ? new Set(fileNames.map(safeFileName)) : null;
+    const targets = Object.entries(ctx.meta).filter(([name, m]) => m.update && m.projectId && (!wanted || wanted.has(name)));
+    try {
+      await runPool(targets, 6, async ([name, m]) => {
+        if (ctx.visited.has(m.projectId)) return;
+        ctx.visited.add(m.projectId);
+        const enabled = await exists(path.join(ctx.dir, name));
+        const version = await modrinth(`/version/${encodeURIComponent(m.update.versionId)}`);
+        await placeVersion(ctx, m.projectId, version, { title: m.title, iconUrl: m.iconUrl }, enabled);
+      });
+    } finally {
+      await saveMeta(profileId, ctx.meta);
+    }
     return listUnlocked(profileId);
   });
 }
@@ -258,4 +340,4 @@ function recordInstalled(profileId, entries) {
   });
 }
 
-module.exports = { list, listForExport, setEnabled, remove, search, install, recordInstalled, modsDir, safeFileName, modrinth, USER_AGENT };
+module.exports = { list, listForExport, setEnabled, remove, search, install, checkUpdates, update, recordInstalled, modsDir, safeFileName, modrinth, USER_AGENT };

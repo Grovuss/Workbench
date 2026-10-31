@@ -1948,3 +1948,28 @@ select.input option {
   gap: 8px;
   flex: none;
 }
+
+/* ---------- Mod updates ---------- */
+.mods-subbar .toolbar-title {
+  margin-left: auto;
+}
+
+.mods-updates {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.mods-update-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-faint);
+}
+
+.mod-update-to {
+  margin-left: 4px;
+  color: var(--success);
+}

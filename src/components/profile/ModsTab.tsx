@@ -1,30 +1,65 @@
-import { useEffect, useMemo, useState } from 'react';
-import { FolderOpen, Plus, Puzzle, Search, Trash2 } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { ArrowUpCircle, FolderOpen, LoaderCircle, Plus, Puzzle, RefreshCw, Search, Trash2 } from 'lucide-react';
 import ModBrowser from '../mods/ModBrowser';
 import ModIcon from '../mods/ModIcon';
 import Toggle from '../Toggle';
 import { api, errorMessage } from '../../api';
 import type { InstalledMod, Profile } from '../../types';
 
+type CheckState = 'checking' | 'done' | 'failed';
+
 interface Props {
   profile: Profile;
+  running: boolean;
   onOpenSettings: () => void;
   onError: (message: string) => void;
 }
 
-export default function ModsTab({ profile, onOpenSettings, onError }: Props) {
+export default function ModsTab({ profile, running, onOpenSettings, onError }: Props) {
   const [mods, setMods] = useState<InstalledMod[] | null>(null);
   const [view, setView] = useState<'installed' | 'browse'>('installed');
   const [filter, setFilter] = useState('');
+  const [check, setCheck] = useState<CheckState>('checking');
+  // File names being updated, or 'all'.
+  const [updating, setUpdating] = useState<Set<string> | 'all'>(new Set());
   const vanilla = profile.loader === 'vanilla';
 
+  const checkUpdates = useCallback(() => {
+    setCheck('checking');
+    api.mods
+      .checkUpdates(profile.id)
+      .then((list) => {
+        setMods(list);
+        setCheck('done');
+      })
+      .catch(() => setCheck('failed'));
+  }, [profile.id]);
+
+  // Show the list straight away, then check Modrinth for updates in the background.
   useEffect(() => {
     if (vanilla) return;
     api.mods
       .list(profile.id)
-      .then(setMods)
+      .then((list) => {
+        setMods(list);
+        checkUpdates();
+      })
       .catch((err) => onError(errorMessage(err)));
-  }, [profile.id, vanilla, onError]);
+  }, [profile.id, vanilla, onError, checkUpdates]);
+
+  const runUpdate = async (fileNames?: string[]) => {
+    setUpdating(fileNames ? (s) => (s === 'all' ? s : new Set([...s, ...fileNames])) : 'all');
+    try {
+      setMods(await api.mods.update(profile.id, fileNames));
+    } catch (err) {
+      onError(errorMessage(err));
+    } finally {
+      setUpdating((s) => (s === 'all' || !fileNames ? new Set() : new Set([...s].filter((f) => !fileNames.includes(f)))));
+    }
+  };
+
+  const isUpdating = (fileName: string) => updating === 'all' || updating.has(fileName);
+  const updateCount = mods?.filter((m) => m.updateVersion).length ?? 0;
 
   const shown = useMemo(() => {
     const q = filter.trim().toLowerCase();
@@ -96,6 +131,32 @@ export default function ModsTab({ profile, onOpenSettings, onError }: Props) {
             <span className="toolbar-title">
               {enabledCount} of {mods.length} enabled
             </span>
+            <div className="mods-updates">
+              {check === 'checking' ? (
+                <span className="mods-update-status">
+                  <LoaderCircle size={14} className="spin" /> Checking for updates
+                </span>
+              ) : updateCount > 0 ? (
+                <button
+                  className="btn btn-primary btn-play"
+                  onClick={() => runUpdate()}
+                  disabled={running || updating === 'all'}
+                  title={running ? 'Close the game to update mods' : undefined}
+                >
+                  {updating === 'all' ? <LoaderCircle size={15} className="spin" /> : <ArrowUpCircle size={15} />}
+                  {updating === 'all' ? 'Updating…' : `Update all (${updateCount})`}
+                </button>
+              ) : (
+                <>
+                  <span className="mods-update-status">
+                    {check === 'failed' ? 'Couldn’t check for updates' : 'All up to date'}
+                  </span>
+                  <button className="icon-btn" aria-label="Check for updates" onClick={checkUpdates}>
+                    <RefreshCw size={15} />
+                  </button>
+                </>
+              )}
+            </div>
           </div>
           <div className="mod-list">
             {shown.map((m) => (
@@ -104,9 +165,21 @@ export default function ModsTab({ profile, onOpenSettings, onError }: Props) {
                 <div className="mod-info">
                   <div className="mod-title">{m.title}</div>
                   <span className="mod-meta">
-                    {m.versionNumber ?? 'Local file'} · {m.fileName}
+                    {m.versionNumber ?? 'Local file'}
+                    {m.updateVersion && <span className="mod-update-to">→ {m.updateVersion}</span>} · {m.fileName}
                   </span>
                 </div>
+                {m.updateVersion && (
+                  <button
+                    className="btn btn-secondary btn-sm"
+                    onClick={() => runUpdate([m.fileName])}
+                    disabled={running || isUpdating(m.fileName)}
+                    title={running ? 'Close the game to update mods' : `Update to ${m.updateVersion}`}
+                  >
+                    {isUpdating(m.fileName) ? <LoaderCircle size={14} className="spin" /> : <ArrowUpCircle size={14} />}
+                    Update
+                  </button>
+                )}
                 <Toggle
                   label={`${m.enabled ? 'Disable' : 'Enable'} ${m.title}`}
                   checked={m.enabled}

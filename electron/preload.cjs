@@ -28,6 +28,8 @@ contextBridge.exposeInMainWorld('workbench', {
     list: (id) => invoke('mods:list', id),
     search: (id, query) => invoke('mods:search', id, query),
     install: (id, projectId) => invoke('mods:install', id, projectId),
+    checkUpdates: (id) => invoke('mods:checkUpdates', id),
+    update: (id, fileNames) => invoke('mods:update', id, fileNames),
     remove: (id, fileName) => invoke('mods:remove', id, fileName),
     setEnabled: (id, fileName, enabled) => invoke('mods:setEnabled', id, fileName, enabled),
   },

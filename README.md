@@ -45,7 +45,7 @@ Each profile gets its own game directory under `profiles/<id>`. The game's outpu
 
 ## Mods and packs
 
-- **electron/mods.cjs**: Modrinth search and install (newest compatible release plus required
+- **electron/mods.cjs**: Modrinth search, install and updates (newest compatible release plus required
   dependencies), enable/disable (`.jar.disabled`), and identifying hand-added jars by SHA-1.
   Metadata is cached in `workbench-mods.json` in each profile folder.
 - **electron/packs.cjs**: imports `.workbench` and Modrinth `.mrpack` files and exports `.workbench`.
