@@ -6,6 +6,7 @@ import ProfileCard from '../components/ProfileCard';
 import ComingSoon from '../components/ComingSoon';
 import CreateProfileModal from '../components/CreateProfileModal';
 import type { LaunchStatus, Profile } from '../types';
+import { useStoredChoice } from '../stored';
 
 interface Props {
   profiles: Profile[] | null;
@@ -30,35 +31,13 @@ const SORTS: { id: Sort; label: string; compare: (a: Profile, b: Profile) => num
 // Only show the search box once there are enough profiles to need it.
 const SEARCH_THRESHOLD = 8;
 
-function stored<T extends string>(key: string, allowed: readonly T[], fallback: T): T {
-  try {
-    const value = localStorage.getItem(key);
-    return allowed.includes(value as T) ? (value as T) : fallback;
-  } catch {
-    return fallback;
-  }
-}
-
-function store(key: string, value: string) {
-  try {
-    localStorage.setItem(key, value);
-  } catch {}
-}
 
 export default function ProfilesPage({ profiles, launches, onCreated, onOpen, onPlay, onStop }: Props) {
   const [creating, setCreating] = useState(false);
-  const [view, setViewState] = useState<View>(() => stored('workbench.profilesView', ['list', 'grid'], 'list'));
-  const [sort, setSortState] = useState<Sort>(() => stored('workbench.profilesSort', SORTS.map((s) => s.id), 'recent'));
+  const [view, setView] = useStoredChoice<View>('workbench.profilesView', ['list', 'grid'], 'list');
+  const [sort, setSort] = useStoredChoice<Sort>('workbench.profilesSort', SORTS.map((s) => s.id), 'recent');
   const [query, setQuery] = useState('');
 
-  const setView = (next: View) => {
-    setViewState(next);
-    store('workbench.profilesView', next);
-  };
-  const setSort = (next: Sort) => {
-    setSortState(next);
-    store('workbench.profilesSort', next);
-  };
 
   const shown = useMemo(() => {
     const q = query.trim().toLowerCase();

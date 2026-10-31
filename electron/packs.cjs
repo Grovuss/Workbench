@@ -6,6 +6,8 @@ const paths = require('./paths.cjs');
 const content = require('./content.cjs');
 const curseforge = require('./curseforge.cjs');
 const icons = require('./icons.cjs');
+const { exists } = require('./store.cjs');
+const { USER_AGENT } = require('./config.cjs');
 const { download, runPool, sha1 } = require('./launcher/http.cjs');
 const { loaderVersions } = require('./launcher/loaders.cjs');
 const { version: appVersion } = require('../package.json');
@@ -144,7 +146,7 @@ async function importWorkbench(zip, onProgress) {
 /** Downloads the icon of a Modrinth project onto a profile. */
 async function setProjectIcon(profileId, project) {
   if (!project.icon_url || !allowedUrl(project.icon_url)) return;
-  const res = await fetch(project.icon_url, { headers: { 'User-Agent': content.USER_AGENT } });
+  const res = await fetch(project.icon_url, { headers: { 'User-Agent': USER_AGENT } });
   if (res.ok) await icons.setFromBuffer(profileId, Buffer.from(await res.arrayBuffer()));
 }
 
@@ -319,7 +321,6 @@ async function updateModpack(profileId, versionId, onProgress) {
   const files = mrpackContents(zip, index);
   const dir = profiles.gameDir(profileId);
   const at = (rel) => safeJoin(dir, rel);
-  const exists = (p) => fsp.access(p).then(() => true, () => false);
 
   // Pack mods the player disabled or deleted, by Modrinth project, so their new versions follow suit.
   const oldState = new Map();
@@ -578,5 +579,4 @@ module.exports = {
   checkModpackUpdate,
   updateModpack,
   mrpackSelection,
-  allowedUrl,
 };

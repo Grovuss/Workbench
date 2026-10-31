@@ -123,4 +123,4 @@ async function ping(address) {
   };
 }
 
-module.exports = { ping, parseAddress };
+module.exports = { ping };

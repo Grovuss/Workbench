@@ -21,4 +21,7 @@ const CURSEFORGE_API_KEY = process.env.WORKBENCH_CURSEFORGE_KEY || secrets.CURSE
 // name and its "logo" art asset are what Discord shows. Not a secret.
 const DISCORD_CLIENT_ID = process.env.WORKBENCH_DISCORD_CLIENT_ID ?? '1566157840568164352';
 
-module.exports = { MSA_CLIENT_ID, DEV_OFFLINE_NAME, CURSEFORGE_API_KEY, DISCORD_CLIENT_ID };
+// Sent with every web request; Modrinth asks apps to identify themselves.
+const USER_AGENT = `Grovuss/Workbench/${require('../package.json').version}`;
+
+module.exports = { USER_AGENT, MSA_CLIENT_ID, DEV_OFFLINE_NAME, CURSEFORGE_API_KEY, DISCORD_CLIENT_ID };

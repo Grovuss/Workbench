@@ -10,4 +10,4 @@ function titleBarOverlay(dark) {
   };
 }
 
-module.exports = { TITLEBAR_HEIGHT, titleBarOverlay };
+module.exports = { titleBarOverlay };

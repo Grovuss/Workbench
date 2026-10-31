@@ -6,8 +6,7 @@ import ContentIcon from './ContentIcon';
 import { api, errorMessage } from '../../api';
 import { timeAgo } from '../../time';
 import type { ContentTarget, ContentVersion, InstalledContent } from '../../types';
-
-const compact = new Intl.NumberFormat('en', { notation: 'compact', maximumFractionDigits: 1 });
+import { formatCount } from '../../format';
 
 interface Props {
   title: string;
@@ -102,7 +101,7 @@ export default function VersionModal({ title, iconUrl, target, projectId, curren
                 {v.type !== 'release' && <span className={`kind-tag version-${v.type}`}>{v.type}</span>}
                 {v.id === currentVersionId && <span className="kind-tag version-current">Installed</span>}
                 <span className="version-when">
-                  {timeAgo(v.date)} · {compact.format(v.downloads)}
+                  {timeAgo(v.date)} · {formatCount(v.downloads)}
                 </span>
               </button>
             ))}

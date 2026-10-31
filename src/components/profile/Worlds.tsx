@@ -22,7 +22,7 @@ import Dropdown from '../Dropdown';
 import Modal from '../Modal';
 import { api, errorMessage } from '../../api';
 import { LOADER_LABELS } from '../../loaders';
-import { formatBytes } from '../../memory';
+import { formatBytes } from '../../format';
 import { timeAgo } from '../../time';
 import type { Profile, QuickPlay, World, WorldBackup } from '../../types';
 

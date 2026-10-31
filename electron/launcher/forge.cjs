@@ -3,7 +3,7 @@ const path = require('node:path');
 const { spawn } = require('node:child_process');
 const AdmZip = require('adm-zip');
 const paths = require('../paths.cjs');
-const { readJson, writeJson } = require('../store.cjs');
+const { readJson, writeJson, exists } = require('../store.cjs');
 const { cachedJson, download, runPool, sha1 } = require('./http.cjs');
 const { mavenPath } = require('./install.cjs');
 
@@ -22,7 +22,6 @@ const LABELS = { forge: 'Forge', neoforge: 'NeoForge' };
 // Forge builds before 1.8 use a library format we don't support.
 const OLDEST_FORGE_MINOR = 8;
 
-const exists = (p) => fsp.access(p).then(() => true, () => false);
 
 // ---------- Version lists ----------
 

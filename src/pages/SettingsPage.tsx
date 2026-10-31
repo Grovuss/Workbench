@@ -21,10 +21,12 @@ import {
 import PageHeader from '../components/PageHeader';
 import Toggle from '../components/Toggle';
 import Modal from '../components/Modal';
+import { DEFAULT_RESOLUTION, MemorySlider, ResolutionFields, validResolution } from '../components/GameControls';
 import { api, errorMessage } from '../api';
-import { formatBytes, formatGb, maxMemoryMb } from '../memory';
+import { formatBytes, formatGb, maxMemoryMb } from '../format';
 import { reduceMotionStored, setReduceMotion } from '../motion';
-import type { LauncherOnLaunch, Settings, StorageUsage, SystemInfo, ThemePreference, UpdateStatus } from '../types';
+import { useUpdateStatus } from '../useUpdateStatus';
+import type { LauncherOnLaunch, Resolution, Settings, StorageUsage, SystemInfo, ThemePreference, UpdateStatus } from '../types';
 
 const THEMES: { id: ThemePreference; label: string; icon: typeof Sun }[] = [
   { id: 'light', label: 'Light', icon: Sun },
@@ -39,7 +41,6 @@ const ON_LAUNCH: { id: LauncherOnLaunch; label: string }[] = [
 ];
 
 const DOWNLOAD_THREADS = [4, 8, 16, 32];
-const DEFAULT_RESOLUTION = { width: 1280, height: 720 };
 
 const SECTIONS = [
   { id: 'appearance', label: 'Appearance', icon: Palette },
@@ -124,8 +125,7 @@ export default function SettingsPage({ theme, onThemeChange, onError }: Props) {
 
   const maxMemory = maxMemoryMb(system.totalMemoryMb);
   const resolution = settings.resolution;
-  const setSize = (size: { width: number; height: number }) =>
-    update({ resolution: size }, TEXT_SAVE_MS, size.width >= 320 && size.width <= 7680 && size.height >= 240 && size.height <= 4320);
+  const setSize = (size: Resolution) => update({ resolution: size }, TEXT_SAVE_MS, validResolution(size));
 
   return (
     <>
@@ -214,17 +214,7 @@ export default function SettingsPage({ theme, onThemeChange, onError }: Props) {
           <Section id="game" title="Game defaults" description="Used by every profile that doesn’t set its own in its Settings tab.">
             <Row title="Memory" description="Maximum RAM Minecraft can use. 4 GB is plenty for vanilla.">
               <div className="memory-control">
-                <input
-                  type="range"
-                  className="range"
-                  min={1024}
-                  max={maxMemory}
-                  step={512}
-                  value={Math.min(settings.memoryMb, maxMemory)}
-                  onChange={(e) => update({ memoryMb: Number(e.target.value) }, 300)}
-                  aria-label="Memory"
-                />
-                <span className="memory-value">{formatGb(settings.memoryMb)}</span>
+                <MemorySlider value={settings.memoryMb} max={maxMemory} onChange={(memoryMb) => update({ memoryMb }, 300)} />
               </div>
             </Row>
             <Row title="Java arguments" description="Extra JVM flags for every profile. A profile’s own arguments are added after these.">
@@ -239,29 +229,7 @@ export default function SettingsPage({ theme, onThemeChange, onError }: Props) {
             </Row>
             <Row title="Window size" description={resolution ? 'Size of the game window when it opens.' : 'Uses the game’s default size.'}>
               <div className="memory-control">
-                {resolution && (
-                  <div className="resolution-fields">
-                    <input
-                      type="number"
-                      className="input"
-                      value={resolution.width}
-                      min={320}
-                      max={7680}
-                      onChange={(e) => setSize({ ...resolution, width: Number(e.target.value) })}
-                      aria-label="Width"
-                    />
-                    <span>×</span>
-                    <input
-                      type="number"
-                      className="input"
-                      value={resolution.height}
-                      min={240}
-                      max={4320}
-                      onChange={(e) => setSize({ ...resolution, height: Number(e.target.value) })}
-                      aria-label="Height"
-                    />
-                  </div>
-                )}
+                {resolution && <ResolutionFields value={resolution} onChange={setSize} />}
                 <Toggle label="Custom window size" checked={Boolean(resolution)} onChange={(on) => update({ resolution: on ? DEFAULT_RESOLUTION : null })} />
               </div>
             </Row>
@@ -451,16 +419,7 @@ function updateText(status: UpdateStatus | null, version: string) {
 }
 
 function UpdatesRow({ version, onError }: { version: string; onError: (message: string) => void }) {
-  const [status, setStatus] = useState<UpdateStatus | null>(null);
-  useEffect(() => {
-    api.updates.status().then(setStatus).catch(() => {});
-    return api.game.onEvent((event) => {
-      if (event.type === 'update') {
-        const { type: _type, ...next } = event;
-        setStatus(next);
-      }
-    });
-  }, []);
+  const [status, setStatus] = useUpdateStatus();
 
   const busy = status?.state === 'checking' || status?.state === 'downloading';
   return (

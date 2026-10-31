@@ -2,32 +2,10 @@ import { useEffect, useState } from 'react';
 import { ArrowUpCircle, Check, Copy, LoaderCircle, PackageOpen, Server } from 'lucide-react';
 import Markdown from '../Markdown';
 import Modal from '../Modal';
-import ProgressBar from '../ProgressBar';
+import JobProgress, { useJobProgress } from '../JobProgress';
 import { api, errorMessage } from '../../api';
 import { timeAgo } from '../../time';
-import type { ImportProgress, ModpackUpdate, Profile } from '../../types';
-
-/** Progress from long main-process jobs (imports, updates, server packs). */
-function useJobProgress() {
-  const [progress, setProgress] = useState<ImportProgress | null>(null);
-  useEffect(
-    () =>
-      api.game.onEvent((event) => {
-        if (event.type === 'import-progress') setProgress({ label: event.label, done: event.done, total: event.total });
-      }),
-    [],
-  );
-  return progress;
-}
-
-function JobProgress({ progress, label }: { progress: ImportProgress | null; label: string }) {
-  return (
-    <div className="import-status">
-      <ProgressBar value={progress && progress.total > 0 ? (progress.done / progress.total) * 100 : null} label={label} />
-      <span>{progress ? `${progress.label}${progress.total > 1 ? ` · ${progress.done} / ${progress.total}` : ''}` : 'Starting…'}</span>
-    </div>
-  );
-}
+import type { ModpackUpdate, Profile } from '../../types';
 
 // ---------- Share code ----------
 
@@ -108,7 +86,7 @@ export function ServerPackModal({
 }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const progress = useJobProgress();
+  const [progress] = useJobProgress();
 
   const start = async () => {
     setBusy(true);
@@ -241,7 +219,7 @@ function ModpackUpdateModal({
 }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const progress = useJobProgress();
+  const [progress] = useJobProgress();
   const latest = update.latest!;
 
   const start = async () => {

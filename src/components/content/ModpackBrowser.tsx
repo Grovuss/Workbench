@@ -4,13 +4,12 @@ import ContentIcon from './ContentIcon';
 import ProjectDetails from './ProjectDetails';
 import Modal from '../Modal';
 import LoaderBadge from '../LoaderBadge';
-import ProgressBar from '../ProgressBar';
+import JobProgress, { useJobProgress } from '../JobProgress';
 import { api, errorMessage } from '../../api';
 import { LOADER_LABELS } from '../../loaders';
 import { timeAgo } from '../../time';
-import type { ContentCategory, ContentSort, ImportProgress, ModLoader, ModpackHit, ModpackVersion, Profile } from '../../types';
-
-const compact = new Intl.NumberFormat('en', { notation: 'compact', maximumFractionDigits: 1 });
+import type { ContentCategory, ContentSort, ModLoader, ModpackHit, ModpackVersion, Profile } from '../../types';
+import { formatCount } from '../../format';
 
 const SORTS: { id: ContentSort; label: string }[] = [
   { id: 'relevance', label: 'Relevance' },
@@ -173,7 +172,7 @@ export default function ModpackBrowser({ onInstalled, onError }: Props) {
                       {hit.loaders.map((l) => (
                         <LoaderBadge key={l} loader={l} />
                       ))}
-                      <Download size={12} /> {compact.format(hit.downloads)}
+                      <Download size={12} /> {formatCount(hit.downloads)}
                       <span className="dot">·</span>
                       Updated {timeAgo(hit.updatedAt)}
                     </span>
@@ -246,16 +245,9 @@ function ModpackInstallModal({
   const [versions, setVersions] = useState<ModpackVersion[] | null>(null);
   const [versionId, setVersionId] = useState('');
   const [busy, setBusy] = useState(false);
-  const [progress, setProgress] = useState<ImportProgress | null>(null);
+  const [progress, resetProgress] = useJobProgress();
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(
-    () =>
-      api.game.onEvent((event) => {
-        if (event.type === 'import-progress') setProgress({ label: event.label, done: event.done, total: event.total });
-      }),
-    [],
-  );
 
   useEffect(() => {
     api.modpacks
@@ -274,7 +266,7 @@ function ModpackInstallModal({
   const install = async () => {
     setBusy(true);
     setError(null);
-    setProgress(null);
+    resetProgress();
     try {
       const { profile } = await api.modpacks.install(pack.projectId, versionId);
       onInstalled(profile);
@@ -308,12 +300,7 @@ function ModpackInstallModal({
         </div>
       </div>
       {busy ? (
-        <div className="import-status">
-          <ProgressBar value={progress && progress.total > 0 ? (progress.done / progress.total) * 100 : null} label={`Installing ${pack.title}`} />
-          <span>
-            {progress ? `${progress.label}${progress.total > 1 ? ` · ${progress.done} / ${progress.total}` : ''}` : 'Starting…'}
-          </span>
-        </div>
+        <JobProgress progress={progress} label={`Installing ${pack.title}`} />
       ) : (
         <div className="form">
           <label className="field">

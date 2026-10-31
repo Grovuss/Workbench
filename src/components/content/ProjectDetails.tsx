@@ -6,8 +6,7 @@ import { api, errorMessage } from '../../api';
 import { categoryLabel } from '../../content';
 import { timeAgo } from '../../time';
 import type { ProjectDetails as Details } from '../../types';
-
-const compact = new Intl.NumberFormat(undefined, { notation: 'compact', maximumFractionDigits: 1 });
+import { formatCount } from '../../format';
 
 const SIDE_LABELS: Record<Details['clientSide'], string> = {
   required: 'Required',
@@ -72,10 +71,10 @@ export default function ProjectDetails({ project, actions, onClose }: Props) {
             {details && (
               <div className="project-stats">
                 <span>
-                  <Download size={14} /> {compact.format(details.downloads)} downloads
+                  <Download size={14} /> {formatCount(details.downloads)} downloads
                 </span>
                 <span>
-                  <Heart size={14} /> {compact.format(details.follows)} followers
+                  <Heart size={14} /> {formatCount(details.follows)} followers
                 </span>
                 <span>Updated {timeAgo(details.updatedAt)}</span>
               </div>

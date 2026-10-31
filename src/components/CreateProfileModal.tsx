@@ -2,11 +2,11 @@ import { useEffect, useRef, useState, type DragEvent, type FormEvent } from 'rea
 import { ExternalLink, FileDown, Package, QrCode, Upload } from 'lucide-react';
 import logo from '../assets/logo.svg';
 import Modal from './Modal';
-import ProgressBar from './ProgressBar';
+import JobProgress, { useJobProgress } from './JobProgress';
 import VersionPicker, { isCompleteSelection } from './VersionPicker';
 import { api, errorMessage } from '../api';
 import { LOADER_LABELS } from '../loaders';
-import type { ImportProgress, ImportResult, MissingPackFile, PackKind, Profile, SharePreview, VersionSelection } from '../types';
+import type { ImportResult, MissingPackFile, PackKind, Profile, SharePreview, VersionSelection } from '../types';
 
 const INITIAL_SELECTION: VersionSelection = { mcVersion: '', loader: 'vanilla', loaderVersion: null };
 
@@ -28,7 +28,7 @@ export default function CreateProfileModal({ onClose, onCreated, initialFile, in
   const [selection, setSelection] = useState(INITIAL_SELECTION);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [progress, setProgress] = useState<ImportProgress | null>(null);
+  const [progress, resetProgress] = useJobProgress();
   const [dragging, setDragging] = useState(false);
   const [curseforge, setCurseforge] = useState(false);
   // An import that finished with files the player has to download themselves.
@@ -37,14 +37,6 @@ export default function CreateProfileModal({ onClose, onCreated, initialFile, in
   const [code, setCode] = useState<string | null>(null);
   const [codePreview, setCodePreview] = useState<SharePreview | null>(null);
   const ready = isCompleteSelection(selection);
-
-  useEffect(
-    () =>
-      api.game.onEvent((event) => {
-        if (event.type === 'import-progress') setProgress({ label: event.label, done: event.done, total: event.total });
-      }),
-    [],
-  );
 
   useEffect(() => {
     api.system
@@ -62,7 +54,7 @@ export default function CreateProfileModal({ onClose, onCreated, initialFile, in
     if (busy) return;
     setBusy(true);
     setError(null);
-    setProgress(null);
+    resetProgress();
     try {
       const result = await pending();
       if (result?.missing.length) return setPartial(result);
@@ -71,7 +63,7 @@ export default function CreateProfileModal({ onClose, onCreated, initialFile, in
       setError(errorMessage(err));
     }
     setBusy(false);
-    setProgress(null);
+    resetProgress();
   };
 
   const submit = (e: FormEvent) => {
@@ -188,17 +180,7 @@ export default function CreateProfileModal({ onClose, onCreated, initialFile, in
           {error && <p className="form-error">{error}</p>}
         </form>
       ) : busy ? (
-        <div className="import-status">
-          <ProgressBar
-            value={progress && progress.total > 0 ? (progress.done / progress.total) * 100 : null}
-            label="Importing pack"
-          />
-          <span>
-            {progress
-              ? `${progress.label}${progress.total > 1 ? ` · ${progress.done} / ${progress.total}` : ''}`
-              : 'Reading pack…'}
-          </span>
-        </div>
+        <JobProgress progress={progress} label="Importing pack" waiting="Reading pack…" />
       ) : code !== null ? (
         <div className="form">
           <label className="field">

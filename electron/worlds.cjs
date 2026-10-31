@@ -7,6 +7,7 @@ const nbt = require('./nbt.cjs');
 const paths = require('./paths.cjs');
 const profiles = require('./profiles.cjs');
 const settings = require('./settings.cjs');
+const { exists, dirSize } = require('./store.cjs');
 const { safeFileName } = require('./content.cjs');
 
 // Worlds in a profile's saves/ folder, and their backups in <userData>/backups/<profile>/<world>/<stamp>/.
@@ -25,18 +26,6 @@ async function worldDir(profileId, folder) {
   return dir;
 }
 
-const exists = (p) => fsp.access(p).then(() => true, () => false);
-
-async function dirSize(dir) {
-  let total = 0;
-  const entries = await fsp.readdir(dir, { withFileTypes: true }).catch(() => []);
-  for (const entry of entries) {
-    const full = path.join(dir, entry.name);
-    if (entry.isDirectory()) total += await dirSize(full);
-    else if (entry.isFile()) total += (await fsp.stat(full).catch(() => ({ size: 0 }))).size;
-  }
-  return total;
-}
 
 // ---------- level.dat ----------
 

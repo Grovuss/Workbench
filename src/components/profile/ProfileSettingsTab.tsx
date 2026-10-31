@@ -2,12 +2,11 @@ import { useEffect, useState, type FormEvent } from 'react';
 import { Copy, ImagePlus, Trash2 } from 'lucide-react';
 import ProfileIcon from '../ProfileIcon';
 import Toggle from '../Toggle';
+import { DEFAULT_RESOLUTION, MemorySlider, ResolutionFields } from '../GameControls';
 import VersionPicker, { isCompleteSelection } from '../VersionPicker';
 import { api, errorMessage } from '../../api';
-import { formatGb, maxMemoryMb } from '../../memory';
+import { formatGb, maxMemoryMb } from '../../format';
 import type { Profile, ProfileSettings, VersionSelection } from '../../types';
-
-const DEFAULT_RESOLUTION = { width: 1280, height: 720 };
 
 interface Props {
   profile: Profile;
@@ -221,21 +220,7 @@ function GameSection({ profile, onUpdated, onError }: SectionProps) {
           </p>
         </div>
         <div className="memory-control">
-          {draft.memoryMb !== null && (
-            <>
-              <input
-                type="range"
-                className="range"
-                min={1024}
-                max={maxMemory}
-                step={512}
-                value={Math.min(draft.memoryMb, maxMemory)}
-                onChange={(e) => set({ memoryMb: Number(e.target.value) })}
-                aria-label="Memory"
-              />
-              <span className="memory-value">{formatGb(draft.memoryMb)}</span>
-            </>
-          )}
+          {draft.memoryMb !== null && <MemorySlider value={draft.memoryMb} max={maxMemory} onChange={(memoryMb) => set({ memoryMb })} />}
           <Toggle
             label="Custom memory"
             checked={draft.memoryMb !== null}
@@ -265,29 +250,7 @@ function GameSection({ profile, onUpdated, onError }: SectionProps) {
           <p>{resolution ? 'Game window size when it opens.' : 'Uses the default from Settings.'}</p>
         </div>
         <div className="memory-control">
-          {resolution && (
-            <div className="resolution-fields">
-              <input
-                type="number"
-                className="input"
-                value={resolution.width}
-                min={320}
-                max={7680}
-                onChange={(e) => set({ resolution: { ...resolution, width: Number(e.target.value) } })}
-                aria-label="Width"
-              />
-              <span>×</span>
-              <input
-                type="number"
-                className="input"
-                value={resolution.height}
-                min={240}
-                max={4320}
-                onChange={(e) => set({ resolution: { ...resolution, height: Number(e.target.value) } })}
-                aria-label="Height"
-              />
-            </div>
-          )}
+          {resolution && <ResolutionFields value={resolution} onChange={(next) => set({ resolution: next })} />}
           <Toggle
             label="Custom window size"
             checked={resolution !== null}

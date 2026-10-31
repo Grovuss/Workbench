@@ -29,6 +29,7 @@ import PerformanceModal from './PerformanceModal';
 import ModSetsModal from './ModSetsModal';
 import Dropdown from '../Dropdown';
 import Pagination, { PAGE_SIZES, type PageSize } from '../Pagination';
+import { useStoredChoice } from '../../stored';
 import Markdown from '../Markdown';
 import Modal from '../Modal';
 import Toggle from '../Toggle';
@@ -54,25 +55,6 @@ const HINTS: Partial<Record<ContentKind, string>> = {
   datapack: 'Data packs load when the world opens, so reopen the world after changing them.',
 };
 
-const SORT_KEY = 'workbench.contentSort';
-const readSort = (): InstalledSort => {
-  try {
-    const saved = localStorage.getItem(SORT_KEY);
-    return SORTS.some((s) => s.id === saved) ? (saved as InstalledSort) : 'name';
-  } catch {
-    return 'name';
-  }
-};
-
-const PAGE_SIZE_KEY = 'workbench.contentPageSize';
-const readPageSize = (): PageSize => {
-  try {
-    const saved = Number(localStorage.getItem(PAGE_SIZE_KEY));
-    return PAGE_SIZES.includes(saved as PageSize) && localStorage.getItem(PAGE_SIZE_KEY) !== null ? (saved as PageSize) : 50;
-  } catch {
-    return 50;
-  }
-};
 
 interface Props {
   profile: Profile;
@@ -103,8 +85,8 @@ export default function ContentTab({
   const [browseKind, setBrowseKind] = useState<BrowseKind>(kinds.length > 1 ? 'all' : kinds[0]);
   const [typeFilter, setTypeFilter] = useState<ContentKind | 'all'>('all');
   const [query, setQuery] = useState('');
-  const [sort, setSortState] = useState<InstalledSort>(readSort);
-  const [pageSize, setPageSizeState] = useState<PageSize>(readPageSize);
+  const [sort, setSort] = useStoredChoice<InstalledSort>('workbench.contentSort', SORTS.map((s) => s.id), 'name');
+  const [pageSize, storePageSize] = useStoredChoice<PageSize>('workbench.contentPageSize', PAGE_SIZES, 50);
   const [page, setPage] = useState(0);
   const listTop = useRef<HTMLDivElement>(null);
   // "<kind>/<fileName>" being updated, or 'all'.
@@ -122,19 +104,9 @@ export default function ContentTab({
   const singleKind = kinds.length === 1 ? kinds[0] : null;
   const target = useCallback((kind: ContentKind) => ({ profileId: profile.id, kind, world }), [profile.id, world]);
 
-  const setSort = (next: InstalledSort) => {
-    setSortState(next);
-    try {
-      localStorage.setItem(SORT_KEY, next);
-    } catch {}
-  };
-
   const setPageSize = (next: PageSize) => {
-    setPageSizeState(next);
+    storePageSize(next);
     setPage(0);
-    try {
-      localStorage.setItem(PAGE_SIZE_KEY, String(next));
-    } catch {}
   };
 
   const goToPage = (next: number) => {

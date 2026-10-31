@@ -5,6 +5,7 @@ import VersionModal from './VersionModal';
 import ProjectDetails from './ProjectDetails';
 import { api, errorMessage } from '../../api';
 import { CONTENT, categoryLabel } from '../../content';
+import { formatCount } from '../../format';
 import { timeAgo } from '../../time';
 import type {
   ContentCategory,
@@ -14,8 +15,6 @@ import type {
   InstalledContent,
   Profile,
 } from '../../types';
-
-const compact = new Intl.NumberFormat('en', { notation: 'compact', maximumFractionDigits: 1 });
 
 const SORTS: { id: ContentSort; label: string }[] = [
   { id: 'relevance', label: 'Relevance' },
@@ -235,7 +234,7 @@ export default function ContentBrowser({ profile, kind, kindOptions, onKindChang
                     <p className="mod-description">{hit.description}</p>
                     <span className="mod-meta">
                       {kind === 'all' && <span className="kind-tag">{CONTENT[hit.kind].noun}</span>}
-                      <Download size={12} /> {compact.format(hit.downloads)}
+                      <Download size={12} /> {formatCount(hit.downloads)}
                       <span className="dot">·</span>
                       Updated {timeAgo(hit.updatedAt)}
                     </span>

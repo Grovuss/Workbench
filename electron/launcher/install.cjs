@@ -2,7 +2,7 @@ const fsp = require('node:fs/promises');
 const path = require('node:path');
 const AdmZip = require('adm-zip');
 const paths = require('../paths.cjs');
-const { readJson } = require('../store.cjs');
+const { readJson, exists } = require('../store.cjs');
 const { download, runPool } = require('./http.cjs');
 const { isAllowed, osName } = require('./rules.cjs');
 
@@ -11,7 +11,6 @@ const RESOURCES_URL = 'https://resources.download.minecraft.net/';
 // Files downloaded at once, unless the launcher setting says otherwise.
 const DEFAULT_CONCURRENCY = 16;
 
-const exists = (p) => fsp.access(p).then(() => true, () => false);
 
 /** "group:artifact:version[:classifier][@ext]" → relative maven path. */
 function mavenPath(name) {

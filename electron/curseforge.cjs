@@ -1,5 +1,4 @@
-const { CURSEFORGE_API_KEY } = require('./config.cjs');
-const { version: appVersion } = require('../package.json');
+const { CURSEFORGE_API_KEY, USER_AGENT } = require('./config.cjs');
 
 // CurseForge's API needs a key from https://console.curseforge.com (set it up in config.cjs).
 const CF_API = 'https://api.curseforge.com/v1';
@@ -22,7 +21,7 @@ async function cf(pathname, body) {
     headers: {
       'x-api-key': CURSEFORGE_API_KEY,
       Accept: 'application/json',
-      'User-Agent': `Grovuss/Workbench/${appVersion}`,
+      'User-Agent': USER_AGENT,
       ...(body ? { 'Content-Type': 'application/json' } : {}),
     },
     body: body ? JSON.stringify(body) : undefined,

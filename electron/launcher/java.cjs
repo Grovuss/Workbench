@@ -1,6 +1,7 @@
 const fsp = require('node:fs/promises');
 const path = require('node:path');
 const paths = require('../paths.cjs');
+const { exists } = require('../store.cjs');
 const { fetchJson, download, runPool } = require('./http.cjs');
 
 // Mojang's own Java runtimes, the same ones the official launcher uses.
@@ -23,7 +24,6 @@ function javaExecutable(dir) {
   return path.join(dir, 'bin', 'java');
 }
 
-const exists = (p) => fsp.access(p).then(() => true, () => false);
 
 /** Ensures the given runtime component (e.g. "java-runtime-delta") is installed; returns the java path. */
 async function ensureJava(component, onProgress) {

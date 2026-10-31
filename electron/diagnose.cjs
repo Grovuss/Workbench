@@ -814,9 +814,4 @@ module.exports = {
   scanMods,
   analyzeCrash,
   installDependency,
-  // Exposed for tests.
-  fabricMatches,
-  mavenMatches,
-  parseModsToml,
-  readJarMeta,
 };

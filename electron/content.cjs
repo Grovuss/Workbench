@@ -2,16 +2,14 @@ const fsp = require('node:fs/promises');
 const path = require('node:path');
 const AdmZip = require('adm-zip');
 const profiles = require('./profiles.cjs');
-const { readJson, writeJson, createLock } = require('./store.cjs');
+const { readJson, writeJson, createLock, exists } = require('./store.cjs');
+const { USER_AGENT } = require('./config.cjs');
 const { download, runPool, sha1 } = require('./launcher/http.cjs');
-const { version: appVersion } = require('../package.json');
 
 // Mods, resource packs, shader packs and data packs: installed from Modrinth or added
 // by hand, listed with their Modrinth details, toggled by renaming to "<file>.disabled".
 
 const MODRINTH_API = 'https://api.modrinth.com/v2';
-// Modrinth asks for a User-Agent that identifies the app.
-const USER_AGENT = `Grovuss/Workbench/${appVersion}`;
 
 const KINDS = {
   mod: { folder: 'mods', ext: '.jar', projectType: 'mod', noun: 'mod' },
@@ -27,9 +25,6 @@ const MOD_LOADERS = {
   forge: ['forge'],
   neoforge: ['neoforge'],
 };
-
-/** Iris, the shader mod for Fabric, Quilt and NeoForge. */
-const IRIS_PROJECT_ID = 'YL57xq9U';
 
 const withLock = createLock();
 
@@ -70,7 +65,6 @@ function safeFileName(name) {
   return clean;
 }
 
-const exists = (file) => fsp.access(file).then(() => true, () => false);
 
 /**
  * Resolves a target ({ profileId, kind, world? }) to its folder and metadata file.
@@ -715,7 +709,6 @@ const modsDir = (profileId) => path.join(profiles.gameDir(profileId), KINDS.mod.
 const folder = async (target) => (await locate(target)).dir;
 
 module.exports = {
-  IRIS_PROJECT_ID,
   folder,
   list,
   setEnabled,
@@ -738,5 +731,4 @@ module.exports = {
   modsDir,
   safeFileName,
   modrinth,
-  USER_AGENT,
 };

@@ -13,9 +13,10 @@ import SettingsPage from './pages/SettingsPage';
 import { api, errorMessage } from './api';
 import { useTheme } from './useTheme';
 import { hideSplash } from './splash';
+import { useUpdateStatus } from './useUpdateStatus';
 import { useToasts } from './useToasts';
 import { useLaunches } from './useLaunches';
-import type { AccountsState, CrashReport, Page, Profile, QuickPlay, Route, UpdateStatus } from './types';
+import type { AccountsState, CrashReport, Page, Profile, QuickPlay, Route } from './types';
 
 const PAGE_TITLES: Record<Page, string> = {
   profiles: 'Profiles',
@@ -35,7 +36,7 @@ export default function App() {
   // Create/import opened from outside the Profiles page: the welcome, or a pack opened from Explorer.
   const [creating, setCreating] = useState<{ mode: CreateMode; file?: string } | null>(null);
   const [welcomed, setWelcomed] = useState<boolean | null>(null);
-  const [update, setUpdate] = useState<UpdateStatus | null>(null);
+  const [update] = useUpdateStatus();
   const { preference, setPreference } = useTheme();
   const { toasts, pushToast, dismissToast } = useToasts();
   const route = history[history.length - 1];
@@ -79,7 +80,6 @@ export default function App() {
       .get()
       .then((s) => setWelcomed(s.welcomed))
       .catch(() => setWelcomed(true));
-    api.updates.status().then(setUpdate).catch(() => {});
     // A pack double-clicked in Explorer, whether it started Workbench or arrived while it was open.
     api.system
       .takeOpenedFile()
@@ -87,10 +87,6 @@ export default function App() {
       .catch(() => {});
     return api.game.onEvent((event) => {
       if (event.type === 'open-pack') setCreating({ mode: 'import', file: event.path });
-      if (event.type === 'update') {
-        const { type: _type, ...status } = event;
-        setUpdate(status);
-      }
     });
   }, []);
 

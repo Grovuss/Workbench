@@ -730,16 +730,11 @@ button.crumb:hover {
 .badge-forge    { background: #ffe5d6; color: #c2531c; }
 .badge-fabric   { background: #f3ebdc; color: #8a6a3b; }
 .badge-quilt    { background: #f6e0f3; color: #a2338f; }
-.badge-modrinth { background: #d9f6e4; color: #138a43; }
-.badge-curseforge { background: #ffe3d4; color: #d4561d; }
-.badge-manual   { background: var(--bg-muted); color: var(--text-muted); }
 
 :root[data-theme='dark'] .badge-neoforge { background: #33284f; color: #b69cff; }
 :root[data-theme='dark'] .badge-forge    { background: #4a2c1c; color: #ff9a5e; }
 :root[data-theme='dark'] .badge-fabric   { background: #3b3326; color: #d9b98a; }
 :root[data-theme='dark'] .badge-quilt    { background: #45243f; color: #ec8fdc; }
-:root[data-theme='dark'] .badge-modrinth { background: #173b26; color: #4ade80; }
-:root[data-theme='dark'] .badge-curseforge { background: #4a2a1a; color: #ff8a4c; }
 
 /* ---------- Empty state ---------- */
 .empty {
@@ -1396,25 +1391,6 @@ img.import-option-icon {
   overflow-wrap: anywhere;
 }
 
-.profile-panel-version {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-top: 6px;
-  color: var(--text-muted);
-  font-size: 13px;
-  font-weight: 700;
-  white-space: nowrap;
-}
-
-.profile-panel-detail {
-  margin: 0;
-  color: var(--text-muted);
-  font-size: 12.5px;
-  font-weight: 600;
-  line-height: 1.5;
-}
-
 .profile-panel-actions {
   display: flex;
   gap: 8px;
@@ -1591,10 +1567,6 @@ img.import-option-icon {
     grid-template-columns: minmax(0, 1fr) auto;
     align-items: center;
     gap: 10px 16px;
-  }
-
-  .profile-panel-detail {
-    grid-row: 2;
   }
 
   .profile-panel-actions {
@@ -2417,12 +2389,6 @@ select.input option {
 .world-card-button:hover {
   background: var(--bg-surface-hover);
   border-color: var(--border-strong);
-}
-
-.world-chevron {
-  flex: none;
-  margin-left: auto;
-  color: var(--text-faint);
 }
 
 .world-header {

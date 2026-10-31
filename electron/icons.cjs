@@ -58,4 +58,4 @@ async function read(profileId) {
   return type ? { buf, type } : null;
 }
 
-module.exports = { iconFile, setFromBuffer, setFromFile, remove, read };
+module.exports = { setFromBuffer, setFromFile, remove, read };

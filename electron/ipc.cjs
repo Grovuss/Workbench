@@ -25,6 +25,7 @@ const game = require('./game.cjs');
 const profiles = require('./profiles.cjs');
 const settings = require('./settings.cjs');
 const storage = require('./storage.cjs');
+const { USER_AGENT } = require('./config.cjs');
 const updater = require('./updater.cjs');
 const opened = require('./opened.cjs');
 const { getManifest } = require('./launcher/versions.cjs');
@@ -271,7 +272,7 @@ function registerIpc() {
   // Uploads a log to mclo.gs (a Minecraft log host) so it can be shared when asking for help.
   handle('logs:upload', async (_e, text) => {
     const body = new URLSearchParams({ content: String(text).slice(0, 10 * 1024 * 1024) });
-    const res = await fetch('https://api.mclo.gs/1/log', { method: 'POST', body, headers: { 'User-Agent': content.USER_AGENT } });
+    const res = await fetch('https://api.mclo.gs/1/log', { method: 'POST', body, headers: { 'User-Agent': USER_AGENT } });
     const data = await res.json().catch(() => null);
     if (!res.ok || !data?.success) throw new Error(data?.error ?? `mclo.gs said ${res.status}.`);
     return data.url;

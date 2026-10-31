@@ -1,9 +1,7 @@
 const crypto = require('node:crypto');
 const fsp = require('node:fs/promises');
 const path = require('node:path');
-const { version } = require('../../package.json');
-
-const USER_AGENT = `Workbench/${version}`;
+const { USER_AGENT } = require('../config.cjs');
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 

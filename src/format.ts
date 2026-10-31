@@ -8,3 +8,8 @@ export function formatBytes(bytes: number) {
   if (bytes < 1024 ** 3) return `${(bytes / 1024 ** 2).toFixed(bytes < 10 * 1024 ** 2 ? 1 : 0)} MB`;
   return `${(bytes / 1024 ** 3).toFixed(1)} GB`;
 }
+
+const compact = new Intl.NumberFormat('en', { notation: 'compact', maximumFractionDigits: 1 });
+
+/** 1234567 → "1.2M", for download and follower counts. */
+export const formatCount = (n: number) => compact.format(n);

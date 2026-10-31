@@ -28,4 +28,20 @@ function createLock() {
   };
 }
 
-module.exports = { readJson, writeJson, createLock };
+const exists = (file) => fsp.access(file).then(() => true, () => false);
+
+/** Bytes in a folder and everything under it; 0 if it doesn't exist. */
+async function dirSize(dir) {
+  const entries = await fsp.readdir(dir, { withFileTypes: true }).catch(() => []);
+  const sizes = await Promise.all(
+    entries.map(async (e) => {
+      const full = path.join(dir, e.name);
+      if (e.isDirectory()) return dirSize(full);
+      if (!e.isFile()) return 0;
+      return (await fsp.stat(full).catch(() => ({ size: 0 }))).size;
+    }),
+  );
+  return sizes.reduce((a, b) => a + b, 0);
+}
+
+module.exports = { readJson, writeJson, createLock, exists, dirSize };
