@@ -1973,3 +1973,38 @@ select.input option {
   margin-left: 4px;
   color: var(--success);
 }
+
+/* ---------- Mod jar drop target ---------- */
+.mods-drop {
+  position: relative;
+  min-height: 240px;
+}
+
+.mods-drop-overlay {
+  position: absolute;
+  inset: -8px;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 2px dashed var(--accent);
+  border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--bg-app) 88%, var(--accent));
+  color: var(--text);
+  text-align: center;
+  pointer-events: none;
+  animation: fade-in 120ms ease-out;
+}
+
+.mods-drop-overlay strong {
+  font-size: 15px;
+  font-weight: 800;
+}
+
+.mods-drop-overlay span {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-muted);
+}

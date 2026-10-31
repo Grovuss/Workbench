@@ -146,6 +146,51 @@ function setEnabled(profileId, fileName, enabled) {
   });
 }
 
+const isZip = async (file) => {
+  const handle = await fsp.open(file);
+  try {
+    const head = Buffer.alloc(2);
+    await handle.read(head, 0, 2, 0);
+    return head.toString('latin1') === 'PK';
+  } finally {
+    await handle.close();
+  }
+};
+
+/**
+ * Copies jars from disk into the profile. Jars Modrinth recognises replace other
+ * versions of the same mod, like an install would.
+ */
+function addFiles(profileId, filePaths) {
+  return withLock(async () => {
+    await profiles.get(profileId);
+    const dir = modsDir(profileId);
+    const sources = [];
+    for (const src of filePaths) {
+      const name = safeFileName(path.basename(String(src))).replace(/\.jar$/i, '.jar');
+      if (!name.endsWith('.jar')) throw new Error(`${name} isn’t a .jar file.`);
+      if (!(await isZip(src))) throw new Error(`${name} isn’t a valid mod jar.`);
+      sources.push({ src, name });
+    }
+
+    await fsp.mkdir(dir, { recursive: true });
+    for (const { src, name } of sources) {
+      await fsp.copyFile(src, path.join(dir, name));
+      await fsp.rm(path.join(dir, `${name}.disabled`), { force: true });
+    }
+
+    const added = new Set(sources.map((s) => s.name));
+    const items = await scanMods(profileId);
+    const addedProjects = new Set(items.filter((i) => added.has(i.fileName) && i.info.projectId).map((i) => i.info.projectId));
+    for (const item of items) {
+      if (added.has(item.fileName) || !addedProjects.has(item.info.projectId)) continue;
+      await fsp.rm(path.join(dir, item.fileName), { force: true });
+      await fsp.rm(path.join(dir, `${item.fileName}.disabled`), { force: true });
+    }
+    return listUnlocked(profileId);
+  });
+}
+
 function remove(profileId, fileName) {
   return withLock(async () => {
     const name = safeFileName(fileName);
@@ -340,4 +385,4 @@ function recordInstalled(profileId, entries) {
   });
 }
 
-module.exports = { list, listForExport, setEnabled, remove, search, install, checkUpdates, update, recordInstalled, modsDir, safeFileName, modrinth, USER_AGENT };
+module.exports = { list, listForExport, setEnabled, addFiles, remove, search, install, checkUpdates, update, recordInstalled, modsDir, safeFileName, modrinth, USER_AGENT };

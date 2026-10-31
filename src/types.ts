@@ -190,6 +190,8 @@ export interface WorkbenchApi {
     install(profileId: string, projectId: string): Promise<InstalledMod[]>;
     /** Asks Modrinth for newer compatible versions; fills in `updateVersion`. */
     checkUpdates(profileId: string): Promise<InstalledMod[]>;
+    /** Copies .jar files from disk into the profile's mods folder. */
+    addFiles(profileId: string, filePaths: string[]): Promise<InstalledMod[]>;
     /** Updates the given mods, or every mod with an update when fileNames is omitted. */
     update(profileId: string, fileNames?: string[]): Promise<InstalledMod[]>;
     remove(profileId: string, fileName: string): Promise<InstalledMod[]>;
@@ -201,8 +203,9 @@ export interface WorkbenchApi {
     importFile(filePath: string): Promise<Profile>;
     /** Opens a save dialog; resolves to the written path, or null if cancelled. */
     export(profileId: string, include: ExportItem[]): Promise<string | null>;
-    pathForFile(file: File): string;
   };
+  /** Absolute path of a file dropped onto the window. */
+  pathForFile(file: File): string;
   system: {
     info(): Promise<SystemInfo>;
     openDataFolder(): Promise<void>;

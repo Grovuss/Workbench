@@ -93,6 +93,11 @@ function registerIpc() {
   handle('mods:list', (_e, id) => mods.list(id));
   handle('mods:search', (_e, id, query) => mods.search(id, query));
   handle('mods:install', (_e, id, projectId) => mods.install(id, projectId));
+  handle('mods:addFiles', (_e, id, filePaths) => {
+    if (!Array.isArray(filePaths) || !filePaths.length) throw new Error('No files to add.');
+    if (game.isActive(id)) throw new Error('Close the game before adding mods.');
+    return mods.addFiles(id, filePaths.map(String));
+  });
   handle('mods:checkUpdates', (_e, id) => mods.checkUpdates(id));
   handle('mods:update', (_e, id, fileNames) => {
     if (game.isActive(id)) throw new Error('Close the game before updating mods.');

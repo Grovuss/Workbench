@@ -11,6 +11,10 @@ import App from './App';
 // Title bar layout differs per OS (window controls right on Windows, left on macOS).
 document.documentElement.dataset.platform = window.workbench.platform;
 
+// A file dropped outside a drop zone would otherwise replace the app with that file.
+window.addEventListener('dragover', (e) => e.preventDefault());
+window.addEventListener('drop', (e) => e.preventDefault());
+
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <App />

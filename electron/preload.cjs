@@ -28,6 +28,7 @@ contextBridge.exposeInMainWorld('workbench', {
     list: (id) => invoke('mods:list', id),
     search: (id, query) => invoke('mods:search', id, query),
     install: (id, projectId) => invoke('mods:install', id, projectId),
+    addFiles: (id, filePaths) => invoke('mods:addFiles', id, filePaths),
     checkUpdates: (id) => invoke('mods:checkUpdates', id),
     update: (id, fileNames) => invoke('mods:update', id, fileNames),
     remove: (id, fileName) => invoke('mods:remove', id, fileName),
@@ -37,9 +38,9 @@ contextBridge.exposeInMainWorld('workbench', {
     import: (kind) => invoke('packs:import', kind),
     importFile: (filePath) => invoke('packs:importFile', filePath),
     export: (id, include) => invoke('packs:export', id, include),
-    // Dropped files carry no path in the renderer; Electron resolves it here.
-    pathForFile: (file) => webUtils.getPathForFile(file),
   },
+  // Dropped files carry no path in the renderer; Electron resolves it here.
+  pathForFile: (file) => webUtils.getPathForFile(file),
   loaders: {
     games: (loader) => invoke('loaders:games', loader),
     versions: (loader, mcVersion) => invoke('loaders:versions', loader, mcVersion),

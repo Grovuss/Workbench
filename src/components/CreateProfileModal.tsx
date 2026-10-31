@@ -67,7 +67,7 @@ export default function CreateProfileModal({ onClose, onCreated }: Props) {
     setDragging(false);
     const file = e.dataTransfer.files[0];
     if (!file) return;
-    const path = api.packs.pathForFile(file);
+    const path = api.pathForFile(file);
     if (!/\.(workbench|mrpack)$/i.test(path)) {
       setError('Drop a .workbench or .mrpack file.');
       return;

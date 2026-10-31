@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ArrowUpCircle, FolderOpen, LoaderCircle, Plus, Puzzle, RefreshCw, Search, Trash2 } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from 'react';
+import { ArrowUpCircle, FolderOpen, LoaderCircle, Plus, Puzzle, RefreshCw, Search, Trash2, Upload } from 'lucide-react';
 import ModBrowser from '../mods/ModBrowser';
 import ModIcon from '../mods/ModIcon';
 import Toggle from '../Toggle';
@@ -13,15 +13,19 @@ interface Props {
   running: boolean;
   onOpenSettings: () => void;
   onError: (message: string) => void;
+  onSuccess: (message: string) => void;
 }
 
-export default function ModsTab({ profile, running, onOpenSettings, onError }: Props) {
+export default function ModsTab({ profile, running, onOpenSettings, onError, onSuccess }: Props) {
   const [mods, setMods] = useState<InstalledMod[] | null>(null);
   const [view, setView] = useState<'installed' | 'browse'>('installed');
   const [filter, setFilter] = useState('');
   const [check, setCheck] = useState<CheckState>('checking');
   // File names being updated, or 'all'.
   const [updating, setUpdating] = useState<Set<string> | 'all'>(new Set());
+  const [dragging, setDragging] = useState(false);
+  const [adding, setAdding] = useState(false);
+  const dragDepth = useRef(0);
   const vanilla = profile.loader === 'vanilla';
 
   const checkUpdates = useCallback(() => {
@@ -82,8 +86,55 @@ export default function ModsTab({ profile, running, onOpenSettings, onError }: P
   const update = (pending: Promise<InstalledMod[]>) => pending.then(setMods).catch((err) => onError(errorMessage(err)));
   const enabledCount = mods?.filter((m) => m.enabled).length ?? 0;
 
+  // dragenter/dragleave fire for every child element, so count depth rather than toggling.
+  const hasFiles = (e: DragEvent) => e.dataTransfer.types.includes('Files');
+  const onDragEnter = (e: DragEvent) => {
+    if (!hasFiles(e)) return;
+    dragDepth.current++;
+    setDragging(true);
+  };
+  const onDragLeave = (e: DragEvent) => {
+    if (hasFiles(e) && --dragDepth.current <= 0) setDragging(false);
+  };
+  const onDrop = async (e: DragEvent) => {
+    e.preventDefault();
+    dragDepth.current = 0;
+    setDragging(false);
+    const files = [...e.dataTransfer.files];
+    const jars = files.filter((f) => f.name.toLowerCase().endsWith('.jar'));
+    if (!jars.length) return onError('Only .jar files can be added as mods.');
+    setAdding(true);
+    try {
+      setMods(await api.mods.addFiles(profile.id, jars.map((f) => api.pathForFile(f))));
+      setView('installed');
+      const skipped = files.length - jars.length;
+      onSuccess(
+        `Added ${jars.length === 1 ? jars[0].name : `${jars.length} mods`}` +
+          (skipped ? ` (skipped ${skipped} non-jar file${skipped === 1 ? '' : 's'})` : '') +
+          '.',
+      );
+    } catch (err) {
+      onError(errorMessage(err));
+    } finally {
+      setAdding(false);
+    }
+  };
+
   return (
-    <>
+    <div
+      className="mods-drop"
+      data-active={dragging || adding || undefined}
+      onDragEnter={onDragEnter}
+      onDragLeave={onDragLeave}
+      onDrop={onDrop}
+    >
+      {(dragging || adding) && (
+        <div className="mods-drop-overlay" aria-live="polite">
+          {adding ? <LoaderCircle size={26} className="spin" /> : <Upload size={26} />}
+          <strong>{adding ? 'Adding mods…' : 'Drop .jar files to add them'}</strong>
+          {!adding && <span>They’ll be copied into this profile’s mods folder.</span>}
+        </div>
+      )}
       <div className="toolbar">
         <div className="segmented" role="group" aria-label="Mods view">
           <button aria-pressed={view === 'installed'} onClick={() => setView('installed')}>
@@ -109,7 +160,7 @@ export default function ModsTab({ profile, running, onOpenSettings, onError }: P
         <div className="empty empty-compact">
           <Puzzle className="empty-icon" size={40} strokeWidth={1.5} />
           <h2>No mods yet</h2>
-          <p>Browse Modrinth for mods that work with this profile.</p>
+          <p>Browse Modrinth for mods that work with this profile, or drop .jar files here.</p>
           <button className="btn btn-primary" onClick={() => setView('browse')}>
             <Plus size={16} /> Add mods
           </button>
@@ -197,6 +248,6 @@ export default function ModsTab({ profile, running, onOpenSettings, onError }: P
           </div>
         </>
       )}
-    </>
+    </div>
   );
 }
