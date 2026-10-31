@@ -187,7 +187,9 @@ export default function ProfilePage({
             onSuccess={onSuccess}
           />
         )}
-        {tab === 'screenshots' && <ScreenshotsTab profileId={profile.id} running={running} onError={onError} onSuccess={onSuccess} />}
+        {tab === 'screenshots' && (
+          <ScreenshotsTab profile={profile} running={running} onUpdated={onUpdated} onError={onError} onSuccess={onSuccess} />
+        )}
         {tab === 'logs' && <LogsTab profileId={profile.id} running={running} onError={onError} />}
         {tab === 'settings' && (
           <ProfileSettingsTab

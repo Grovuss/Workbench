@@ -19,6 +19,7 @@ export default function ProfileCard({ profile, launch, onOpen, onPlay, onStop }:
   const state = launch?.state ?? 'idle';
   const playtime = formatPlaytime(profile.playtimeMs);
   const iconUrl = `workbench://profile-icon/${profile.id}?v=${encodeURIComponent(profile.icon ?? '')}`;
+  const coverUrl = profile.cover && `workbench://screenshot/${profile.id}/${encodeURIComponent(profile.cover)}?thumb=1`;
 
   const onKeyDown = (e: KeyboardEvent) => {
     if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) {
@@ -30,8 +31,12 @@ export default function ProfileCard({ profile, launch, onOpen, onPlay, onStop }:
 
   return (
     <div className="profile-card" role="link" tabIndex={0} onClick={onOpen} onKeyDown={onKeyDown}>
-      <div className="profile-card-cover">
-        {profile.icon && <img className="profile-card-backdrop" src={iconUrl} alt="" />}
+      <div className="profile-card-cover" data-shot={coverUrl ? true : undefined}>
+        {coverUrl ? (
+          <img className="profile-card-shot" src={coverUrl} alt="" />
+        ) : (
+          profile.icon && <img className="profile-card-backdrop" src={iconUrl} alt="" />
+        )}
         <ProfileIcon profile={profile} className="profile-card-icon" />
         {state === 'running' && <span className="profile-card-running">Running</span>}
       </div>

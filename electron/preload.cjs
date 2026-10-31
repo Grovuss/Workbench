@@ -25,6 +25,7 @@ contextBridge.exposeInMainWorld('workbench', {
   screenshots: {
     list: (id) => invoke('screenshots:list', id),
     remove: (id, fileName) => invoke('screenshots:remove', id, fileName),
+    setCover: (id, fileName) => invoke('screenshots:setCover', id, fileName),
     copy: (id, fileName) => invoke('screenshots:copy', id, fileName),
     reveal: (id, fileName) => invoke('screenshots:reveal', id, fileName),
   },

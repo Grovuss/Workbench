@@ -33,8 +33,21 @@ async function list(profileId) {
 }
 
 async function remove(profileId, fileName) {
-  await fsp.rm(await file(profileId, fileName), { force: true });
+  const full = await file(profileId, fileName);
+  await fsp.rm(full, { force: true });
+  const profile = await profiles.get(profileId);
+  if (profile.cover === path.basename(full)) await profiles.update(profileId, { cover: null });
   return list(profileId);
+}
+
+/** Shows a screenshot on the profile's card in the grid view (null puts the icon back). Returns the profile. */
+async function setCover(profileId, fileName) {
+  if (fileName === null) return profiles.update(profileId, { cover: null });
+  const full = await file(profileId, fileName);
+  await fsp.access(full).catch(() => {
+    throw new Error('That screenshot doesn’t exist any more.');
+  });
+  return profiles.update(profileId, { cover: path.basename(full) });
 }
 
 async function copy(profileId, fileName) {
@@ -69,4 +82,4 @@ async function read(profileId, fileName, thumb) {
   return { buf, type: 'image/jpeg' };
 }
 
-module.exports = { list, remove, copy, reveal, read };
+module.exports = { list, remove, setCover, copy, reveal, read };

@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useState } from 'react';
-import { ChevronLeft, ChevronRight, Copy, FolderOpen, Image, Trash2, X } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Copy, FolderOpen, Image, ImageOff, PanelTop, Trash2, X } from 'lucide-react';
 import { api, errorMessage } from '../../api';
 import { timeAgo } from '../../time';
-import type { Screenshot } from '../../types';
+import type { Profile, Screenshot } from '../../types';
 
 interface Props {
-  profileId: string;
+  profile: Profile;
   running: boolean;
+  onUpdated: (profile: Profile) => void;
   onError: (message: string) => void;
   onSuccess: (message: string) => void;
 }
@@ -16,7 +17,8 @@ const src = (profileId: string, shot: Screenshot, thumb: boolean) =>
 
 const dateFmt = new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' });
 
-export default function ScreenshotsTab({ profileId, running, onError, onSuccess }: Props) {
+export default function ScreenshotsTab({ profile, running, onUpdated, onError, onSuccess }: Props) {
+  const profileId = profile.id;
   const [shots, setShots] = useState<Screenshot[] | null>(null);
   const [open, setOpen] = useState<number | null>(null);
 
@@ -37,8 +39,18 @@ export default function ScreenshotsTab({ profileId, running, onError, onSuccess 
     try {
       const next = await api.screenshots.remove(profileId, shot.fileName);
       setShots(next);
+      if (shot.fileName === profile.cover) onUpdated({ ...profile, cover: null });
       if (!next.length) setOpen(null);
       else if (open !== null) setOpen(Math.min(open, next.length - 1));
+    } catch (err) {
+      onError(errorMessage(err));
+    }
+  };
+
+  const setCover = async (fileName: string | null) => {
+    try {
+      onUpdated(await api.screenshots.setCover(profileId, fileName));
+      onSuccess(fileName ? 'Cover set. It shows on this profile’s card in grid view.' : 'Cover removed.');
     } catch (err) {
       onError(errorMessage(err));
     }
@@ -70,6 +82,7 @@ export default function ScreenshotsTab({ profileId, running, onError, onSuccess 
             <button key={shot.fileName} className="shot" onClick={() => setOpen(i)} aria-label={`Open screenshot from ${dateFmt.format(new Date(shot.takenAt))}`}>
               <img src={src(profileId, shot, true)} alt="" loading="lazy" />
               <span className="shot-date">{timeAgo(shot.takenAt)}</span>
+              {shot.fileName === profile.cover && <span className="shot-cover">Cover</span>}
             </button>
           ))}
         </div>
@@ -79,6 +92,8 @@ export default function ScreenshotsTab({ profileId, running, onError, onSuccess 
         <Lightbox
           image={src(profileId, current, false)}
           caption={dateFmt.format(new Date(current.takenAt))}
+          isCover={current.fileName === profile.cover}
+          onCover={() => setCover(current.fileName === profile.cover ? null : current.fileName)}
           hasPrev={open > 0}
           hasNext={open < shots.length - 1}
           onPrev={() => setOpen(open - 1)}
@@ -101,6 +116,8 @@ export default function ScreenshotsTab({ profileId, running, onError, onSuccess 
 function Lightbox({
   image,
   caption,
+  isCover,
+  onCover,
   hasPrev,
   hasNext,
   onPrev,
@@ -112,6 +129,8 @@ function Lightbox({
 }: {
   image: string;
   caption: string;
+  isCover: boolean;
+  onCover: () => void;
   hasPrev: boolean;
   hasNext: boolean;
   onPrev: () => void;
@@ -136,6 +155,9 @@ function Lightbox({
       <div className="lightbox-bar">
         <span>{caption}</span>
         <div className="lightbox-actions">
+          <button className="btn btn-ghost" onClick={onCover}>
+            {isCover ? <ImageOff size={15} /> : <PanelTop size={15} />} {isCover ? 'Remove cover' : 'Use as cover'}
+          </button>
           <button className="btn btn-ghost" onClick={onCopy}>
             <Copy size={15} /> Copy
           </button>

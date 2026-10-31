@@ -113,6 +113,8 @@ export interface Profile extends VersionSelection {
   lastPlayedAt: string | null;
   /** When the custom icon was last set (used to refresh it), or null for the default. */
   icon: string | null;
+  /** A screenshot's file name, shown on the profile's card in the grid view. */
+  cover: string | null;
   playtimeMs: number;
 }
 
@@ -198,6 +200,7 @@ export interface WorkbenchApi {
   screenshots: {
     list(profileId: string): Promise<Screenshot[]>;
     remove(profileId: string, fileName: string): Promise<Screenshot[]>;
+    setCover(profileId: string, fileName: string | null): Promise<Profile>;
     copy(profileId: string, fileName: string): Promise<void>;
     reveal(profileId: string, fileName: string): Promise<void>;
   };

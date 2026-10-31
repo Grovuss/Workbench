@@ -2373,6 +2373,36 @@ select.input option {
   object-fit: cover;
 }
 
+.profile-card-shot {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* With a screenshot cover, the icon moves to a corner so the picture stays visible. */
+.profile-card-cover[data-shot] {
+  place-items: end start;
+  padding: 10px;
+}
+
+.profile-card-cover[data-shot] .profile-card-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-sm);
+  background: var(--icon-tile-bg);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+.profile-card-cover[data-shot] .profile-card-icon img {
+  width: 28px;
+}
+
+.profile-card-cover[data-shot] .profile-card-icon[data-custom] img {
+  width: 100%;
+}
+
 .profile-card-running {
   position: absolute;
   top: 10px;
@@ -2629,6 +2659,18 @@ select.input option {
   color: #fff;
   font-size: 11.5px;
   font-weight: 700;
+}
+
+.shot-cover {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--accent-text);
+  font-size: 11.5px;
+  font-weight: 800;
 }
 
 .lightbox {

@@ -16,6 +16,7 @@ function normalize(p) {
     loader: 'vanilla',
     loaderVersion: null,
     icon: null,
+    cover: null,
     playtimeMs: 0,
     ...p,
     settings: { memoryMb: null, jvmArgs: '', resolution: null, ...p.settings },

@@ -130,6 +130,7 @@ function registerIpc() {
 
   handle('screenshots:list', (_e, id) => screenshots.list(String(id)));
   handle('screenshots:remove', (_e, id, fileName) => screenshots.remove(String(id), fileName));
+  handle('screenshots:setCover', (_e, id, fileName) => screenshots.setCover(String(id), fileName ?? null));
   handle('screenshots:copy', (_e, id, fileName) => screenshots.copy(String(id), fileName));
   handle('screenshots:reveal', (_e, id, fileName) => screenshots.reveal(String(id), fileName));
 
