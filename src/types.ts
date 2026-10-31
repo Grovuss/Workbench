@@ -448,6 +448,8 @@ export interface WorkbenchApi {
     versions(target: ContentTarget, projectId: string): Promise<ContentVersion[]>;
     /** A project's full Modrinth page: description, gallery, links. */
     project(projectId: string): Promise<ProjectDetails>;
+    /** Every version of a project, newest first; `fits` says which work on the target, when given. */
+    allVersions(projectId: string, target?: ContentTarget): Promise<ProjectVersion[]>;
     /** Asks Modrinth for newer compatible versions; fills in `updateVersion`. */
     checkUpdates(target: ContentTarget): Promise<InstalledContent[]>;
     /** Changelogs between the installed version and its update. */
@@ -676,6 +678,12 @@ export interface ContentVersion {
   date: string;
   downloads: number;
   gameVersions: string[];
+  loaders: string[];
   /** Markdown. */
   changelog: string;
+}
+
+export interface ProjectVersion extends ContentVersion {
+  /** Whether it works on the profile the page was opened from; null when there isn't one. */
+  fits: boolean | null;
 }

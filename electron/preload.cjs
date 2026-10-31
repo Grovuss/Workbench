@@ -112,6 +112,7 @@ contextBridge.exposeInMainWorld('workbench', {
     performance: (id) => invoke('content:performance', id),
     versions: (target, projectId) => invoke('content:versions', target, projectId),
     project: (projectId) => invoke('content:project', projectId),
+    allVersions: (projectId, target) => invoke('content:allVersions', projectId, target),
     addFiles: (target, filePaths) => invoke('content:addFiles', target, filePaths),
     addAny: (id, filePaths) => invoke('content:addAny', id, filePaths),
     pickFiles: (id, target) => invoke('content:pickFiles', id, target),

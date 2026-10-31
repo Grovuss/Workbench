@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Download, LoaderCircle } from 'lucide-react';
+import { ArrowDownWideNarrow, Download, LoaderCircle } from 'lucide-react';
 import Modal from '../Modal';
 import Markdown from '../Markdown';
 import ContentIcon from './ContentIcon';
@@ -7,6 +7,7 @@ import { api, errorMessage } from '../../api';
 import { timeAgo } from '../../time';
 import type { ContentTarget, ContentVersion, InstalledContent } from '../../types';
 import { formatCount } from '../../format';
+import { VERSION_SORTS, sortVersions, useVersionSort, type VersionSort } from './versionSort';
 
 interface Props {
   title: string;
@@ -25,6 +26,8 @@ export default function VersionModal({ title, iconUrl, target, projectId, curren
   const [selected, setSelected] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [sort, setSort] = useVersionSort();
+  const sorted = versions && sortVersions(versions, sort);
 
   useEffect(() => {
     api.content
@@ -76,6 +79,18 @@ export default function VersionModal({ title, iconUrl, target, projectId, curren
           <strong>{title}</strong>
           <p>{versions ? `${versions.length} ${versions.length === 1 ? 'version works' : 'versions work'} on this profile` : 'Loading versions…'}</p>
         </div>
+        {versions && versions.length > 1 && (
+          <label className="select-pill modpack-head-end">
+            <ArrowDownWideNarrow size={15} />
+            <select value={sort} onChange={(e) => setSort(e.target.value as VersionSort)} aria-label="Sort versions">
+              {VERSION_SORTS.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.label}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
       </div>
 
       {!versions ? (
@@ -89,7 +104,7 @@ export default function VersionModal({ title, iconUrl, target, projectId, curren
       ) : (
         <div className="version-picker">
           <div className="version-list" role="radiogroup" aria-label="Versions">
-            {versions.map((v) => (
+            {sorted!.map((v) => (
               <button
                 key={v.id}
                 role="radio"

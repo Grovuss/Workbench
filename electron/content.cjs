@@ -577,6 +577,20 @@ async function project(projectId) {
   };
 }
 
+const toVersion = (v) => ({
+  id: v.id,
+  name: v.name,
+  versionNumber: v.version_number,
+  type: v.version_type,
+  date: v.date_published,
+  downloads: v.downloads,
+  gameVersions: v.game_versions,
+  loaders: v.loaders,
+  changelog: v.changelog ?? '',
+});
+
+const hasFileFor = (loc, v) => v.files.some((f) => f.filename.toLowerCase().endsWith(loc.spec.ext));
+
 /** A project's versions that work on the target (loader and Minecraft version), newest first. */
 async function versions(target, projectId) {
   const loc = await locate(target);
@@ -585,18 +599,25 @@ async function versions(target, projectId) {
     game_versions: JSON.stringify([loc.profile.mcVersion]),
   });
   const list = await modrinth(`/project/${encodeURIComponent(projectId)}/version?${params}`);
-  return list
-    .filter((v) => v.files.some((f) => f.filename.toLowerCase().endsWith(loc.spec.ext)))
-    .map((v) => ({
-      id: v.id,
-      name: v.name,
-      versionNumber: v.version_number,
-      type: v.version_type,
-      date: v.date_published,
-      downloads: v.downloads,
-      gameVersions: v.game_versions,
-      changelog: v.changelog ?? '',
-    }));
+  return list.filter((v) => hasFileFor(loc, v)).map(toVersion);
+}
+
+/**
+ * Every version of a project, newest first. With a target, each one says whether it works there
+ * (`fits`); without one, `fits` is null.
+ */
+async function allVersions(projectId, target = null) {
+  const [list, loc] = await Promise.all([
+    modrinth(`/project/${encodeURIComponent(projectId)}/version`),
+    target ? locate(target) : null,
+  ]);
+  const loaders = loc && modrinthLoaders(loc.kind, loc.profile);
+  return list.map((v) => ({
+    ...toVersion(v),
+    fits: loc
+      ? v.game_versions.includes(loc.profile.mcVersion) && v.loaders.some((l) => loaders.includes(l)) && hasFileFor(loc, v)
+      : null,
+  }));
 }
 
 // ---------- Updates ----------
@@ -721,6 +742,7 @@ module.exports = {
   install,
   installMany,
   installVersions,
+  allVersions,
   versions,
   project,
   checkUpdates,

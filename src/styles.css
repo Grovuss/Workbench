@@ -3589,6 +3589,98 @@ select.input option {
   color: var(--text-faint);
 }
 
+.modpack-head-end {
+  align-self: center;
+  margin-left: auto;
+}
+
+/* Versions tab on a project page */
+.project-versions-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.project-versions-count {
+  margin-right: auto;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+.project-version-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: 1px solid var(--border);
+  overflow: hidden;
+  border-radius: var(--radius-md);
+  background: var(--bg-surface);
+}
+
+.project-version + .project-version {
+  border-top: 1px solid var(--border);
+}
+
+.project-version-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-right: 12px;
+}
+
+.project-version-main {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 2px 10px;
+  flex: 1;
+  min-width: 0;
+  padding: 10px 12px;
+  text-align: left;
+}
+
+.project-version-row:hover {
+  background: var(--bg-muted);
+}
+
+.project-version-chevron {
+  grid-row: 1 / span 2;
+  color: var(--text-faint);
+  transition: transform 0.15s ease;
+}
+
+.project-version-main[aria-expanded='true'] .project-version-chevron {
+  transform: rotate(180deg);
+}
+
+.project-version-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.project-version-title .kind-tag {
+  margin-right: 0;
+}
+
+.project-version-meta {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-faint);
+}
+
+.project-version-changelog {
+  padding: 4px 16px 14px 37px;
+  font-size: 13.5px;
+}
+
 /* ---------- Dropdown menus ---------- */
 .dropdown {
   position: relative;

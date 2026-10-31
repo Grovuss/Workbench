@@ -1,12 +1,14 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { BookOpen, Bug, ChevronLeft, ChevronRight, Code2, Download, ExternalLink, Heart, LoaderCircle, MessageCircle, X } from 'lucide-react';
 import ContentIcon from './ContentIcon';
+import ProjectVersions from './ProjectVersions';
 import Markdown from '../Markdown';
 import { api, errorMessage } from '../../api';
 import { categoryLabel } from '../../content';
 import { timeAgo } from '../../time';
-import type { ProjectDetails as Details } from '../../types';
+import type { ContentTarget, InstalledContent, ProjectDetails as Details } from '../../types';
 import { formatCount } from '../../format';
+import { versionRange } from './versionSort';
 
 const SIDE_LABELS: Record<Details['clientSide'], string> = {
   required: 'Required',
@@ -28,14 +30,19 @@ interface Props {
   project: ProjectPreview;
   /** Install, or whatever fits where it was opened from. */
   actions?: ReactNode;
+  /** Where the project would be installed; lets the Versions tab show what fits and install a chosen one. */
+  target?: ContentTarget;
+  /** The version already installed there, if any. */
+  installedVersionId?: string | null;
+  onInstalled?: (items: InstalledContent[]) => void;
   onClose: () => void;
 }
 
 /** A Modrinth project's page inside the launcher: description, gallery and the details that matter before installing. */
-export default function ProjectDetails({ project, actions, onClose }: Props) {
+export default function ProjectDetails({ project, actions, target, installedVersionId, onInstalled, onClose }: Props) {
   const [details, setDetails] = useState<Details | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [tab, setTab] = useState<'about' | 'gallery'>('about');
+  const [tab, setTab] = useState<'about' | 'versions' | 'gallery'>('about');
   const [viewing, setViewing] = useState<number | null>(null);
 
   useEffect(() => {
@@ -88,20 +95,30 @@ export default function ProjectDetails({ project, actions, onClose }: Props) {
           </div>
         </header>
 
-        {gallery.length > 0 && (
-          <div className="tabs project-tabs" role="tablist">
-            <button role="tab" className="tab" aria-selected={tab === 'about'} onClick={() => setTab('about')}>
-              Description
-            </button>
+        <div className="tabs project-tabs" role="tablist">
+          <button role="tab" className="tab" aria-selected={tab === 'about'} onClick={() => setTab('about')}>
+            Description
+          </button>
+          <button role="tab" className="tab" aria-selected={tab === 'versions'} onClick={() => setTab('versions')}>
+            Versions
+          </button>
+          {gallery.length > 0 && (
             <button role="tab" className="tab" aria-selected={tab === 'gallery'} onClick={() => setTab('gallery')}>
               Gallery <span className="chip-count">{gallery.length}</span>
             </button>
-          </div>
-        )}
+          )}
+        </div>
 
         <div className="project-body">
           <div className="project-main">
-            {error ? (
+            {tab === 'versions' ? (
+              <ProjectVersions
+                projectId={project.projectId}
+                target={target}
+                installedVersionId={installedVersionId}
+                onInstalled={onInstalled}
+              />
+            ) : error ? (
               <p className="mod-empty">Couldn’t load this project’s page. {error}</p>
             ) : !details ? (
               <div className="mod-loading">
@@ -238,11 +255,4 @@ export default function ProjectDetails({ project, actions, onClose }: Props) {
       )}
     </div>
   );
-}
-
-/** "1.20.1 – 1.21.4" from Modrinth's list, releases only when there are any. */
-function versionRange(versions: string[]) {
-  const releases = versions.filter((v) => /^\d+(\.\d+)+$/.test(v));
-  const list = releases.length ? releases : versions;
-  return list.length === 1 ? list[0] : `${list[0]} – ${list[list.length - 1]}`;
 }

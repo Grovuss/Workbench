@@ -544,6 +544,12 @@ export default function ContentTab({
       {detailsFor?.projectId && (
         <ProjectDetails
           project={{ projectId: detailsFor.projectId, title: detailsFor.title, description: '', iconUrl: detailsFor.iconUrl }}
+          target={target(detailsFor.kind)}
+          installedVersionId={detailsFor.versionId}
+          onInstalled={(items) => {
+            setList(detailsFor.kind, items);
+            checkUpdates(detailsFor.kind);
+          }}
           onClose={() => setDetailsFor(null)}
         />
       )}

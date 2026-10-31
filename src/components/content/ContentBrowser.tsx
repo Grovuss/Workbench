@@ -252,7 +252,15 @@ export default function ContentBrowser({ profile, kind, kindOptions, onKindChang
         </>
       )}
 
-      {viewing && <ProjectDetails project={viewing} actions={installAction(viewing)} onClose={() => setViewing(null)} />}
+      {viewing && (
+        <ProjectDetails
+          project={viewing}
+          actions={installAction(viewing)}
+          target={{ profileId: profile.id, kind: viewing.kind, world }}
+          onInstalled={(items) => onInstalled(viewing.kind, items)}
+          onClose={() => setViewing(null)}
+        />
+      )}
 
       {choosing && (
         <VersionModal
