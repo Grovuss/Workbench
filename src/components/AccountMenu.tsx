@@ -63,9 +63,11 @@ export default function AccountMenu({ accounts, onLogin, onSwitch, onLogout }: P
           <button role="menuitem" className="menu-item" onClick={run(onLogin)}>
             <UserPlus size={16} /> Add account
           </button>
-          <button role="menuitem" className="menu-item menu-danger" onClick={run(() => onLogout(active.id))}>
-            <LogOut size={16} /> Sign out
-          </button>
+          {!active.offline && (
+            <button role="menuitem" className="menu-item menu-danger" onClick={run(() => onLogout(active.id))}>
+              <LogOut size={16} /> Sign out
+            </button>
+          )}
         </div>
       )}
 
@@ -77,7 +79,7 @@ export default function AccountMenu({ accounts, onLogin, onSwitch, onLogout }: P
       >
         <SkinHead skinUrl={active.skinUrl} name={active.name} />
         <span className="account-text">
-          <span className="account-label">Playing as</span>
+          <span className="account-label">{active.offline ? 'Offline · dev' : 'Playing as'}</span>
           <strong>{active.name}</strong>
         </span>
         <ChevronsUpDown size={16} className="account-chevron" />

@@ -23,6 +23,8 @@ export interface Account {
   id: string;
   name: string;
   skinUrl: string | null;
+  /** Dev-build offline account (no Microsoft sign-in). */
+  offline: boolean;
 }
 
 export interface AccountsState {

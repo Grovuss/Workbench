@@ -1,9 +1,21 @@
 const crypto = require('node:crypto');
 const path = require('node:path');
-const { BrowserWindow, safeStorage } = require('electron');
+const { app, BrowserWindow, safeStorage } = require('electron');
 const paths = require('./paths.cjs');
 const { readJson, writeJson, createLock } = require('./store.cjs');
-const { MSA_CLIENT_ID } = require('./config.cjs');
+const { MSA_CLIENT_ID, DEV_OFFLINE_NAME } = require('./config.cjs');
+
+const DEV_OFFLINE_ID = 'dev-offline';
+const devOffline = () =>
+  !app.isPackaged && DEV_OFFLINE_NAME ? { id: DEV_OFFLINE_ID, name: DEV_OFFLINE_NAME, skinUrl: null, offline: true } : null;
+
+// Same UUID scheme vanilla servers use for offline players (v3 UUID of "OfflinePlayer:<name>").
+function offlineUuid(name) {
+  const hash = crypto.createHash('md5').update(`OfflinePlayer:${name}`).digest();
+  hash[6] = (hash[6] & 0x0f) | 0x30;
+  hash[8] = (hash[8] & 0x3f) | 0x80;
+  return hash.toString('hex');
+}
 
 const AUTHORIZE_URL = 'https://login.microsoftonline.com/consumers/oauth2/v2.0/authorize';
 const TOKEN_URL = 'https://login.microsoftonline.com/consumers/oauth2/v2.0/token';
@@ -181,11 +193,11 @@ function toStored(mc, refreshToken) {
 const loadStore = () => readJson(file(), { activeId: null, accounts: [] });
 
 function publicState(store) {
-  return {
-    configured: Boolean(MSA_CLIENT_ID),
-    activeId: store.activeId,
-    accounts: store.accounts.map(({ id, name, skinUrl }) => ({ id, name, skinUrl: skinUrl ?? null })),
-  };
+  const dev = devOffline();
+  const accounts = store.accounts.map(({ id, name, skinUrl }) => ({ id, name, skinUrl: skinUrl ?? null, offline: false }));
+  if (dev) accounts.push(dev);
+  const activeId = accounts.some((a) => a.id === store.activeId) ? store.activeId : (accounts[0]?.id ?? null);
+  return { configured: Boolean(MSA_CLIENT_ID), activeId, accounts };
 }
 
 function upsert(store, entry) {
@@ -237,7 +249,8 @@ function logout(id) {
 function setActive(id) {
   return withLock(async () => {
     const store = await loadStore();
-    if (!store.accounts.some((a) => a.id === id)) throw new Error('Account not found.');
+    const isDev = id === DEV_OFFLINE_ID && devOffline();
+    if (!isDev && !store.accounts.some((a) => a.id === id)) throw new Error('Account not found.');
     store.activeId = id;
     await writeJson(file(), store);
     return publicState(store);
@@ -247,7 +260,12 @@ function setActive(id) {
 /** Credentials for launching, refreshing the Minecraft token if it's about to expire. */
 async function getLaunchAccount() {
   const store = await loadStore();
-  const stored = store.accounts.find((a) => a.id === store.activeId);
+  const activeId = publicState(store).activeId;
+  const dev = devOffline();
+  if (dev && activeId === dev.id) {
+    return { uuid: offlineUuid(dev.name), name: dev.name, accessToken: '0' };
+  }
+  const stored = store.accounts.find((a) => a.id === activeId);
   if (!stored) throw new Error('Sign in with a Microsoft account to play.');
 
   const secret = unseal(stored.secret);
