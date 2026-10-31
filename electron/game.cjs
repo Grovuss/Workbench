@@ -4,6 +4,8 @@ const profiles = require('./profiles.cjs');
 const settings = require('./settings.cjs');
 const { launchGame } = require('./launcher/launch.cjs');
 
+const PLAYTIME_CHECKPOINT_MS = 60_000;
+
 /** profileId → { state: 'installing' | 'running', child?, stopping? } */
 const sessions = new Map();
 
@@ -58,10 +60,22 @@ async function launch(profileId) {
       .then(() => broadcast({ type: 'profiles-changed' }))
       .catch(() => {});
 
+    // Playtime is saved every minute too, so closing the launcher mid-game loses at most a minute.
+    let counted = Date.now();
+    const countPlaytime = () => {
+      const now = Date.now();
+      const ms = now - counted;
+      counted = now;
+      return profiles.addPlaytime(profileId, ms).catch(() => {});
+    };
+    const checkpoint = setInterval(countPlaytime, PLAYTIME_CHECKPOINT_MS);
+
     let ended = false;
     const end = (message) => {
       if (ended) return;
       ended = true;
+      clearInterval(checkpoint);
+      countPlaytime().then(() => broadcast({ type: 'profiles-changed' }));
       sessions.delete(profileId);
       setState(profileId, 'idle');
       if (message && !session.stopping) broadcast({ type: 'error', profileId, message });

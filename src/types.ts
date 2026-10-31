@@ -77,6 +77,9 @@ export interface Profile extends VersionSelection {
   settings: ProfileSettings;
   createdAt: string;
   lastPlayedAt: string | null;
+  /** When the custom icon was last set (used to refresh it), or null for the default. */
+  icon: string | null;
+  playtimeMs: number;
 }
 
 export interface LoaderVersion {
@@ -149,6 +152,9 @@ export interface WorkbenchApi {
     /** Tail of the last launch log, or null if never launched. */
     readLog(id: string): Promise<string | null>;
     openFolder(id: string, sub?: ProfileFolder): Promise<void>;
+    /** Opens an image picker; resolves to the updated profile, or null if cancelled. */
+    setIcon(id: string): Promise<Profile | null>;
+    removeIcon(id: string): Promise<Profile>;
   };
   versions: {
     list(): Promise<McVersion[]>;

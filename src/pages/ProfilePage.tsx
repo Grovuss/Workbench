@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { FolderOpen, Share } from 'lucide-react';
-import logo from '../assets/logo.svg';
+import { FolderOpen, ImagePlus, Share } from 'lucide-react';
 import LoaderBadge from '../components/LoaderBadge';
+import ProfileIcon from '../components/ProfileIcon';
 import Modal from '../components/Modal';
 import { LOADER_LABELS, loaderVersionLabel } from '../loaders';
 import PlayButton from '../components/PlayButton';
@@ -12,7 +12,7 @@ import ProfileSettingsTab from '../components/profile/ProfileSettingsTab';
 import ModsTab from '../components/profile/ModsTab';
 import ExportModal from '../components/profile/ExportModal';
 import { api, errorMessage } from '../api';
-import { timeAgo } from '../time';
+import { formatPlaytime, timeAgo } from '../time';
 import type { LaunchStatus, Profile } from '../types';
 
 type Tab = 'worlds' | 'mods' | 'logs' | 'settings';
@@ -41,6 +41,13 @@ export default function ProfilePage({ profile, launch, onPlay, onStop, onUpdated
   const [deleting, setDeleting] = useState(false);
   const [exporting, setExporting] = useState(false);
   const running = launch?.state === 'running';
+  const playtime = formatPlaytime(profile.playtimeMs);
+
+  const changeIcon = () =>
+    api.profiles
+      .setIcon(profile.id)
+      .then((p) => p && onUpdated(p))
+      .catch((err) => onError(errorMessage(err)));
 
   const confirmDelete = async () => {
     setDeleting(true);
@@ -56,9 +63,12 @@ export default function ProfilePage({ profile, launch, onPlay, onStop, onUpdated
   return (
     <>
       <section className="profile-hero">
-        <div className="profile-hero-icon">
-          <img src={logo} alt="" />
-        </div>
+        <button className="profile-hero-icon-btn" onClick={changeIcon} aria-label="Change profile icon">
+          <ProfileIcon profile={profile} className="profile-hero-icon" />
+          <span className="profile-hero-icon-overlay">
+            <ImagePlus size={22} />
+          </span>
+        </button>
         <div className="profile-hero-info">
           <h1 className="page-title">{profile.name}</h1>
           <div className="profile-hero-meta">
@@ -75,6 +85,12 @@ export default function ProfilePage({ profile, launch, onPlay, onStop, onUpdated
             )}
             <span className="dot">·</span>
             <span>{profile.lastPlayedAt ? `Played ${timeAgo(profile.lastPlayedAt)}` : 'Never played'}</span>
+            {playtime && (
+              <>
+                <span className="dot">·</span>
+                <span>{playtime} played</span>
+              </>
+            )}
           </div>
         </div>
         <div className="profile-hero-actions">

@@ -16,3 +16,13 @@ export function timeAgo(iso: string): string {
   }
   return 'just now';
 }
+
+/** "3h 12m", "45m", "under a minute"; null when never played. */
+export function formatPlaytime(ms: number): string | null {
+  if (!ms) return null;
+  const minutes = Math.floor(ms / 60_000);
+  if (minutes < 1) return 'under a minute';
+  const hours = Math.floor(minutes / 60);
+  if (!hours) return `${minutes}m`;
+  return minutes % 60 ? `${hours}h ${minutes % 60}m` : `${hours}h`;
+}

@@ -3,7 +3,8 @@ const path = require('node:path');
 const AdmZip = require('adm-zip');
 const profiles = require('./profiles.cjs');
 const mods = require('./mods.cjs');
-const { download, runPool } = require('./launcher/http.cjs');
+const icons = require('./icons.cjs');
+const { download, runPool, sha1 } = require('./launcher/http.cjs');
 const { loaderVersions } = require('./launcher/loaders.cjs');
 const { version: appVersion } = require('../package.json');
 
@@ -12,7 +13,8 @@ const { version: appVersion } = require('../package.json');
 //
 // A zip containing:
 //   workbench.json   manifest (below)
-//   overrides/       files copied into the profile's game folder as-is
+//   icon.png         optional profile icon (PNG, JPEG, WebP or GIF despite the name)
+//   overrides/      files copied into the profile's game folder as-is
 //                    (config/, resourcepacks/, options.txt, mods not on Modrinth, …)
 //
 // workbench.json:
@@ -131,7 +133,19 @@ async function importWorkbench(zip, onProgress) {
 
     onProgress({ label: 'Copying files', done: 0, total: 1 });
     await extractFolder(zip, 'overrides/', dir);
+
+    const icon = zip.getEntry('icon.png');
+    if (icon) await icons.setFromBuffer(profile.id, icon.getData()).catch(() => {});
   });
+}
+
+/** Packs downloaded from Modrinth are themselves Modrinth files: use the project's icon. */
+async function modrinthPackIcon(profileId, packBuf) {
+  const version = await mods.modrinth(`/version_file/${sha1(packBuf)}?algorithm=sha1`);
+  const project = await mods.modrinth(`/project/${version.project_id}`);
+  if (!project.icon_url || !allowedUrl(project.icon_url)) return;
+  const res = await fetch(project.icon_url, { headers: { 'User-Agent': mods.USER_AGENT } });
+  if (res.ok) await icons.setFromBuffer(profileId, Buffer.from(await res.arrayBuffer()));
 }
 
 async function mrpackSelection(deps) {
@@ -148,7 +162,7 @@ async function mrpackSelection(deps) {
   return { mcVersion, loader: 'vanilla', loaderVersion: null };
 }
 
-async function importMrpack(zip, onProgress) {
+async function importMrpack(zip, packBuf, onProgress) {
   const index = JSON.parse(zip.readAsText('modrinth.index.json'));
   const selection = await mrpackSelection(index.dependencies ?? {});
 
@@ -163,14 +177,17 @@ async function importMrpack(zip, onProgress) {
     onProgress({ label: 'Copying files', done: 0, total: 1 });
     await extractFolder(zip, 'overrides/', dir);
     await extractFolder(zip, 'client-overrides/', dir);
+    // Best effort: packs from elsewhere simply aren't found.
+    await modrinthPackIcon(profile.id, packBuf).catch(() => {});
   });
 }
 
 /** Imports a .workbench or .mrpack file as a new profile. */
 async function importPack(filePath, onProgress) {
-  const zip = new AdmZip(filePath);
+  const buf = await fsp.readFile(filePath);
+  const zip = new AdmZip(buf);
   if (zip.getEntry('workbench.json')) return importWorkbench(zip, onProgress);
-  if (zip.getEntry('modrinth.index.json')) return importMrpack(zip, onProgress);
+  if (zip.getEntry('modrinth.index.json')) return importMrpack(zip, buf, onProgress);
   if (zip.getEntry('manifest.json')) throw new Error('CurseForge packs aren’t supported yet.');
   throw new Error('This file isn’t a modpack Workbench recognizes.');
 }
@@ -220,6 +237,8 @@ async function exportWorkbench(profileId, include, filePath) {
     mods: manifestMods,
   };
   zip.addFile('workbench.json', Buffer.from(JSON.stringify(manifest, null, 2)));
+  const icon = profile.icon && (await icons.read(profileId));
+  if (icon) zip.addFile('icon.png', icon.buf);
   await zip.writeZipPromise(filePath);
   return { modsLinked: manifestMods.length };
 }

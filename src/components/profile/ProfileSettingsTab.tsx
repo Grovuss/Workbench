@@ -1,5 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react';
-import { Trash2 } from 'lucide-react';
+import { ImagePlus, Trash2 } from 'lucide-react';
+import ProfileIcon from '../ProfileIcon';
 import Toggle from '../Toggle';
 import VersionPicker, { isCompleteSelection } from '../VersionPicker';
 import { api, errorMessage } from '../../api';
@@ -20,7 +21,10 @@ export default function ProfileSettingsTab({ profile, busy, onUpdated, onDelete,
   return (
     <>
       <h2 className="section-label section-label-first">General</h2>
-      <NameSection profile={profile} onUpdated={onUpdated} onError={onError} />
+      <div className="settings-group">
+        <NameSection profile={profile} onUpdated={onUpdated} onError={onError} />
+        <IconSection profile={profile} onUpdated={onUpdated} onError={onError} />
+      </div>
 
       <h2 className="section-label">Version</h2>
       <VersionSection profile={profile} busy={busy} onUpdated={onUpdated} onError={onError} />
@@ -46,6 +50,33 @@ export default function ProfileSettingsTab({ profile, busy, onUpdated, onDelete,
 
 type SectionProps = Pick<Props, 'profile' | 'onUpdated' | 'onError'>;
 
+function IconSection({ profile, onUpdated, onError }: SectionProps) {
+  const apply = (pending: Promise<Profile | null>) =>
+    pending.then((p) => p && onUpdated(p)).catch((err) => onError(errorMessage(err)));
+
+  return (
+    <div className="settings-row">
+      <div className="settings-row-media">
+        <ProfileIcon profile={profile} className="profile-icon" />
+        <div>
+          <h3>Icon</h3>
+          <p>PNG, JPEG, WebP or GIF. Included when you export a .workbench pack.</p>
+        </div>
+      </div>
+      <div className="icon-actions">
+        {profile.icon && (
+          <button className="btn btn-ghost" onClick={() => apply(api.profiles.removeIcon(profile.id))}>
+            Remove
+          </button>
+        )}
+        <button className="btn btn-secondary" onClick={() => apply(api.profiles.setIcon(profile.id))}>
+          <ImagePlus size={15} /> {profile.icon ? 'Change' : 'Choose image'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function NameSection({ profile, onUpdated, onError }: SectionProps) {
   const [name, setName] = useState(profile.name);
   const [saving, setSaving] = useState(false);
@@ -67,26 +98,24 @@ function NameSection({ profile, onUpdated, onError }: SectionProps) {
   };
 
   return (
-    <div className="settings-group">
-      <form className="settings-row" onSubmit={save}>
-        <div>
-          <h3>Name</h3>
-          <p>Shown in your profile list.</p>
-        </div>
-        <div className="inline-field">
-          <input
-            className="input"
-            value={name}
-            maxLength={48}
-            onChange={(e) => setName(e.target.value)}
-            aria-label="Profile name"
-          />
-          <button type="submit" className="btn btn-secondary" disabled={!dirty || saving}>
-            Save
-          </button>
-        </div>
-      </form>
-    </div>
+    <form className="settings-row" onSubmit={save}>
+      <div>
+        <h3>Name</h3>
+        <p>Shown in your profile list.</p>
+      </div>
+      <div className="inline-field">
+        <input
+          className="input"
+          value={name}
+          maxLength={48}
+          onChange={(e) => setName(e.target.value)}
+          aria-label="Profile name"
+        />
+        <button type="submit" className="btn btn-secondary" disabled={!dirty || saving}>
+          Save
+        </button>
+      </div>
+    </form>
   );
 }
 

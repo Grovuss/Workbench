@@ -15,6 +15,8 @@ function normalize(p) {
   return {
     loader: 'vanilla',
     loaderVersion: null,
+    icon: null,
+    playtimeMs: 0,
     ...p,
     settings: { memoryMb: null, jvmArgs: '', resolution: null, ...p.settings },
   };
@@ -72,6 +74,17 @@ function update(id, patch) {
     Object.assign(profile, patch);
     await writeJson(file(), all);
     return profile;
+  });
+}
+
+function addPlaytime(id, ms) {
+  if (!(ms > 0)) return Promise.resolve();
+  return withLock(async () => {
+    const all = await load();
+    const profile = all.find((p) => p.id === id);
+    if (!profile) return;
+    profile.playtimeMs += Math.round(ms);
+    await writeJson(file(), all);
   });
 }
 
@@ -188,6 +201,7 @@ module.exports = {
   get,
   create,
   update,
+  addPlaytime,
   rename,
   setVersion,
   updateSettings,

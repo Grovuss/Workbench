@@ -1,9 +1,9 @@
 import type { KeyboardEvent, MouseEvent } from 'react';
-import logo from '../assets/logo.svg';
 import LoaderBadge from './LoaderBadge';
+import ProfileIcon from './ProfileIcon';
 import PlayButton from './PlayButton';
 import ProgressBar, { progressPercent } from './ProgressBar';
-import { timeAgo } from '../time';
+import { formatPlaytime, timeAgo } from '../time';
 import type { LaunchStatus, Profile } from '../types';
 
 interface Props {
@@ -17,6 +17,7 @@ interface Props {
 export default function ProfileRow({ profile, launch, onOpen, onPlay, onStop }: Props) {
   const state = launch?.state ?? 'idle';
   const progress = launch?.progress;
+  const playtime = formatPlaytime(profile.playtimeMs);
 
   const onKeyDown = (e: KeyboardEvent) => {
     if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) {
@@ -29,9 +30,7 @@ export default function ProfileRow({ profile, launch, onOpen, onPlay, onStop }: 
 
   return (
     <div className="profile-row" role="link" tabIndex={0} onClick={onOpen} onKeyDown={onKeyDown}>
-      <div className="profile-icon">
-        <img src={logo} alt="" />
-      </div>
+      <ProfileIcon profile={profile} className="profile-icon" />
 
       <div className="profile-info">
         <div className="profile-name">
@@ -54,6 +53,12 @@ export default function ProfileRow({ profile, launch, onOpen, onPlay, onStop }: 
             {profile.mcVersion}
             <span className="dot">·</span>
             {profile.lastPlayedAt ? `Played ${timeAgo(profile.lastPlayedAt)}` : 'Never played'}
+            {playtime && (
+              <>
+                <span className="dot">·</span>
+                {playtime}
+              </>
+            )}
           </div>
         )}
       </div>

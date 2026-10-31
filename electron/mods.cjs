@@ -258,4 +258,4 @@ function recordInstalled(profileId, entries) {
   });
 }
 
-module.exports = { list, listForExport, setEnabled, remove, search, install, recordInstalled, modsDir, safeFileName };
+module.exports = { list, listForExport, setEnabled, remove, search, install, recordInstalled, modsDir, safeFileName, modrinth, USER_AGENT };

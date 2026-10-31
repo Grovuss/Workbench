@@ -57,6 +57,7 @@ A zip containing:
 - `workbench.json`: `format`, `name`, `game { minecraft, loader, loaderVersion }`,
   `settings { memoryMb, resolution }` and `mods[]`. Each mod has `fileName`, `enabled`, `sha1`, `size`
   and, for Modrinth mods, a download `url` plus `projectId`/`versionId`.
+- `icon.png`: optional profile icon (PNG, JPEG, WebP or GIF despite the name).
 - `overrides/`: files copied into the profile (config, options.txt, resource packs, mods that
   aren't on Modrinth, and so on).
 

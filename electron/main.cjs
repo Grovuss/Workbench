@@ -1,7 +1,25 @@
-const { app, BrowserWindow, nativeTheme } = require('electron');
+const { app, BrowserWindow, nativeTheme, protocol } = require('electron');
 const path = require('node:path');
 const { registerIpc } = require('./ipc.cjs');
 const { titleBarOverlay } = require('./titlebar.cjs');
+const icons = require('./icons.cjs');
+
+// workbench://profile-icon/<id> serves profile icons to the renderer.
+protocol.registerSchemesAsPrivileged([{ scheme: 'workbench', privileges: { standard: true, secure: true } }]);
+
+const PROFILE_ID = /^[0-9a-f-]{36}$/;
+
+function registerProtocol() {
+  protocol.handle('workbench', async (request) => {
+    const url = new URL(request.url);
+    const id = url.pathname.slice(1);
+    if (url.hostname === 'profile-icon' && PROFILE_ID.test(id)) {
+      const icon = await icons.read(id);
+      if (icon) return new Response(icon.buf, { headers: { 'Content-Type': icon.type, 'Cache-Control': 'no-cache' } });
+    }
+    return new Response(null, { status: 404 });
+  });
+}
 
 function createWindow() {
   const frame =
@@ -34,6 +52,7 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
+  registerProtocol();
   registerIpc();
   createWindow();
   app.on('activate', () => {

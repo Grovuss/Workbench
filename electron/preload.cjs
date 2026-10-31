@@ -18,6 +18,8 @@ contextBridge.exposeInMainWorld('workbench', {
     worlds: (id) => invoke('profiles:worlds', id),
     readLog: (id) => invoke('profiles:readLog', id),
     openFolder: (id, sub) => invoke('profiles:openFolder', id, sub),
+    setIcon: (id) => invoke('profiles:setIcon', id),
+    removeIcon: (id) => invoke('profiles:removeIcon', id),
   },
   versions: {
     list: () => invoke('versions:list'),

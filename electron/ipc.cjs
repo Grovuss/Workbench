@@ -1,6 +1,7 @@
 const fsp = require('node:fs/promises');
 const path = require('node:path');
 const { BrowserWindow, dialog, ipcMain, shell } = require('electron');
+const icons = require('./icons.cjs');
 const mods = require('./mods.cjs');
 const packs = require('./packs.cjs');
 const paths = require('./paths.cjs');
@@ -68,6 +69,15 @@ function registerIpc() {
   handle('profiles:updateSettings', (_e, id, patch) => profiles.updateSettings(id, patch));
   handle('profiles:worlds', (_e, id) => profiles.listWorlds(id));
   handle('profiles:readLog', (_e, id) => profiles.readLog(id));
+  handle('profiles:setIcon', async (e, id) => {
+    const { canceled, filePaths } = await dialog.showOpenDialog(BrowserWindow.fromWebContents(e.sender), {
+      title: 'Choose profile icon',
+      properties: ['openFile'],
+      filters: [{ name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'webp', 'gif'] }],
+    });
+    return canceled ? null : icons.setFromFile(id, filePaths[0]);
+  });
+  handle('profiles:removeIcon', (_e, id) => icons.remove(id));
   handle('profiles:openFolder', async (_e, id, sub) => {
     if (sub !== undefined && !PROFILE_SUBFOLDERS.has(sub)) throw new Error('Unknown folder.');
     await profiles.get(id);
