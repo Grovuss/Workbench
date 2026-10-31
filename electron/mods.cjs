@@ -39,7 +39,7 @@ const modsDir = (profileId) => path.join(profiles.gameDir(profileId), 'mods');
 const metaFile = (profileId) => path.join(profiles.gameDir(profileId), 'workbench-mods.json');
 
 // What we know about each jar, keyed by file name without ".disabled":
-// { sha1, size, projectId?, versionId?, versionNumber?, title?, iconUrl?, url?, checked? }
+// { sha1, size, projectId?, versionId?, versionNumber?, title?, iconUrl?, url?, update?, hashChecked?, detailsChecked? }
 const loadMeta = async (profileId) => (await readJson(metaFile(profileId), { files: {} })).files;
 const saveMeta = (profileId, files) => writeJson(metaFile(profileId), { files });
 
@@ -76,14 +76,14 @@ async function scanMods(profileId) {
   }
   if (Object.keys(meta).length !== Object.keys(next).length) changed = true;
 
-  // Identify jars added by hand (or by a pack import) through Modrinth's hash lookup.
-  const unknown = items.filter((i) => !i.info.projectId && !i.info.checked);
-  if (unknown.length) {
+  // Fill in what we don't know yet from Modrinth. Each step runs once per jar; offline, it's retried next time.
+  // 1. Version details by hash, for jars added by hand or by a pack import.
+  const unhashed = items.filter((i) => !i.info.hashChecked);
+  if (unhashed.length) {
     try {
-      const byHash = await modrinth('/version_files', { hashes: unknown.map((i) => i.info.sha1), algorithm: 'sha1' });
-      const projectIds = new Set();
-      for (const item of unknown) {
-        item.info.checked = true;
+      const byHash = await modrinth('/version_files', { hashes: unhashed.map((i) => i.info.sha1), algorithm: 'sha1' });
+      for (const item of unhashed) {
+        item.info.hashChecked = true;
         const version = byHash[item.info.sha1];
         if (!version) continue;
         const file = version.files.find((f) => f.hashes.sha1 === item.info.sha1);
@@ -91,22 +91,30 @@ async function scanMods(profileId) {
           projectId: version.project_id,
           versionId: version.id,
           versionNumber: version.version_number,
-          url: file?.url ?? null,
+          url: file?.url ?? item.info.url ?? null,
         });
-        projectIds.add(version.project_id);
-      }
-      if (projectIds.size) {
-        const projects = await modrinth(`/projects?ids=${encodeURIComponent(JSON.stringify([...projectIds]))}`);
-        for (const project of projects) {
-          for (const item of unknown) {
-            if (item.info.projectId === project.id) Object.assign(item.info, { title: project.title, iconUrl: project.icon_url ?? null });
-          }
-        }
       }
       changed = true;
-    } catch {
-      // Offline: show them as local files and try again next time.
-    }
+    } catch {}
+  }
+
+  // 2. Title and icon, for every identified jar.
+  const undetailed = items.filter((i) => i.info.projectId && !i.info.detailsChecked);
+  if (undetailed.length) {
+    try {
+      const ids = [...new Set(undetailed.map((i) => i.info.projectId))];
+      const projects = new Map();
+      for (let n = 0; n < ids.length; n += 100) {
+        const batch = await modrinth(`/projects?ids=${encodeURIComponent(JSON.stringify(ids.slice(n, n + 100)))}`);
+        for (const project of batch) projects.set(project.id, project);
+      }
+      for (const item of undetailed) {
+        const project = projects.get(item.info.projectId);
+        if (project) Object.assign(item.info, { title: project.title, iconUrl: project.icon_url ?? null });
+        item.info.detailsChecked = true;
+      }
+      changed = true;
+    } catch {}
   }
 
   if (changed) await saveMeta(profileId, next);
@@ -280,7 +288,8 @@ async function placeVersion(ctx, projectId, version, { title, iconUrl }, enabled
     title,
     iconUrl,
     url: file.url,
-    checked: true,
+    hashChecked: true,
+    detailsChecked: true,
   };
   ctx.installed.add(projectId);
 
@@ -380,7 +389,8 @@ function update(profileId, fileNames) {
 function recordInstalled(profileId, entries) {
   return withLock(async () => {
     const meta = await loadMeta(profileId);
-    for (const e of entries) meta[e.fileName] = { ...e.info, checked: true };
+    // Left unchecked so the next scan fills in version numbers and icons from Modrinth.
+    for (const e of entries) meta[e.fileName] = { ...e.info };
     await saveMeta(profileId, meta);
   });
 }
