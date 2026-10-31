@@ -1,12 +1,12 @@
 import { useEffect, useState, type DragEvent, type FormEvent } from 'react';
-import { ExternalLink, FileDown, Package, Upload } from 'lucide-react';
+import { ExternalLink, FileDown, Package, QrCode, Upload } from 'lucide-react';
 import logo from '../assets/logo.svg';
 import Modal from './Modal';
 import ProgressBar from './ProgressBar';
 import VersionPicker, { isCompleteSelection } from './VersionPicker';
 import { api, errorMessage } from '../api';
 import { LOADER_LABELS } from '../loaders';
-import type { ImportProgress, ImportResult, MissingPackFile, PackKind, Profile, VersionSelection } from '../types';
+import type { ImportProgress, ImportResult, MissingPackFile, PackKind, Profile, SharePreview, VersionSelection } from '../types';
 
 const INITIAL_SELECTION: VersionSelection = { mcVersion: '', loader: 'vanilla', loaderVersion: null };
 
@@ -28,6 +28,9 @@ export default function CreateProfileModal({ onClose, onCreated }: Props) {
   const [curseforge, setCurseforge] = useState(false);
   // An import that finished with files the player has to download themselves.
   const [partial, setPartial] = useState<ImportResult | null>(null);
+  // Pasting a share code instead of picking a file.
+  const [code, setCode] = useState<string | null>(null);
+  const [codePreview, setCodePreview] = useState<SharePreview | null>(null);
   const ready = isCompleteSelection(selection);
 
   useEffect(
@@ -73,6 +76,23 @@ export default function CreateProfileModal({ onClose, onCreated }: Props) {
 
   const pick = (kind: PackKind) => run(() => api.packs.import(kind));
 
+  const changeCode = (text: string) => {
+    setCode(text);
+    setCodePreview(null);
+    setError(null);
+    if (!text.trim()) return;
+    api.share
+      .preview(text)
+      .then(setCodePreview)
+      .catch((err) => setError(errorMessage(err)));
+  };
+
+  const importCode = () =>
+    run(async () => {
+      const { profile } = await api.share.import(code ?? '');
+      return { profile, missing: [] };
+    });
+
   const drop = (e: DragEvent) => {
     e.preventDefault();
     setDragging(false);
@@ -109,6 +129,15 @@ export default function CreateProfileModal({ onClose, onCreated }: Props) {
         </button>
         <button type="submit" form="create-profile" className="btn btn-primary" disabled={!ready || busy}>
           {busy ? 'Creating…' : 'Create'}
+        </button>
+      </>
+    ) : code !== null && !busy ? (
+      <>
+        <button type="button" className="btn btn-secondary" onClick={() => setCode(null)}>
+          Back
+        </button>
+        <button type="button" className="btn btn-primary" onClick={importCode} disabled={!codePreview}>
+          Import
         </button>
       </>
     ) : (
@@ -158,6 +187,37 @@ export default function CreateProfileModal({ onClose, onCreated }: Props) {
               : 'Reading pack…'}
           </span>
         </div>
+      ) : code !== null ? (
+        <div className="form">
+          <label className="field">
+            <span className="field-label">Share code</span>
+            <textarea
+              className="input share-code"
+              rows={4}
+              value={code}
+              placeholder="WB1.…"
+              spellCheck={false}
+              autoFocus
+              onChange={(e) => changeCode(e.target.value)}
+            />
+          </label>
+          {codePreview && (
+            <div className="share-preview">
+              <strong>{codePreview.name || 'Shared profile'}</strong>
+              <span>
+                {codePreview.loader === 'vanilla' ? 'Minecraft' : LOADER_LABELS[codePreview.loader]} {codePreview.mcVersion} ·{' '}
+                {[
+                  codePreview.counts.mod && `${codePreview.counts.mod} ${codePreview.counts.mod === 1 ? 'mod' : 'mods'}`,
+                  codePreview.counts.resourcepack && `${codePreview.counts.resourcepack} resource ${codePreview.counts.resourcepack === 1 ? 'pack' : 'packs'}`,
+                  codePreview.counts.shader && `${codePreview.counts.shader} ${codePreview.counts.shader === 1 ? 'shader' : 'shaders'}`,
+                ]
+                  .filter(Boolean)
+                  .join(', ') || 'no mods'}
+              </span>
+            </div>
+          )}
+          {error && <p className="form-error">{error}</p>}
+        </div>
       ) : (
         <div className="form">
           <div className="import-options">
@@ -190,6 +250,15 @@ export default function CreateProfileModal({ onClose, onCreated }: Props) {
                 </small>
               </span>
               {!curseforge && <span className="soon-pill soon-pill-inline">Soon</span>}
+            </button>
+            <button className="import-option" onClick={() => setCode('')}>
+              <span className="import-option-icon">
+                <QrCode size={18} />
+              </span>
+              <span>
+                <strong>Share code</strong>
+                <small>Paste a code a friend sent you from their Workbench.</small>
+              </span>
             </button>
           </div>
 

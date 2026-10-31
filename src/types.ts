@@ -113,9 +113,47 @@ export type ProfileFolder = 'saves' | 'screenshots' | 'logs' | 'resourcepacks' |
 
 export interface World {
   folder: string;
+  /** The name shown in game (level.dat), or the folder name. */
+  name: string;
   lastPlayedAt: string;
+  gameMode: 'survival' | 'creative' | 'adventure' | 'spectator' | null;
+  hardcore: boolean;
+  /** Minecraft version it was last played in. */
+  version: string | null;
+  sizeBytes: number;
   /** data: URL of the world's icon.png, if it has one. */
   icon: string | null;
+  backupCount: number;
+  lastBackupAt: string | null;
+}
+
+export interface WorldBackup {
+  id: string;
+  /** auto: after playing · manual · restore: taken before restoring another · update: before a modpack update */
+  kind: 'auto' | 'manual' | 'restore' | 'update';
+  createdAt: string;
+  sizeBytes: number;
+}
+
+export interface ModpackUpdate {
+  current: { versionId: string; versionNumber: string };
+  latest: {
+    versionId: string;
+    versionNumber: string;
+    date: string;
+    gameVersions: string[];
+    changelog: string;
+    /** Versions between the current one and this. */
+    newerCount: number;
+  } | null;
+}
+
+export interface SharePreview {
+  name: string;
+  mcVersion: string;
+  loader: Loader;
+  loaderVersion: string | null;
+  counts: Record<'mod' | 'resourcepack' | 'shader', number>;
 }
 
 export type ThemePreference = 'light' | 'dark' | 'system';
@@ -152,6 +190,8 @@ export interface Profile extends VersionSelection {
   /** A screenshot's file name, shown on the profile's card in the grid view. */
   cover: string | null;
   playtimeMs: number;
+  /** The Modrinth modpack this profile was installed from. */
+  pack: { projectId: string; versionId: string; versionNumber: string; title: string } | null;
 }
 
 export interface LoaderVersion {
@@ -183,6 +223,9 @@ export interface AccountsState {
 
 export interface Settings {
   memoryMb: number;
+  autoBackup: boolean;
+  discordPresence: boolean;
+  shareOptions: boolean;
 }
 
 export interface SystemInfo {
@@ -190,6 +233,8 @@ export interface SystemInfo {
   dataDir: string;
   /** Whether a CurseForge API key is configured. */
   curseforge: boolean;
+  /** Whether a Discord application id is configured, for Rich Presence. */
+  discord: boolean;
 }
 
 export type GameState = 'idle' | 'installing' | 'running';
@@ -212,7 +257,8 @@ export type GameEvent =
   | { type: 'error'; profileId: string; message: string }
   | { type: 'profiles-changed' }
   | ({ type: 'import-progress' } & ImportProgress)
-  | { type: 'crash'; profileId: string; report: CrashReport };
+  | { type: 'crash'; profileId: string; report: CrashReport }
+  | { type: 'worlds-backed-up'; profileId: string; count: number };
 
 export interface WorkbenchApi {
   platform: string;
@@ -281,6 +327,43 @@ export interface WorkbenchApi {
     versions(projectId: string): Promise<ModpackVersion[]>;
     /** Installs a version (the newest release by default) as a new profile. */
     install(projectId: string, versionId?: string): Promise<ImportResult>;
+    /** For profiles installed from a Modrinth modpack; null for other profiles. */
+    checkUpdate(profileId: string): Promise<ModpackUpdate | null>;
+    /** Resolves to the updated profile and config files kept because the player edited them. */
+    update(profileId: string, versionId: string): Promise<{ profile: Profile; kept: string[] }>;
+  };
+  worlds: {
+    rename(profileId: string, folder: string, name: string): Promise<World[]>;
+    /** Copies into the same profile (as "… (copy)") or another one. Resolves to the source profile's worlds. */
+    copy(profileId: string, folder: string, targetProfileId?: string): Promise<World[]>;
+    move(profileId: string, folder: string, targetProfileId: string): Promise<World[]>;
+    /** Sends the world to the Recycle Bin. */
+    remove(profileId: string, folder: string): Promise<World[]>;
+    /** Opens a picker for a world folder or .zip; null if cancelled. */
+    import(profileId: string, kind: 'folder' | 'zip'): Promise<World[] | null>;
+    importPath(profileId: string, filePath: string): Promise<World[]>;
+    backups(profileId: string, folder: string): Promise<WorldBackup[]>;
+    backup(profileId: string, folder: string): Promise<WorldBackup[]>;
+    /** Backs up the world as it is now, then puts the backup in its place. */
+    restore(profileId: string, folder: string, backupId: string): Promise<WorldBackup[]>;
+    removeBackup(profileId: string, folder: string, backupId: string): Promise<WorldBackup[]>;
+    revealBackups(profileId: string, folder: string): Promise<void>;
+  };
+  share: {
+    /** skipped: titles of files that aren't on Modrinth, so can't be in a code. */
+    create(profileId: string): Promise<{ code: string; included: number; skipped: string[] }>;
+    preview(code: string): Promise<SharePreview>;
+    /** failed: how many files couldn't be downloaded. */
+    import(code: string): Promise<{ profile: Profile; failed: number }>;
+  };
+  serverPack: {
+    /** Asks where to put it; null if cancelled. */
+    export(profileId: string): Promise<{ folder: string; modCount: number; clientOnly: string[] } | null>;
+  };
+  logs: {
+    /** Uploads to mclo.gs; resolves to the link. */
+    upload(text: string): Promise<string>;
+    open(url: string): Promise<void>;
   };
   versions: {
     list(): Promise<McVersion[]>;

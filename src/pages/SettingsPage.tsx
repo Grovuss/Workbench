@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { FolderOpen, Monitor, Moon, Sun } from 'lucide-react';
 import PageHeader from '../components/PageHeader';
+import Toggle from '../components/Toggle';
 import { api, errorMessage } from '../api';
 import { formatGb, maxMemoryMb } from '../memory';
-import type { SystemInfo, ThemePreference } from '../types';
+import type { Settings, SystemInfo, ThemePreference } from '../types';
 
 const THEMES: { id: ThemePreference; label: string; icon: typeof Sun }[] = [
   { id: 'light', label: 'Light', icon: Sun },
@@ -20,6 +21,7 @@ interface Props {
 
 export default function SettingsPage({ theme, onThemeChange, onError }: Props) {
   const [memoryMb, setMemoryMb] = useState<number | null>(null);
+  const [toggles, setToggles] = useState<Pick<Settings, 'autoBackup' | 'discordPresence' | 'shareOptions'> | null>(null);
   const [system, setSystem] = useState<SystemInfo | null>(null);
   const saveTimer = useRef<number>();
 
@@ -27,6 +29,7 @@ export default function SettingsPage({ theme, onThemeChange, onError }: Props) {
     Promise.all([api.settings.get(), api.system.info()])
       .then(([s, info]) => {
         setMemoryMb(s.memoryMb);
+        setToggles({ autoBackup: s.autoBackup, discordPresence: s.discordPresence, shareOptions: s.shareOptions });
         setSystem(info);
       })
       .catch((err) => onError(errorMessage(err)));
@@ -38,6 +41,11 @@ export default function SettingsPage({ theme, onThemeChange, onError }: Props) {
     saveTimer.current = window.setTimeout(() => {
       api.settings.set({ memoryMb: mb }).catch((err) => onError(errorMessage(err)));
     }, 300);
+  };
+
+  const setToggle = (key: keyof NonNullable<typeof toggles>, value: boolean) => {
+    setToggles((t) => t && { ...t, [key]: value });
+    api.settings.set({ [key]: value }).catch((err) => onError(errorMessage(err)));
   };
 
   const maxMemory = system ? maxMemoryMb(system.totalMemoryMb) : 8192;
@@ -86,6 +94,15 @@ export default function SettingsPage({ theme, onThemeChange, onError }: Props) {
             </div>
           )}
         </div>
+        {toggles && (
+          <div className="settings-row">
+            <div>
+              <h3>Share game settings</h3>
+              <p>New profiles start with the keybinds, video and sound settings of the profile you played last.</p>
+            </div>
+            <Toggle label="Share game settings" checked={toggles.shareOptions} onChange={(on) => setToggle('shareOptions', on)} />
+          </div>
+        )}
         <div className="settings-row">
           <div>
             <h3>Data folder</h3>
@@ -99,6 +116,41 @@ export default function SettingsPage({ theme, onThemeChange, onError }: Props) {
           </button>
         </div>
       </div>
+
+      {toggles && (
+        <>
+          <h2 className="section-label">Worlds</h2>
+          <div className="settings-group">
+            <div className="settings-row">
+              <div>
+                <h3>Back up worlds automatically</h3>
+                <p>After you play, worlds that changed are backed up. The last 5 are kept for each world.</p>
+              </div>
+              <Toggle label="Back up worlds automatically" checked={toggles.autoBackup} onChange={(on) => setToggle('autoBackup', on)} />
+            </div>
+          </div>
+
+          <h2 className="section-label">Discord</h2>
+          <div className="settings-group">
+            <div className="settings-row">
+              <div>
+                <h3>Show what you’re playing</h3>
+                <p>
+                  {system?.discord
+                    ? 'Your Discord status shows the profile you’re playing and for how long.'
+                    : 'Not set up in this build of Workbench yet.'}
+                </p>
+              </div>
+              <Toggle
+                label="Show what you’re playing on Discord"
+                checked={toggles.discordPresence && Boolean(system?.discord)}
+                disabled={!system?.discord}
+                onChange={(on) => setToggle('discordPresence', on)}
+              />
+            </div>
+          </div>
+        </>
+      )}
     </>
   );
 }

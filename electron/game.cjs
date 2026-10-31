@@ -1,6 +1,7 @@
 const { BrowserWindow } = require('electron');
 const auth = require('./auth.cjs');
 const diagnose = require('./diagnose.cjs');
+const discord = require('./discord.cjs');
 const profiles = require('./profiles.cjs');
 const settings = require('./settings.cjs');
 const { launchGame } = require('./launcher/launch.cjs');
@@ -58,6 +59,7 @@ async function launch(profileId, quickPlay) {
     session.state = 'running';
     session.child = child;
     setState(profileId, 'running');
+    discord.started(profile);
     profiles
       .update(profileId, { lastPlayedAt: new Date().toISOString() })
       .then(() => broadcast({ type: 'profiles-changed' }))
@@ -81,6 +83,12 @@ async function launch(profileId, quickPlay) {
       countPlaytime().then(() => broadcast({ type: 'profiles-changed' }));
       sessions.delete(profileId);
       setState(profileId, 'idle');
+      discord.stopped(profileId);
+      // Worlds played this session get a backup, if they changed.
+      require('./worlds.cjs')
+        .backupChanged(profileId)
+        .then((count) => count && broadcast({ type: 'worlds-backed-up', profileId, count }))
+        .catch((err) => console.error('[backup]', err));
       if (message && !session.stopping) broadcast({ type: 'error', profileId, message });
     };
     child.once('error', (err) => end(`Couldn't start Minecraft: ${err.message}`));

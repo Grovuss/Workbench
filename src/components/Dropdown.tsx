@@ -8,6 +8,7 @@ export interface DropdownItem {
   hint?: string;
   onSelect: () => void;
   disabled?: boolean;
+  danger?: boolean;
 }
 
 interface Props {
@@ -15,10 +16,14 @@ interface Props {
   className?: string;
   disabled?: boolean;
   items: DropdownItem[];
+  /** Hide the chevron, for icon-only buttons. */
+  chevron?: boolean;
+  /** Accessible name when the label is just an icon. */
+  ariaLabel?: string;
 }
 
 /** A button that opens a menu below it, right-aligned. */
-export default function Dropdown({ label, className = 'btn btn-secondary', disabled, items }: Props) {
+export default function Dropdown({ label, className = 'btn btn-secondary', disabled, items, chevron = true, ariaLabel }: Props) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -37,10 +42,18 @@ export default function Dropdown({ label, className = 'btn btn-secondary', disab
   }, [open]);
 
   return (
-    <div className="dropdown" ref={ref}>
-      <button className={className} aria-haspopup="menu" aria-expanded={open} disabled={disabled} onClick={() => setOpen((o) => !o)}>
+    <div className="dropdown" ref={ref} onClick={(e) => e.stopPropagation()}>
+      <button
+        className={className}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-label={ariaLabel}
+        title={ariaLabel}
+        disabled={disabled}
+        onClick={() => setOpen((o) => !o)}
+      >
         {label}
-        <ChevronDown size={15} className="dropdown-chevron" />
+        {chevron && <ChevronDown size={15} className="dropdown-chevron" />}
       </button>
       {open && (
         <div className="dropdown-popover" role="menu">
@@ -48,7 +61,7 @@ export default function Dropdown({ label, className = 'btn btn-secondary', disab
             <button
               key={item.label}
               role="menuitem"
-              className="menu-item"
+              className={item.danger ? 'menu-item menu-danger' : 'menu-item'}
               disabled={item.disabled}
               onClick={() => {
                 setOpen(false);

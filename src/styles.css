@@ -956,7 +956,7 @@ button.crumb:hover {
 }
 
 /* ---------- Import / export packs ---------- */
-.segmented-full {
+.segmented.segmented-full {
   display: flex;
   margin-bottom: 18px;
 }
@@ -1437,7 +1437,7 @@ img.import-option-icon {
 /* Worlds */
 .world-list {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
   gap: 10px;
 }
 
@@ -1465,7 +1465,87 @@ img.import-option-icon {
 }
 
 .world-info {
+  flex: 1;
   min-width: 0;
+}
+
+.world-meta-faint {
+  font-size: 12px;
+  color: var(--text-faint);
+}
+
+.world-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: none;
+}
+
+.backup-row {
+  align-items: center;
+}
+
+.backup-icon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-muted);
+  color: var(--text-muted);
+}
+
+/* Share codes, server packs and modpack updates */
+.share-code {
+  width: 100%;
+  height: auto;
+  padding: 10px 12px;
+  resize: none;
+  font-family: ui-monospace, 'Cascadia Code', Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  word-break: break-all;
+}
+
+.content-hint.share-skipped {
+  color: var(--warning);
+}
+
+.share-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 12px 14px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+
+.share-preview strong {
+  font-weight: 800;
+}
+
+.share-preview span {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.pack-update svg {
+  color: var(--text);
+}
+
+.pack-update-points {
+  display: grid;
+  gap: 4px;
+  margin: 0 0 16px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--border);
+  padding-left: 20px;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--text-muted);
 }
 
 .world-name {
@@ -1483,7 +1563,7 @@ img.import-option-icon {
 
 /* Logs: charcoal console in both themes */
 .log-view {
-  height: max(280px, calc(100vh - 400px));
+  height: max(280px, calc(100vh - 450px));
   overflow: auto;
   padding: 10px 0;
   background: var(--brand-charcoal);
@@ -1534,14 +1614,44 @@ img.import-option-icon {
 }
 
 .log-error .log-level,
-.log-error .log-text,
-.log-fatal .log-level,
-.log-fatal .log-text {
+.log-error .log-text {
   color: #ff8a80;
 }
 
-.log-raw .log-text {
+.log-raw.log-info .log-text {
   color: #bdb6a8;
+}
+
+.log-view mark {
+  background: rgba(254, 196, 36, 0.35);
+  color: inherit;
+  border-radius: 2px;
+}
+
+.log-none {
+  margin: 0;
+  padding: 16px 14px;
+  color: #847e73;
+}
+
+.log-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.log-filters .search-field {
+  flex: 1;
+  min-width: 200px;
+  margin: 0;
+}
+
+.log-link {
+  width: 100%;
+  font-family: ui-monospace, 'Cascadia Code', Consolas, monospace;
+  font-size: 13px;
 }
 
 .inline-field {
@@ -3511,7 +3621,35 @@ select.input option {
   user-select: none;
 }
 
+/* The textarea's text is transparent; .code-colored behind it shows the same text in colour. */
+.code-area {
+  position: relative;
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.code-colored {
+  position: absolute;
+  top: 0;
+  left: 0;
+  min-width: 100%;
+  margin: 0;
+  padding: 10px 12px;
+  font: inherit;
+  tab-size: 2;
+  white-space: pre;
+  color: var(--text);
+  pointer-events: none;
+}
+
+.code-colored > div {
+  min-height: 1.6em;
+}
+
 .code-text {
+  position: relative;
   flex: 1;
   min-width: 0;
   padding: 10px 12px;
@@ -3519,10 +3657,54 @@ select.input option {
   outline: 0;
   resize: none;
   background: transparent;
-  color: var(--text);
+  color: transparent;
+  caret-color: var(--text);
   font: inherit;
   tab-size: 2;
   white-space: pre;
+}
+
+.code-text::selection {
+  background: color-mix(in srgb, var(--accent) 35%, transparent);
+}
+
+:root,
+:root[data-theme='light'] {
+  --code-key: #9a5b00;
+  --code-string: #2e7d32;
+  --code-number: #c2410c;
+  --code-bool: #7c3aed;
+  --code-comment: #a59a82;
+}
+
+:root[data-theme='dark'] {
+  --code-key: var(--brand-yellow);
+  --code-string: #a5d785;
+  --code-number: #ffa36c;
+  --code-bool: #c4a1ff;
+  --code-comment: #6f6a62;
+}
+
+.tok-key,
+.tok-section {
+  color: var(--code-key);
+}
+
+.tok-string {
+  color: var(--code-string);
+}
+
+.tok-number {
+  color: var(--code-number);
+}
+
+.tok-bool {
+  color: var(--code-bool);
+}
+
+.tok-comment {
+  color: var(--code-comment);
+  font-style: italic;
 }
 
 @media (max-width: 860px) {

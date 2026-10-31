@@ -141,10 +141,8 @@ async function importWorkbench(zip, onProgress) {
   });
 }
 
-/** Packs downloaded from Modrinth are themselves Modrinth files: use the project's icon. */
-async function modrinthPackIcon(profileId, packBuf) {
-  const version = await content.modrinth(`/version_file/${sha1(packBuf)}?algorithm=sha1`);
-  const project = await content.modrinth(`/project/${version.project_id}`);
+/** Downloads the icon of a Modrinth project onto a profile. */
+async function setProjectIcon(profileId, project) {
   if (!project.icon_url || !allowedUrl(project.icon_url)) return;
   const res = await fetch(project.icon_url, { headers: { 'User-Agent': content.USER_AGENT } });
   if (res.ok) await icons.setFromBuffer(profileId, Buffer.from(await res.arrayBuffer()));
@@ -164,24 +162,226 @@ async function mrpackSelection(deps) {
   return { mcVersion, loader: 'vanilla', loaderVersion: null };
 }
 
-async function importMrpack(zip, packBuf, onProgress) {
+// ---------- Modrinth modpacks as profiles ----------
+//
+// A profile made from a Modrinth pack remembers which files the pack put there, with their hashes,
+// in workbench-pack.json. Updates use it to tell the pack's files from the player's own changes.
+
+const PACK_RECORD = 'workbench-pack.json';
+const readPackRecord = (profileId) =>
+  fsp.readFile(path.join(profiles.gameDir(profileId), PACK_RECORD), 'utf8').then(JSON.parse, () => null);
+
+/** Everything a .mrpack puts in a profile: Map of path → { sha1, download? , entry? }. Client overrides win. */
+function mrpackContents(zip, index) {
+  const files = new Map();
+  for (const f of index.files ?? []) {
+    if (f.env?.client === 'unsupported') continue;
+    files.set(f.path.replace(/\\/g, '/'), { sha1: f.hashes?.sha1, download: f });
+  }
+  for (const prefix of ['overrides/', 'client-overrides/']) {
+    for (const entry of zip.getEntries()) {
+      if (entry.isDirectory || !entry.entryName.startsWith(prefix)) continue;
+      const data = entry.getData();
+      files.set(entry.entryName.slice(prefix.length), { sha1: sha1(data), entry: data });
+    }
+  }
+  return files;
+}
+
+async function fileSha1(file) {
+  const buf = await fsp.readFile(file).catch(() => null);
+  return buf && sha1(buf);
+}
+
+/** Writes a pack's files into a fresh profile folder. */
+async function writePackFiles(dir, files, onProgress) {
+  const downloads = [...files].filter(([, f]) => f.download);
+  let done = 0;
+  onProgress({ label: 'Downloading mods', done, total: downloads.length });
+  await runPool(downloads, 8, async ([rel, { download: f }]) => {
+    await downloadFrom(f.downloads ?? [], safeJoin(dir, rel), { sha1: f.hashes?.sha1, size: f.fileSize });
+    onProgress({ label: 'Downloading mods', done: ++done, total: downloads.length });
+  });
+  onProgress({ label: 'Copying files', done: 0, total: 1 });
+  for (const [rel, f] of files) {
+    if (!f.entry) continue;
+    const dest = safeJoin(dir, rel);
+    await fsp.mkdir(path.dirname(dest), { recursive: true });
+    await fsp.writeFile(dest, f.entry);
+  }
+}
+
+async function savePackRecord(profileId, { project, version }, files) {
+  const record = {
+    projectId: project.id,
+    versionId: version.id,
+    versionNumber: version.version_number,
+    title: project.title,
+    files: Object.fromEntries([...files].map(([rel, f]) => [rel, f.sha1])),
+  };
+  await fsp.writeFile(path.join(profiles.gameDir(profileId), PACK_RECORD), JSON.stringify(record, null, 2));
+  return profiles.update(profileId, {
+    pack: { projectId: project.id, versionId: version.id, versionNumber: version.version_number, title: project.title },
+  });
+}
+
+/** The Modrinth version a .mrpack file is, looked up by its hash; null for packs from elsewhere. */
+async function identifyPack(packBuf) {
+  try {
+    const version = await content.modrinth(`/version_file/${sha1(packBuf)}?algorithm=sha1`);
+    const project = await content.modrinth(`/project/${version.project_id}`);
+    return { version, project };
+  } catch {
+    return null;
+  }
+}
+
+async function importMrpack(zip, packBuf, onProgress, source = null) {
   const index = JSON.parse(zip.readAsText('modrinth.index.json'));
   const selection = await mrpackSelection(index.dependencies ?? {});
 
   return withNewProfile({ name: index.name, ...selection }, async (profile, dir) => {
-    const files = (index.files ?? []).filter((f) => f.env?.client !== 'unsupported');
-    let done = 0;
-    onProgress({ label: 'Downloading mods', done, total: files.length });
-    await runPool(files, 8, async (f) => {
-      await downloadFrom(f.downloads ?? [], safeJoin(dir, f.path), { sha1: f.hashes?.sha1, size: f.fileSize });
-      onProgress({ label: 'Downloading mods', done: ++done, total: files.length });
-    });
-    onProgress({ label: 'Copying files', done: 0, total: 1 });
-    await extractFolder(zip, 'overrides/', dir);
-    await extractFolder(zip, 'client-overrides/', dir);
-    // Best effort: packs from elsewhere simply aren't found.
-    await modrinthPackIcon(profile.id, packBuf).catch(() => {});
+    const files = mrpackContents(zip, index);
+    await writePackFiles(dir, files, onProgress);
+    // Packs from elsewhere simply don't get an icon or updates.
+    const found = source ?? (await identifyPack(packBuf));
+    if (found) {
+      await savePackRecord(profile.id, found, files);
+      await setProjectIcon(profile.id, found.project).catch(() => {});
+    }
   });
+}
+
+/** Newer versions of the pack a profile came from: { current, latest } (latest is null when up to date). */
+async function checkModpackUpdate(profileId) {
+  const record = await readPackRecord(profileId);
+  if (!record) return null;
+  const profile = await profiles.get(profileId);
+  const versions = await content.modrinth(`/project/${encodeURIComponent(record.projectId)}/version`);
+  const current = versions.find((v) => v.id === record.versionId);
+  // Players on a release stay on releases; players on a beta also get newer betas.
+  const onRelease = !current || current.version_type === 'release';
+  // Packs keep putting out releases for older Minecraft versions; only the profile's own counts,
+  // so an update never changes the Minecraft version under someone's worlds.
+  const newer = versions.filter(
+    (v) =>
+      v.game_versions.includes(profile.mcVersion) &&
+      (!current || v.date_published > current.date_published) &&
+      (!onRelease || v.version_type === 'release'),
+  );
+  const latest = newer[0];
+  return {
+    current: { versionId: record.versionId, versionNumber: record.versionNumber },
+    latest: latest
+      ? {
+          versionId: latest.id,
+          versionNumber: latest.version_number,
+          date: latest.date_published,
+          gameVersions: latest.game_versions,
+          changelog: latest.changelog ?? '',
+          newerCount: newer.length,
+        }
+      : null,
+  };
+}
+
+/**
+ * Updates a profile to another version of its Modrinth pack. Files the pack added and the player
+ * left alone are replaced or removed; config the player edited is kept; mods the player disabled
+ * or deleted stay that way. Worlds are backed up first. Resolves to { profile, kept }.
+ */
+async function updateModpack(profileId, versionId, onProgress) {
+  const record = await readPackRecord(profileId);
+  if (!record) throw new Error('This profile wasn’t installed from a Modrinth modpack.');
+  const [project, version] = await Promise.all([
+    content.modrinth(`/project/${encodeURIComponent(record.projectId)}`),
+    content.modrinth(`/version/${encodeURIComponent(versionId)}`),
+  ]);
+  if (version.project_id !== project.id) throw new Error('That version belongs to a different modpack.');
+  const file =
+    version.files.find((f) => f.primary && f.filename.endsWith('.mrpack')) ?? version.files.find((f) => f.filename.endsWith('.mrpack'));
+  if (!file || !allowedUrl(file.url)) throw new Error(`${project.title} ${version.version_number} has no Modrinth pack file.`);
+
+  onProgress({ label: 'Backing up worlds', done: 0, total: 1 });
+  await require('./worlds.cjs').backupChanged(profileId, 'update');
+
+  onProgress({ label: `Downloading ${project.title} ${version.version_number}`, done: 0, total: 1 });
+  const tmp = path.join(paths.root(), 'tmp', `${file.hashes.sha1}.mrpack`);
+  let zip;
+  try {
+    await download(file.url, tmp, { sha1: file.hashes.sha1, size: file.size });
+    zip = new AdmZip(await fsp.readFile(tmp));
+  } finally {
+    await fsp.rm(tmp, { force: true });
+  }
+  const index = JSON.parse(zip.readAsText('modrinth.index.json'));
+  const selection = await mrpackSelection(index.dependencies ?? {});
+  const files = mrpackContents(zip, index);
+  const dir = profiles.gameDir(profileId);
+  const at = (rel) => safeJoin(dir, rel);
+  const exists = (p) => fsp.access(p).then(() => true, () => false);
+
+  // Pack mods the player disabled or deleted, by Modrinth project, so their new versions follow suit.
+  const oldState = new Map();
+  for (const [rel, oldSha] of Object.entries(record.files)) {
+    if (!rel.startsWith('mods/') || (await exists(at(rel)))) continue;
+    oldState.set(oldSha, (await exists(at(`${rel}.disabled`))) ? 'disabled' : 'removed');
+  }
+  const newMods = [...files].filter(([rel, f]) => rel.startsWith('mods/') && f.download);
+  const projectOf = new Map();
+  const hashes = [...oldState.keys(), ...newMods.map(([, f]) => f.sha1)].filter(Boolean);
+  if (hashes.length) {
+    const found = await content.modrinth('/version_files', { hashes, algorithm: 'sha1' }).catch(() => ({}));
+    for (const [hash, v] of Object.entries(found)) projectOf.set(hash, v.project_id);
+  }
+  const playerChoice = new Map([...oldState].map(([hash, state]) => [projectOf.get(hash) ?? hash, state]));
+
+  // Old pack files the new version drops: remove them unless the player changed them.
+  const kept = [];
+  for (const [rel, oldSha] of Object.entries(record.files)) {
+    if (files.has(rel)) continue;
+    for (const variant of [rel, `${rel}.disabled`]) {
+      const current = await fileSha1(at(variant));
+      if (current === null) continue;
+      if (current === oldSha || rel.startsWith('mods/')) await fsp.rm(at(variant), { force: true });
+      else kept.push(rel);
+    }
+  }
+
+  // New and changed files.
+  const toDownload = [];
+  for (const [rel, f] of files) {
+    const dest = at(rel);
+    const oldSha = record.files[rel];
+    if (f.download) {
+      const choice = playerChoice.get(projectOf.get(f.sha1) ?? f.sha1) ?? playerChoice.get(oldSha);
+      if (choice === 'removed') continue;
+      const target = choice === 'disabled' ? `${dest}.disabled` : dest;
+      if (choice === 'disabled') await fsp.rm(dest, { force: true });
+      if ((await fileSha1(target)) !== f.sha1) toDownload.push({ target, f: f.download });
+      continue;
+    }
+    const current = await fileSha1(dest);
+    if (current === f.sha1) continue;
+    // Config the player edited stays; everything else follows the pack.
+    if (current !== null && oldSha && current !== oldSha && !rel.startsWith('mods/')) {
+      kept.push(rel);
+      continue;
+    }
+    await fsp.mkdir(path.dirname(dest), { recursive: true });
+    await fsp.writeFile(dest, f.entry);
+  }
+
+  let done = 0;
+  onProgress({ label: 'Downloading mods', done, total: toDownload.length });
+  await runPool(toDownload, 8, async ({ target, f }) => {
+    await downloadFrom(f.downloads ?? [], target, { sha1: f.hashes?.sha1, size: f.fileSize });
+    onProgress({ label: 'Downloading mods', done: ++done, total: toDownload.length });
+  });
+
+  await profiles.setVersion(profileId, selection);
+  const profile = await savePackRecord(profileId, { project, version }, files);
+  return { profile, kept };
 }
 
 /**
@@ -312,7 +512,7 @@ async function installModpack(projectId, versionId, onProgress) {
   try {
     await download(file.url, tmp, { sha1: file.hashes.sha1, size: file.size });
     const buf = await fsp.readFile(tmp);
-    return { profile: await importMrpack(new AdmZip(buf), buf, onProgress), missing: [] };
+    return { profile: await importMrpack(new AdmZip(buf), buf, onProgress, { project, version }), missing: [] };
   } finally {
     await fsp.rm(tmp, { force: true });
   }
@@ -369,4 +569,14 @@ async function exportWorkbench(profileId, include, filePath) {
   return { modsLinked: manifestMods.length };
 }
 
-module.exports = { importPack, exportWorkbench, searchModpacks, modpackVersions, installModpack };
+module.exports = {
+  importPack,
+  exportWorkbench,
+  searchModpacks,
+  modpackVersions,
+  installModpack,
+  checkModpackUpdate,
+  updateModpack,
+  mrpackSelection,
+  allowedUrl,
+};

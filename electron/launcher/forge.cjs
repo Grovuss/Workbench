@@ -257,4 +257,4 @@ async function installForge({ loader, loaderVersion, vanilla, java, onProgress }
   return version;
 }
 
-module.exports = { supportedGameVersions, loaderVersions, installForge };
+module.exports = { supportedGameVersions, loaderVersions, installForge, installerUrl };

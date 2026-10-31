@@ -17,4 +17,8 @@ const DEV_OFFLINE_NAME = 'Grovus';
 // Put it in electron/secrets.cjs as `module.exports = { CURSEFORGE_API_KEY: '…' }`.
 const CURSEFORGE_API_KEY = process.env.WORKBENCH_CURSEFORGE_KEY || secrets.CURSEFORGE_API_KEY || '';
 
-module.exports = { MSA_CLIENT_ID, DEV_OFFLINE_NAME, CURSEFORGE_API_KEY };
+// Discord application id for Rich Presence (discord.com/developers/applications). The app's
+// name and icon are what Discord shows. Leave empty to turn Rich Presence off.
+const DISCORD_CLIENT_ID = process.env.WORKBENCH_DISCORD_CLIENT_ID || '';
+
+module.exports = { MSA_CLIENT_ID, DEV_OFFLINE_NAME, CURSEFORGE_API_KEY, DISCORD_CLIENT_ID };

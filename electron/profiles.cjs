@@ -5,7 +5,8 @@ const paths = require('./paths.cjs');
 const { readJson, writeJson, createLock } = require('./store.cjs');
 const { getManifest } = require('./launcher/versions.cjs');
 const { LOADER_NAMES, loaderVersions } = require('./launcher/loaders.cjs');
-const { totalMemoryMb } = require('./settings.cjs');
+const settings = require('./settings.cjs');
+const { totalMemoryMb } = settings;
 
 const file = () => path.join(paths.root(), 'profiles.json');
 const withLock = createLock();
@@ -17,6 +18,7 @@ function normalize(p) {
     loaderVersion: null,
     icon: null,
     cover: null,
+    pack: null,
     playtimeMs: 0,
     ...p,
     settings: { memoryMb: null, jvmArgs: '', resolution: null, ...p.settings },
@@ -48,6 +50,20 @@ async function get(id) {
   return profile;
 }
 
+/**
+ * New profiles start with the game settings (keybinds, video, sound) of the most recently
+ * played profile that has any. Packs that ship their own options.txt overwrite it afterwards.
+ */
+async function copySharedOptions(existing, id) {
+  if (!(await settings.get()).shareOptions) return;
+  const played = existing.filter((p) => p.lastPlayedAt).sort((a, b) => b.lastPlayedAt.localeCompare(a.lastPlayedAt));
+  for (const p of played) {
+    const source = path.join(gameDir(p.id), 'options.txt');
+    const found = await fsp.access(source).then(() => true, () => false);
+    if (found) return fsp.copyFile(source, path.join(gameDir(id), 'options.txt'));
+  }
+}
+
 async function create({ name, ...selection }) {
   const version = await validateVersion(selection);
   return withLock(async () => {
@@ -61,6 +77,7 @@ async function create({ name, ...selection }) {
     });
     await fsp.mkdir(gameDir(profile.id), { recursive: true });
     const all = await load();
+    await copySharedOptions(all, profile.id).catch(() => {});
     all.push(profile);
     await writeJson(file(), all);
     return profile;
@@ -174,26 +191,6 @@ function updateSettings(id, patch) {
   });
 }
 
-async function listWorlds(id) {
-  await get(id);
-  const savesDir = path.join(gameDir(id), 'saves');
-  const entries = await fsp.readdir(savesDir, { withFileTypes: true }).catch(() => []);
-  const worlds = [];
-  for (const entry of entries) {
-    if (!entry.isDirectory()) continue;
-    const dir = path.join(savesDir, entry.name);
-    const stat = await fsp.stat(path.join(dir, 'level.dat')).catch(() => null);
-    if (!stat) continue;
-    const icon = await fsp.readFile(path.join(dir, 'icon.png')).catch(() => null);
-    worlds.push({
-      folder: entry.name,
-      lastPlayedAt: stat.mtime.toISOString(),
-      icon: icon ? `data:image/png;base64,${icon.toString('base64')}` : null,
-    });
-  }
-  return worlds.sort((a, b) => b.lastPlayedAt.localeCompare(a.lastPlayedAt));
-}
-
 const LOG_TAIL_BYTES = 512 * 1024;
 
 // Older versions print "Session ID is token:<accessToken>:<uuid>"; access tokens are JWTs.
@@ -242,7 +239,6 @@ module.exports = {
   setVersion,
   updateSettings,
   remove,
-  listWorlds,
   readLog,
   gameDir,
 };

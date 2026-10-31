@@ -22,6 +22,31 @@ contextBridge.exposeInMainWorld('workbench', {
     removeIcon: (id) => invoke('profiles:removeIcon', id),
     duplicate: (id, name) => invoke('profiles:duplicate', id, name),
   },
+  worlds: {
+    rename: (id, folder, name) => invoke('worlds:rename', id, folder, name),
+    copy: (id, folder, targetId) => invoke('worlds:copy', id, folder, targetId),
+    move: (id, folder, targetId) => invoke('worlds:move', id, folder, targetId),
+    remove: (id, folder) => invoke('worlds:remove', id, folder),
+    import: (id, kind) => invoke('worlds:import', id, kind),
+    importPath: (id, filePath) => invoke('worlds:importPath', id, filePath),
+    backups: (id, folder) => invoke('worlds:backups', id, folder),
+    backup: (id, folder) => invoke('worlds:backup', id, folder),
+    restore: (id, folder, backupId) => invoke('worlds:restore', id, folder, backupId),
+    removeBackup: (id, folder, backupId) => invoke('worlds:removeBackup', id, folder, backupId),
+    revealBackups: (id, folder) => invoke('worlds:revealBackups', id, folder),
+  },
+  share: {
+    create: (id) => invoke('share:create', id),
+    preview: (code) => invoke('share:preview', code),
+    import: (code) => invoke('share:import', code),
+  },
+  serverPack: {
+    export: (id) => invoke('serverpack:export', id),
+  },
+  logs: {
+    upload: (text) => invoke('logs:upload', text),
+    open: (url) => invoke('logs:open', url),
+  },
   modSets: {
     list: () => invoke('modsets:list'),
     create: (name, entries) => invoke('modsets:create', name, entries),
@@ -62,6 +87,8 @@ contextBridge.exposeInMainWorld('workbench', {
     search: (options) => invoke('modpacks:search', options),
     versions: (projectId) => invoke('modpacks:versions', projectId),
     install: (projectId, versionId) => invoke('modpacks:install', projectId, versionId),
+    checkUpdate: (id) => invoke('modpacks:checkUpdate', id),
+    update: (id, versionId) => invoke('modpacks:update', id, versionId),
   },
   versions: {
     list: () => invoke('versions:list'),

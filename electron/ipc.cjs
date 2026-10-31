@@ -11,6 +11,10 @@ const diagnose = require('./diagnose.cjs');
 const performance = require('./performance.cjs');
 const modsets = require('./modsets.cjs');
 const configs = require('./configs.cjs');
+const worlds = require('./worlds.cjs');
+const share = require('./share.cjs');
+const discord = require('./discord.cjs');
+const { exportServerPack } = require('./serverpack.cjs');
 const { ping } = require('./ping.cjs');
 const packs = require('./packs.cjs');
 const paths = require('./paths.cjs');
@@ -53,6 +57,10 @@ function cleanQuickPlay(quickPlay) {
   return undefined;
 }
 
+function assertIdle(profileId, action) {
+  if (game.isActive(String(profileId))) throw new Error(`Close the game before ${action}.`);
+}
+
 function assertNotRunning(target, action) {
   if (game.isActive(target.profileId)) throw new Error(`Close the game before ${action}.`);
 }
@@ -88,9 +96,10 @@ async function openDir(dir) {
 function registerIpc() {
   handle('profiles:list', () => profiles.list());
   handle('profiles:create', (_e, input) => profiles.create(input));
-  handle('profiles:delete', (_e, id) => {
+  handle('profiles:delete', async (_e, id) => {
     if (game.isActive(id)) throw new Error('Stop the game before deleting this profile.');
-    return profiles.remove(id);
+    await profiles.remove(id);
+    await worlds.removeAllBackups(String(id)).catch(() => {});
   });
   handle('profiles:rename', (_e, id, name) => profiles.rename(id, name));
   handle('profiles:setVersion', (_e, id, selection) => {
@@ -98,7 +107,49 @@ function registerIpc() {
     return profiles.setVersion(id, selection);
   });
   handle('profiles:updateSettings', (_e, id, patch) => profiles.updateSettings(id, patch));
-  handle('profiles:worlds', (_e, id) => profiles.listWorlds(id));
+  handle('profiles:worlds', (_e, id) => worlds.list(String(id)));
+  handle('worlds:rename', (_e, id, folder, name) => {
+    assertIdle(id, 'renaming a world');
+    return worlds.rename(String(id), folder, name);
+  });
+  handle('worlds:copy', async (_e, id, folder, targetId) => {
+    assertIdle(targetId ?? id, 'copying worlds into it');
+    await worlds.copy(String(id), folder, String(targetId ?? id));
+    return worlds.list(String(id));
+  });
+  handle('worlds:move', (_e, id, folder, targetId) => {
+    assertIdle(id, 'moving a world');
+    assertIdle(targetId, 'moving worlds into it');
+    return worlds.move(String(id), folder, String(targetId));
+  });
+  handle('worlds:remove', (_e, id, folder) => {
+    assertIdle(id, 'deleting a world');
+    return worlds.remove(String(id), folder);
+  });
+  handle('worlds:import', async (e, id, kind) => {
+    assertIdle(id, 'adding worlds');
+    const { canceled, filePaths } = await dialog.showOpenDialog(BrowserWindow.fromWebContents(e.sender), {
+      title: kind === 'zip' ? 'Choose a world .zip' : 'Choose a world folder',
+      properties: [kind === 'zip' ? 'openFile' : 'openDirectory'],
+      filters: kind === 'zip' ? [{ name: 'World', extensions: ['zip'] }] : undefined,
+    });
+    return canceled ? null : worlds.importWorld(String(id), filePaths[0]);
+  });
+  handle('worlds:importPath', (_e, id, filePath) => {
+    assertIdle(id, 'adding worlds');
+    return worlds.importWorld(String(id), String(filePath));
+  });
+  handle('worlds:backups', (_e, id, folder) => worlds.listBackups(String(id), folder));
+  handle('worlds:backup', (_e, id, folder) => {
+    assertIdle(id, 'backing up');
+    return worlds.backup(String(id), folder, 'manual');
+  });
+  handle('worlds:restore', (_e, id, folder, backupId) => {
+    assertIdle(id, 'restoring a backup');
+    return worlds.restore(String(id), folder, String(backupId));
+  });
+  handle('worlds:removeBackup', (_e, id, folder, backupId) => worlds.removeBackup(String(id), folder, String(backupId)));
+  handle('worlds:revealBackups', (_e, id, folder) => worlds.revealBackups(String(id), folder));
   handle('profiles:readLog', (_e, id) => profiles.readLog(id));
   handle('profiles:setIcon', async (e, id) => {
     const { canceled, filePaths } = await dialog.showOpenDialog(BrowserWindow.fromWebContents(e.sender), {
@@ -181,6 +232,40 @@ function registerIpc() {
   handle('modpacks:install', (_e, projectId, versionId) =>
     runImport((progress) => packs.installModpack(String(projectId), versionId == null ? null : String(versionId), progress)),
   );
+  handle('modpacks:checkUpdate', (_e, id) => packs.checkModpackUpdate(String(id)));
+  handle('modpacks:update', (_e, id, versionId) => {
+    assertIdle(id, 'updating the modpack');
+    return runImport((progress) => packs.updateModpack(String(id), String(versionId), progress));
+  });
+
+  handle('share:create', (_e, id) => share.create(String(id)));
+  handle('share:preview', (_e, code) => share.preview(code));
+  handle('share:import', (_e, code) => runImport((progress) => share.importCode(code, progress)));
+
+  handle('serverpack:export', async (e, id) => {
+    const { canceled, filePaths } = await dialog.showOpenDialog(BrowserWindow.fromWebContents(e.sender), {
+      title: 'Where should the server folder go?',
+      properties: ['openDirectory', 'createDirectory'],
+    });
+    if (canceled) return null;
+    const result = await runImport((progress) => exportServerPack(String(id), filePaths[0], progress));
+    shell.openPath(result.folder);
+    return result;
+  });
+
+  // Uploads a log to mclo.gs (a Minecraft log host) so it can be shared when asking for help.
+  handle('logs:upload', async (_e, text) => {
+    const body = new URLSearchParams({ content: String(text).slice(0, 10 * 1024 * 1024) });
+    const res = await fetch('https://api.mclo.gs/1/log', { method: 'POST', body, headers: { 'User-Agent': content.USER_AGENT } });
+    const data = await res.json().catch(() => null);
+    if (!res.ok || !data?.success) throw new Error(data?.error ?? `mclo.gs said ${res.status}.`);
+    return data.url;
+  });
+  handle('logs:open', (_e, url) => {
+    const u = new URL(String(url));
+    if (u.protocol !== 'https:' || u.hostname !== 'mclo.gs') throw new Error('Not an mclo.gs link.');
+    return shell.openExternal(u.href);
+  });
 
   handle('content:list', (_e, t) => content.list(contentTarget(t)));
   handle('content:openFolder', async (_e, t) => openDir(await content.folder(contentTarget(t))));
@@ -269,12 +354,17 @@ function registerIpc() {
   handle('game:status', () => game.status());
 
   handle('settings:get', () => settings.get());
-  handle('settings:set', (_e, patch) => settings.set(patch));
+  handle('settings:set', async (_e, patch) => {
+    const next = await settings.set(patch ?? {});
+    if ('discordPresence' in (patch ?? {})) discord.settingsChanged();
+    return next;
+  });
 
   handle('system:info', () => ({
     totalMemoryMb: settings.totalMemoryMb(),
     dataDir: paths.root(),
     curseforge: curseforge.enabled(),
+    discord: discord.configured(),
   }));
   // Only CurseForge pages, for files a pack import couldn't download.
   handle('system:openCurseForge', (_e, url) => {

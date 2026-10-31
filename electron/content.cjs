@@ -438,7 +438,7 @@ async function placeVersion(ctx, projectId, version, { title, iconUrl }, enabled
   };
   ctx.installed.add(projectId);
 
-  if (kind !== 'mod') return;
+  if (kind !== 'mod' || ctx.exactList) return;
   for (const dep of version.dependencies ?? []) {
     if (dep.dependency_type !== 'required') continue;
     const depId = dep.project_id ?? (dep.version_id && (await modrinth(`/version/${dep.version_id}`)).project_id);
@@ -504,6 +504,42 @@ function installMany(target, projectIds) {
       await saveMeta(loc, ctx.meta);
     }
     return { items: await listUnlocked(loc), installed, skipped };
+  });
+}
+
+/**
+ * Installs exact versions, as listed by a share code: [{ versionId, enabled }]. The list is taken
+ * as complete, so dependencies aren't added. Resolves to { items, failed } (version ids).
+ */
+function installVersions(target, entries) {
+  return withLock(async () => {
+    const loc = await locate(target);
+    const ctx = { ...(await installContext(loc)), exactList: true };
+    const failed = [];
+    try {
+      const ids = entries.map((e) => e.versionId);
+      const versions = ids.length ? await modrinth(`/versions?${new URLSearchParams({ ids: JSON.stringify(ids) })}`) : [];
+      const projectIds = [...new Set(versions.map((v) => v.project_id))];
+      const projects = projectIds.length ? await modrinth(`/projects?${new URLSearchParams({ ids: JSON.stringify(projectIds) })}`) : [];
+      const byVersion = new Map(versions.map((v) => [v.id, v]));
+      const byProject = new Map(projects.map((p) => [p.id, p]));
+      for (const { versionId, enabled } of entries) {
+        const version = byVersion.get(versionId);
+        const project = version && byProject.get(version.project_id);
+        if (!project) {
+          failed.push(versionId);
+          continue;
+        }
+        try {
+          await placeVersion(ctx, project.id, version, { title: project.title, iconUrl: project.icon_url ?? null }, enabled !== false);
+        } catch {
+          failed.push(versionId);
+        }
+      }
+    } finally {
+      await saveMeta(loc, ctx.meta);
+    }
+    return { items: await listUnlocked(loc), failed };
   });
 }
 
@@ -651,6 +687,7 @@ module.exports = {
   categories,
   install,
   installMany,
+  installVersions,
   versions,
   checkUpdates,
   update,

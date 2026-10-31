@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent }
 import { AlertTriangle, FileCog, FolderOpen, Info, LoaderCircle, RotateCcw, Save, Search } from 'lucide-react';
 import Modal from '../Modal';
 import { api, errorMessage } from '../../api';
+import { highlight } from '../../highlight';
 import { timeAgo } from '../../time';
 import type { ConfigFile } from '../../types';
 
@@ -193,6 +194,7 @@ export default function ConfigsTab({ profileId, running, onError, onSuccess }: P
               )}
               <CodeEditor
                 key={open.path}
+                path={open.path}
                 value={open.text}
                 onChange={(text) => setOpen({ ...open, text })}
                 onSave={() => save()}
@@ -270,10 +272,25 @@ export default function ConfigsTab({ profileId, running, onError, onSuccess }: P
   );
 }
 
-/** A textarea with line numbers; Tab indents and Ctrl+S saves. */
-function CodeEditor({ value, onChange, onSave }: { value: string; onChange: (text: string) => void; onSave: () => void }) {
+/**
+ * A textarea with line numbers; Tab indents and Ctrl+S saves. The text is see-through and
+ * a coloured copy sits behind it, so typing, selection and undo stay the browser's own.
+ */
+function CodeEditor({
+  path,
+  value,
+  onChange,
+  onSave,
+}: {
+  path: string;
+  value: string;
+  onChange: (text: string) => void;
+  onSave: () => void;
+}) {
   const gutter = useRef<HTMLDivElement>(null);
-  const lines = useMemo(() => value.split('\n').length, [value]);
+  const colored = useRef<HTMLPreElement>(null);
+  const tokens = useMemo(() => highlight(value, path), [value, path]);
+  const lines = tokens.length;
 
   const onKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
@@ -295,20 +312,39 @@ function CodeEditor({ value, onChange, onSave }: { value: string; onChange: (tex
           <div key={i}>{i + 1}</div>
         ))}
       </div>
-      <textarea
-        className="code-text"
-        value={value}
-        spellCheck={false}
-        autoCapitalize="off"
-        autoComplete="off"
-        wrap="off"
-        aria-label="File contents"
-        onChange={(e) => onChange(e.target.value)}
-        onKeyDown={onKeyDown}
-        onScroll={(e) => {
-          if (gutter.current) gutter.current.scrollTop = e.currentTarget.scrollTop;
-        }}
-      />
+      <div className="code-area">
+        <pre className="code-colored" ref={colored} aria-hidden>
+          {tokens.map((line, i) => (
+            <div key={i}>
+              {line.map((t, j) =>
+                t.kind ? (
+                  <span key={j} className={`tok-${t.kind}`}>
+                    {t.text}
+                  </span>
+                ) : (
+                  t.text
+                ),
+              )}
+            </div>
+          ))}
+        </pre>
+        <textarea
+          className="code-text"
+          value={value}
+          spellCheck={false}
+          autoCapitalize="off"
+          autoComplete="off"
+          wrap="off"
+          aria-label="File contents"
+          onChange={(e) => onChange(e.target.value)}
+          onKeyDown={onKeyDown}
+          onScroll={(e) => {
+            const { scrollTop, scrollLeft } = e.currentTarget;
+            if (gutter.current) gutter.current.scrollTop = scrollTop;
+            if (colored.current) colored.current.style.transform = `translate(${-scrollLeft}px, ${-scrollTop}px)`;
+          }}
+        />
+      </div>
     </div>
   );
 }

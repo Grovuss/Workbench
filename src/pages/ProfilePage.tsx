@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react';
-import { FolderOpen, ImagePlus, Info, Share } from 'lucide-react';
+import { FileArchive, FolderOpen, ImagePlus, Info, QrCode, Server, Share } from 'lucide-react';
 import LoaderBadge from '../components/LoaderBadge';
 import ProfileIcon from '../components/ProfileIcon';
 import Modal from '../components/Modal';
@@ -13,6 +13,8 @@ import ContentTab from '../components/content/ContentTab';
 import ExportModal from '../components/profile/ExportModal';
 import ScreenshotsTab from '../components/profile/ScreenshotsTab';
 import ConfigsTab from '../components/profile/ConfigsTab';
+import { ModpackUpdateBanner, ServerPackModal, ShareCodeModal } from '../components/profile/ShareTools';
+import Dropdown from '../components/Dropdown';
 import { api, errorMessage } from '../api';
 import { contentBlockedReason } from '../content';
 import { formatPlaytime, timeAgo } from '../time';
@@ -64,7 +66,7 @@ export default function ProfilePage({
   const contentKinds = PROFILE_KINDS.filter((kind) => !contentBlockedReason(kind, profile.loader));
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
-  const [exporting, setExporting] = useState(false);
+  const [sharing, setSharing] = useState<'workbench' | 'code' | 'server' | null>(null);
   const running = launch?.state === 'running';
   const playtime = formatPlaytime(profile.playtimeMs);
 
@@ -125,9 +127,20 @@ export default function ProfilePage({
           >
             <FolderOpen size={16} /> Folder
           </button>
-          <button className="btn btn-secondary" onClick={() => setExporting(true)}>
-            <Share size={16} /> Export
-          </button>
+          <Dropdown
+            label={
+              <>
+                <Share size={16} /> Share
+              </>
+            }
+            items={[
+              { icon: <FileArchive size={16} />, label: '.workbench file', hint: 'Everything, including config', onSelect: () => setSharing('workbench') },
+              { icon: <QrCode size={16} />, label: 'Share code', hint: 'Text to paste to a friend', onSelect: () => setSharing('code') },
+              ...(profile.loader !== 'vanilla'
+                ? [{ icon: <Server size={16} />, label: 'Server pack', hint: 'Run this profile as a server', onSelect: () => setSharing('server') }]
+                : []),
+            ]}
+          />
           <PlayButton launch={launch} onPlay={() => onPlay()} onStop={onStop} large />
         </div>
         {launch?.state === 'installing' && (
@@ -141,6 +154,8 @@ export default function ProfilePage({
           </div>
         )}
       </section>
+
+      <ModpackUpdateBanner profile={profile} busy={Boolean(launch)} onUpdated={onUpdated} onSuccess={onSuccess} />
 
       <div className="tabs" role="tablist">
         {TABS.map((t) => (
@@ -210,9 +225,11 @@ export default function ProfilePage({
         <DuplicateModal profile={profile} onClose={() => setDuplicating(false)} onDuplicated={onDuplicated} onError={onError} />
       )}
 
-      {exporting && (
-        <ExportModal profile={profile} onClose={() => setExporting(false)} onExported={onSuccess} onError={onError} />
+      {sharing === 'workbench' && (
+        <ExportModal profile={profile} onClose={() => setSharing(null)} onExported={onSuccess} onError={onError} />
       )}
+      {sharing === 'code' && <ShareCodeModal profile={profile} onClose={() => setSharing(null)} />}
+      {sharing === 'server' && <ServerPackModal profile={profile} onClose={() => setSharing(null)} onSuccess={onSuccess} />}
 
       {confirmingDelete && (
         <Modal
