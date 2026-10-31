@@ -1,111 +1,74 @@
 # Workbench
 
-A desktop Minecraft launcher and modpack manager (Electron + React).
+A Minecraft launcher for people who play with mods. Built with Electron and React.
 
-## Development
+## Features
+
+- Profiles for vanilla, Fabric, Quilt, Forge and NeoForge, each with its own folder, memory and Java settings
+- Browse and install mods, modpacks, resource packs, shaders and data packs from Modrinth
+- Pick which version of a mod you want, see changelogs, and update everything in one click
+- Spots mod problems before you launch (missing dependencies, wrong loader, wrong Minecraft version, duplicates) and offers to fix them
+- Explains crashes in plain English when the game goes down
+- Servers and worlds, with join-from-launcher on 1.20+
+- Skins and capes, plus a library of saved skins
+- Screenshot gallery for every profile
+- Import `.mrpack`, CurseForge `.zip` and `.workbench` packs, and export your own profiles as `.workbench`
+- Playtime tracking, custom icons, duplicating profiles, light and dark themes
+
+## Running it
 
 ```sh
 npm install
-npm run dev     # Vite + Electron with live reload
-npm start       # production build, then launch
+npm run dev     # dev mode with live reload
+npm start       # build and run
 ```
 
-App data (profiles, accounts, downloaded game files) lives in `%APPDATA%\Workbench`.
+Profiles, accounts and game files are stored in `%APPDATA%\Workbench`.
 
-## Microsoft sign-in
+## Setup
 
-Signing in needs an Azure app registration that Mojang has approved for the Minecraft API.
+### Microsoft sign-in
 
-1. In the [Azure portal](https://portal.azure.com) go to **App registrations → New registration**.
-   - Supported account types: **Personal Microsoft accounts only**.
-   - Redirect URI: platform **Public client/native (mobile & desktop)**, value
-     `https://login.microsoftonline.com/common/oauth2/nativeclient`.
-2. Copy the **Application (client) ID** into `electron/config.cjs`, or set the
-   `WORKBENCH_MSA_CLIENT_ID` environment variable.
-3. Request Minecraft API access for that client ID with Mojang's form:
-   <https://aka.ms/mce-reviewappid>.
+Signing in needs an Azure app that Mojang has approved for the Minecraft API.
 
-Until step 3 is approved, the Microsoft part of sign-in works but Minecraft rejects the app
-and Workbench shows "This Azure app isn't approved for Minecraft sign-in yet."
+1. Register an app in the [Azure portal](https://portal.azure.com) (App registrations → New registration).
+   Choose "Personal Microsoft accounts only" and add a Public client/native redirect URI of
+   `https://login.microsoftonline.com/common/oauth2/nativeclient`.
+2. Put the client ID in `electron/config.cjs` or the `WORKBENCH_MSA_CLIENT_ID` environment variable.
+3. Apply for Minecraft API access at <https://aka.ms/mce-reviewappid>.
 
-## How launching works
+Until Mojang approves it, sign-in will fail with "This Azure app isn't approved for Minecraft sign-in yet."
 
-`electron/launcher/` is a small launcher core:
+### CurseForge
 
-- **versions.cjs**: Mojang's version manifest and per-version JSON
-- **loaders.cjs**: Fabric/Quilt metadata, merged on top of the vanilla version JSON
-- **forge.cjs**: Forge/NeoForge: runs the official installer's processors once per loader version
-  (Forge 1.8+, all NeoForge). Processor output goes to `meta/loaders/<loader>/<version>/install.log`.
-- **java.cjs**: downloads the matching Mojang Java runtime
-- **install.cjs**: libraries, natives, client jar and assets (shared across profiles in `meta/`)
-- **launch.cjs**: builds JVM and game arguments and starts the game. Joining a server or opening a
-  world from the launcher uses quick play (`--quickPlayMultiplayer` / `--quickPlaySingleplayer`,
-  1.20+); older versions join servers with `--server`/`--port`.
+CurseForge pack import needs an API key. Set `WORKBENCH_CURSEFORGE_KEY`, or create
+`electron/secrets.cjs` (it's git-ignored):
 
-Each profile gets its own game directory under `profiles/<id>`. The game's output goes to
-`logs/workbench-launch.log` inside that folder.
+```js
+module.exports = { CURSEFORGE_API_KEY: 'your key' };
+```
 
-## Mods, resource packs, shaders and data packs
+Some CurseForge authors don't allow third-party downloads. For those mods the launcher links you to
+the CurseForge page instead.
 
-- **electron/content.cjs**: one module for all four. Modrinth search, install and updates (newest
-  compatible release; required dependencies for mods), enable/disable (renamed to `<file>.disabled`),
-  drag-and-drop, and identifying hand-added files by SHA-1. Mods, resource packs and shaders live in
-  the profile; data packs live in a world (`saves/<world>/datapacks`). Metadata is cached in
-  `workbench-<folder>.json` next to each folder. The profile's Content tab lists everything in one
-  place with search, sorting and type filters; dropped files are sorted into the right folder by
-  looking inside them (`.jar` → mod, `shaders/` → shader, `pack.mcmeta` → resource pack).
-- **electron/packs.cjs**: imports `.workbench`, Modrinth `.mrpack` and CurseForge `.zip` files and
-  exports `.workbench`.
-- **electron/curseforge.cjs**: CurseForge API client. CurseForge import is disabled until a key is set,
-  either as the `WORKBENCH_CURSEFORGE_KEY` environment variable or in a git-ignored
-  `electron/secrets.cjs`:
+## Project layout
 
-  ```js
-  module.exports = { CURSEFORGE_API_KEY: 'your key' };
-  ```
+- `electron/` is the main process: profiles, accounts, content, packs, servers, skins and crash checks
+- `electron/launcher/` downloads Minecraft, Java and mod loaders and starts the game
+- `src/` is the React UI
 
-  Files whose authors don't allow third-party downloads aren't fetched; the player gets links to
-  download them from CurseForge instead.
+Each profile lives in `profiles/<id>`, and the last launch's output is in `logs/workbench-launch.log`
+inside it. Shared game files (libraries, assets, Java) go in `meta/`.
 
-### The `.workbench` format (format 1)
+## The .workbench format
 
-A zip containing:
+A zip with:
 
-- `workbench.json`: `format`, `name`, `game { minecraft, loader, loaderVersion }`,
-  `settings { memoryMb, resolution }` and `mods[]`. Each mod has `fileName`, `enabled`, `sha1`, `size`
-  and, for Modrinth mods, a download `url` plus `projectId`/`versionId`.
-- `icon.png`: optional profile icon (PNG, JPEG, WebP or GIF despite the name).
-- `overrides/`: files copied into the profile (config, options.txt, resource packs, mods that
-  aren't on Modrinth, and so on).
+- `workbench.json`: the pack name, Minecraft version, loader, settings and mod list. Modrinth mods are
+  saved as download links instead of files.
+- `icon.png`: optional profile icon
+- `overrides/`: anything else copied into the profile, like configs, options.txt and mods that
+  aren't on Modrinth
 
-Downloads are only allowed from Modrinth's CDN, GitHub and GitLab, and every path is checked so a
-pack can't write outside its profile. Java arguments are never imported or exported, since they can
-run arbitrary code.
-
-## Servers
-
-- **electron/servers.cjs**: reads and writes the game's `servers.dat`, so servers added in the launcher
-  also show up in game. Unknown fields and hidden entries are kept; the previous file is kept as
-  `servers.dat_old`.
-- **electron/nbt.cjs**: a small uncompressed NBT reader/writer that keeps tag types for round trips.
-- **electron/ping.cjs**: Server List Ping (with SRV lookup) for status, player count, MOTD and icon.
-
-## Mod problems and crashes
-
-- **electron/diagnose.cjs** reads each enabled mod jar's own metadata (`fabric.mod.json`,
-  `quilt.mod.json`, `META-INF/mods.toml`, `META-INF/neoforge.mods.toml`, plus bundled jars) and reports
-  missing dependencies, declared incompatibilities, duplicate copies, mods for another Minecraft
-  version or loader, and loaders that are too old. Version checks only report a problem when a range
-  can be read for certain, so unusual version schemes never cause false alarms.
-- When the game exits with an error (or a loader stops it with an in-game error screen), the launch
-  log and newest crash report are read for known causes: missing mods, out of memory, wrong Java,
-  mixin failures and crash-report suspects. Each problem comes with fixes (disable a mod, install a
-  missing one from Modrinth, open settings).
-
-## Skins, screenshots and modpacks
-
-- **electron/skins.cjs**: the account's skin and cape through Mojang's profile API, and a local skin
-  library in `<userData>/skins`.
-- **electron/screenshots.cjs**: each profile's `screenshots/` folder, with cached thumbnails served
-  over `workbench://screenshot/…`.
-- Modrinth modpacks install through the same `.mrpack` importer as files do (`packs.installModpack`).
+Packs can only download from Modrinth, GitHub and GitLab, and can't write outside their profile.
+Java arguments are never imported or exported.
