@@ -1,0 +1,48 @@
+# Builds the Windows installer and publishes it as a GitHub Release when a version tag is pushed.
+# Installed copies of Workbench update themselves from these releases.
+#
+#   1. Bump "version" in package.json (e.g. 0.4.0) and commit.
+#   2. git tag v0.4.0 && git push origin v0.4.0
+#
+# Optional repository secrets: WORKBENCH_CURSEFORGE_KEY (turns on CurseForge in the build).
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    env:
+      CURSEFORGE_KEY: ${{ secrets.WORKBENCH_CURSEFORGE_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - name: Check the tag matches package.json
+        shell: bash
+        run: |
+          version="v$(node -p "require('./package.json').version")"
+          if [ "$version" != "$GITHUB_REF_NAME" ]; then
+            echo "Tag $GITHUB_REF_NAME doesn't match package.json version $version"
+            exit 1
+          fi
+
+      # Written into the build only; electron/secrets.cjs is git-ignored.
+      - name: Add API keys
+        if: ${{ env.CURSEFORGE_KEY != '' }}
+        run: node -e "require('fs').writeFileSync('electron/secrets.cjs', 'module.exports = ' + JSON.stringify({ CURSEFORGE_API_KEY: process.env.CURSEFORGE_KEY }) + ';')"
+
+      - run: npm run release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

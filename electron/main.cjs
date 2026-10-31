@@ -5,6 +5,29 @@ const { titleBarOverlay } = require('./titlebar.cjs');
 const icons = require('./icons.cjs');
 const screenshots = require('./screenshots.cjs');
 const skins = require('./skins.cjs');
+const opened = require('./opened.cjs');
+const updater = require('./updater.cjs');
+
+// One Workbench at a time. Opening a pack file while it runs hands the file to the open window.
+const isFirstInstance = app.requestSingleInstanceLock();
+if (!isFirstInstance) {
+  app.quit();
+} else {
+  opened.opened(opened.packFromArgs(process.argv));
+  app.on('second-instance', (_e, argv) => {
+    const win = BrowserWindow.getAllWindows()[0];
+    if (win) {
+      if (win.isMinimized()) win.restore();
+      win.show();
+      win.focus();
+    }
+    opened.opened(opened.packFromArgs(argv));
+  });
+}
+app.on('open-file', (e, file) => {
+  e.preventDefault();
+  opened.opened(file);
+});
 
 // workbench:// serves local images to the renderer:
 //   profile-icon/<id>, screenshot/<profileId>/<file>[?thumb=1], skin/<libraryId>
@@ -66,10 +89,14 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
+  if (!isFirstInstance) return;
   registerProtocol();
   registerIpc();
   createWindow();
   require('./discord.cjs').start();
+  const { broadcast } = require('./game.cjs');
+  opened.listen((file) => broadcast({ type: 'open-pack', path: file }));
+  updater.start(broadcast);
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });

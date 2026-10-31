@@ -3,6 +3,8 @@ import Sidebar from './components/Sidebar';
 import TitleBar, { type Crumb } from './components/TitleBar';
 import Toasts from './components/Toasts';
 import CrashModal from './components/CrashModal';
+import CreateProfileModal, { type Mode as CreateMode } from './components/CreateProfileModal';
+import Welcome, { type WelcomeChoice } from './components/Welcome';
 import ProfilesPage from './pages/ProfilesPage';
 import ProfilePage, { type ProfileTab } from './pages/ProfilePage';
 import BrowsePage from './pages/BrowsePage';
@@ -12,7 +14,7 @@ import { api, errorMessage } from './api';
 import { useTheme } from './useTheme';
 import { useToasts } from './useToasts';
 import { useLaunches } from './useLaunches';
-import type { AccountsState, CrashReport, Page, Profile, QuickPlay, Route } from './types';
+import type { AccountsState, CrashReport, Page, Profile, QuickPlay, Route, UpdateStatus } from './types';
 
 const PAGE_TITLES: Record<Page, string> = {
   profiles: 'Profiles',
@@ -29,6 +31,10 @@ export default function App() {
   const [profiles, setProfiles] = useState<Profile[] | null>(null);
   const [accounts, setAccounts] = useState<AccountsState>({ configured: true, activeId: null, accounts: [] });
   const [crash, setCrash] = useState<{ profileId: string; report: CrashReport } | null>(null);
+  // Create/import opened from outside the Profiles page: the welcome, or a pack opened from Explorer.
+  const [creating, setCreating] = useState<{ mode: CreateMode; file?: string } | null>(null);
+  const [welcomed, setWelcomed] = useState<boolean | null>(null);
+  const [update, setUpdate] = useState<UpdateStatus | null>(null);
   const { preference, setPreference } = useTheme();
   const { toasts, pushToast, dismissToast } = useToasts();
   const route = history[history.length - 1];
@@ -66,6 +72,42 @@ export default function App() {
     refreshProfiles();
     refreshAccounts();
   }, [refreshProfiles, refreshAccounts]);
+
+  useEffect(() => {
+    api.settings
+      .get()
+      .then((s) => setWelcomed(s.welcomed))
+      .catch(() => setWelcomed(true));
+    api.updates.status().then(setUpdate).catch(() => {});
+    // A pack double-clicked in Explorer, whether it started Workbench or arrived while it was open.
+    api.system
+      .takeOpenedFile()
+      .then((file) => file && setCreating({ mode: 'import', file }))
+      .catch(() => {});
+    return api.game.onEvent((event) => {
+      if (event.type === 'open-pack') setCreating({ mode: 'import', file: event.path });
+      if (event.type === 'update') {
+        const { type: _type, ...status } = event;
+        setUpdate(status);
+      }
+    });
+  }, []);
+
+  const finishWelcome = (choice: WelcomeChoice) => {
+    setWelcomed(true);
+    api.settings.set({ welcomed: true }).catch(() => {});
+    if (choice === 'browse') navigate({ page: 'browse' });
+    if (choice === 'new' || choice === 'import') setCreating({ mode: choice });
+  };
+
+  // Someone who already has profiles (from before the welcome existed) doesn't need it.
+  const showWelcome = welcomed === false && profiles !== null && profiles.length === 0;
+  useEffect(() => {
+    if (welcomed === false && profiles && profiles.length > 0) {
+      setWelcomed(true);
+      api.settings.set({ welcomed: true }).catch(() => {});
+    }
+  }, [welcomed, profiles]);
 
   // Accepts a promise from any accounts:* call and applies the resulting state.
   const updateAccounts = useCallback(
@@ -130,6 +172,8 @@ export default function App() {
         onLogin={login}
         onSwitchAccount={(id) => updateAccounts(api.accounts.setActive(id))}
         onLogout={(id) => updateAccounts(api.accounts.logout(id))}
+        update={update}
+        onInstallUpdate={() => api.updates.install().catch((err) => pushToast(errorMessage(err)))}
       />
       <main className="main">
         {route.page === 'profiles' && (
@@ -178,6 +222,19 @@ export default function App() {
           onOpenTab={(tab) => openProfile(crashedProfile.id, tab)}
           onError={pushToast}
         />
+      )}
+      {creating && (
+        <CreateProfileModal
+          // A second pack opened from Explorer starts a fresh import.
+          key={creating.file ?? creating.mode}
+          initialMode={creating.mode}
+          initialFile={creating.file}
+          onClose={() => setCreating(null)}
+          onCreated={addProfile}
+        />
+      )}
+      {showWelcome && (
+        <Welcome accounts={accounts} onLogin={login} theme={preference} onThemeChange={setPreference} onDone={finishWelcome} />
       )}
       <Toasts toasts={toasts} onDismiss={dismissToast} />
     </div>

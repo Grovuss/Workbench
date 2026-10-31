@@ -9,25 +9,83 @@
     "dev": "concurrently -k -n vite,electron -c yellow,gray \"vite\" \"wait-on tcp:5173 && cross-env VITE_DEV_SERVER_URL=http://localhost:5173 node scripts/electron.cjs\"",
     "build": "tsc --noEmit && vite build",
     "start": "npm run build && node scripts/electron.cjs",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "dist": "npm run build && electron-builder --win --publish never",
+    "release": "npm run build && electron-builder --win --publish always"
   },
   "dependencies": {
-    "@fontsource/baloo-2": "^5.1.0",
-    "@fontsource/nunito-sans": "^5.1.0",
     "adm-zip": "^0.5.16",
-    "lucide-react": "^0.460.0",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1"
+    "electron-updater": "^6.8.11"
   },
   "devDependencies": {
+    "@fontsource/baloo-2": "^5.1.0",
+    "@fontsource/nunito-sans": "^5.1.0",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
     "@vitejs/plugin-react": "^4.3.4",
     "concurrently": "^9.1.0",
     "cross-env": "^7.0.3",
     "electron": "^33.2.0",
+    "electron-builder": "^25.1.8",
+    "lucide-react": "^0.460.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
     "typescript": "^5.6.3",
     "vite": "^5.4.11",
     "wait-on": "^8.0.1"
+  },
+  "author": "Grovuss",
+  "homepage": "https://github.com/Grovuss/Workbench",
+  "build": {
+    "appId": "com.grovuss.workbench",
+    "productName": "Workbench",
+    "copyright": "Copyright © 2026 Grovuss",
+    "directories": {
+      "output": "release",
+      "buildResources": "build"
+    },
+    "files": [
+      "dist/**/*",
+      "electron/**/*",
+      "build/icon.png",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.png",
+      "artifactName": "Workbench-Setup-${version}.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Workbench",
+      "deleteAppDataOnUninstall": false
+    },
+    "fileAssociations": [
+      {
+        "ext": "workbench",
+        "name": "Workbench pack",
+        "description": "Workbench modpack",
+        "role": "Editor"
+      }
+    ],
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "Grovuss",
+        "repo": "Workbench",
+        "releaseType": "release"
+      }
+    ]
   }
 }

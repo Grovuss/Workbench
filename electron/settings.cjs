@@ -9,13 +9,15 @@ const withLock = createLock();
 const totalMemoryMb = () => Math.floor(os.totalmem() / 1024 / 1024);
 
 const LAUNCHER_ON_LAUNCH = ['keep', 'minimize', 'hide'];
-const TOGGLES = ['autoBackup', 'discordPresence', 'discordShowProfile', 'shareOptions', 'fullscreen'];
+const TOGGLES = ['welcomed', 'autoBackup', 'discordPresence', 'discordShowProfile', 'shareOptions', 'fullscreen'];
 const TEXTS = ['jvmArgs', 'preLaunchCommand', 'postExitCommand'];
 
 function defaults() {
   // A quarter of system RAM, between 1 GB and 4 GB, in 512 MB steps.
   const quarter = Math.floor(totalMemoryMb() / 4 / 512) * 512;
   return {
+    // Set once the first-run welcome has been seen (or skipped).
+    welcomed: false,
     memoryMb: Math.min(4096, Math.max(1024, quarter)),
     // Added before each profile's own Java arguments.
     jvmArgs: '',

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import {
   Check,
   ClipboardCopy,
+  Download,
   Coffee,
   FolderOpen,
   Gamepad2,
@@ -23,7 +24,7 @@ import Modal from '../components/Modal';
 import { api, errorMessage } from '../api';
 import { formatBytes, formatGb, maxMemoryMb } from '../memory';
 import { reduceMotionStored, setReduceMotion } from '../motion';
-import type { LauncherOnLaunch, Settings, StorageUsage, SystemInfo, ThemePreference } from '../types';
+import type { LauncherOnLaunch, Settings, StorageUsage, SystemInfo, ThemePreference, UpdateStatus } from '../types';
 
 const THEMES: { id: ThemePreference; label: string; icon: typeof Sun }[] = [
   { id: 'light', label: 'Light', icon: Sun },
@@ -47,7 +48,7 @@ const SECTIONS = [
   { id: 'worlds', label: 'Worlds', icon: Globe },
   { id: 'discord', label: 'Discord', icon: Users },
   { id: 'storage', label: 'Storage', icon: HardDrive },
-  { id: 'help', label: 'Troubleshooting', icon: LifeBuoy },
+  { id: 'help', label: 'Updates & help', icon: LifeBuoy },
 ] as const;
 
 type SectionId = (typeof SECTIONS)[number]['id'];
@@ -91,7 +92,16 @@ export default function SettingsPage({ theme, onThemeChange, onError }: Props) {
       const el = document.getElementById(`settings-${s.id}`);
       if (el) observer.observe(el);
     }
-    return () => observer.disconnect();
+    // The last section is too short to reach the top, so the bottom of the page counts as it.
+    const main = document.querySelector('.main');
+    const onScroll = () => {
+      if (main && main.scrollTop + main.clientHeight >= main.scrollHeight - 4) setActive(SECTIONS[SECTIONS.length - 1].id);
+    };
+    main?.addEventListener('scroll', onScroll);
+    return () => {
+      observer.disconnect();
+      main?.removeEventListener('scroll', onScroll);
+    };
   }, [settings]);
 
   /** Shows the change straight away and saves it, after a pause for text that's still being typed. Half-typed numbers aren't saved. */
@@ -331,7 +341,8 @@ export default function SettingsPage({ theme, onThemeChange, onError }: Props) {
             </Row>
           </Section>
 
-          <Section id="help" title="Troubleshooting">
+          <Section id="help" title="Updates & help">
+            <UpdatesRow version={system.version} onError={onError} />
             <SystemInfoRow system={system} />
             <JavaRow onError={onError} />
             <ResetRow
@@ -393,7 +404,7 @@ function StorageRow({ onError }: { onError: (message: string) => void }) {
   return (
     <div className="settings-row settings-row-stacked">
       <div>
-        <h3>Space used{usage && <span className="settings-usage-total"> · {formatBytes(total)}</span>}</h3>
+        <h3>Space used{usage && total > 0 && <span className="settings-usage-total"> · {formatBytes(total)}</span>}</h3>
         <p>Shared game files are the versions, libraries and sounds every profile reuses.</p>
       </div>
       {usage ? (
@@ -408,7 +419,7 @@ function StorageRow({ onError }: { onError: (message: string) => void }) {
               <li key={p.key}>
                 <span className={`usage-swatch usage-${p.key}`} />
                 {p.label}
-                <strong>{formatBytes(usage[p.key])}</strong>
+                <strong>{usage[p.key] ? formatBytes(usage[p.key]) : 'None'}</strong>
               </li>
             ))}
           </ul>
@@ -417,6 +428,62 @@ function StorageRow({ onError }: { onError: (message: string) => void }) {
         <p className="settings-usage-loading">Adding it up…</p>
       )}
     </div>
+  );
+}
+
+function updateText(status: UpdateStatus | null, version: string) {
+  switch (status?.state) {
+    case 'unsupported':
+      return `You’re on v${version}. Development builds don’t update themselves.`;
+    case 'checking':
+      return 'Checking for a new version…';
+    case 'downloading':
+      return `Downloading v${status.version}${status.percent ? ` (${status.percent}%)` : ''}…`;
+    case 'ready':
+      return `v${status.version} is ready. Restart Workbench to install it.`;
+    case 'latest':
+      return `You’re on the newest version, v${version}.`;
+    case 'error':
+      return `Couldn’t check for updates. You’re on v${version}.`;
+    default:
+      return `You’re on v${version}. New versions download by themselves and install when you restart.`;
+  }
+}
+
+function UpdatesRow({ version, onError }: { version: string; onError: (message: string) => void }) {
+  const [status, setStatus] = useState<UpdateStatus | null>(null);
+  useEffect(() => {
+    api.updates.status().then(setStatus).catch(() => {});
+    return api.game.onEvent((event) => {
+      if (event.type === 'update') {
+        const { type: _type, ...next } = event;
+        setStatus(next);
+      }
+    });
+  }, []);
+
+  const busy = status?.state === 'checking' || status?.state === 'downloading';
+  return (
+    <Row title="Updates" description={updateText(status, version)}>
+      {status?.state === 'ready' ? (
+        <button className="btn btn-primary" onClick={() => api.updates.install().catch((err) => onError(errorMessage(err)))}>
+          <Download size={15} /> Restart to update
+        </button>
+      ) : (
+        <button
+          className="btn btn-secondary"
+          disabled={busy || status?.state === 'unsupported'}
+          onClick={() =>
+            api.updates
+              .check()
+              .then(setStatus)
+              .catch((err) => onError(errorMessage(err)))
+          }
+        >
+          <RefreshCw size={15} className={busy ? 'spin' : undefined} /> Check now
+        </button>
+      )}
+    </Row>
   );
 }
 

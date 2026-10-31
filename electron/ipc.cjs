@@ -1,7 +1,7 @@
 const fsp = require('node:fs/promises');
 const os = require('node:os');
 const path = require('node:path');
-const { app, BrowserWindow, dialog, ipcMain, shell } = require('electron');
+const { BrowserWindow, dialog, ipcMain, shell } = require('electron');
 const icons = require('./icons.cjs');
 const content = require('./content.cjs');
 const curseforge = require('./curseforge.cjs');
@@ -25,6 +25,8 @@ const game = require('./game.cjs');
 const profiles = require('./profiles.cjs');
 const settings = require('./settings.cjs');
 const storage = require('./storage.cjs');
+const updater = require('./updater.cjs');
+const opened = require('./opened.cjs');
 const { getManifest } = require('./launcher/versions.cjs');
 const { supportedGameVersions, loaderVersions } = require('./launcher/loaders.cjs');
 
@@ -93,6 +95,17 @@ async function openDir(dir) {
   await fsp.mkdir(dir, { recursive: true });
   const err = await shell.openPath(dir);
   if (err) throw new Error(err);
+}
+
+/** "Windows 11 (build 26200, x64)" rather than Node's "Windows_NT 10.0.26200". */
+function osName() {
+  const release = os.release();
+  if (process.platform === 'win32') {
+    const build = Number(release.split('.')[2]);
+    return `Windows ${build >= 22000 ? 11 : 10} (build ${build}, ${process.arch})`;
+  }
+  if (process.platform === 'darwin') return `macOS (Darwin ${release}, ${process.arch})`;
+  return `${os.type()} ${release} (${process.arch})`;
 }
 
 function registerIpc() {
@@ -372,11 +385,15 @@ function registerIpc() {
     dataDir: paths.root(),
     curseforge: curseforge.enabled(),
     discord: discord.configured(),
-    version: app.getVersion(),
-    os: `${os.type()} ${os.release()} (${process.arch})`,
+    version: require('../package.json').version,
+    os: osName(),
     electron: process.versions.electron,
   }));
   handle('system:usage', () => storage.usage());
+  handle('system:takeOpenedFile', () => opened.take());
+  handle('updates:status', () => updater.status());
+  handle('updates:check', () => updater.check());
+  handle('updates:install', () => updater.install());
   handle('system:removeJava', async () => {
     if (Object.keys(game.status()).length) throw new Error('Close the game first.');
     await storage.removeJava();

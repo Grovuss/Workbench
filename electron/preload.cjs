@@ -156,8 +156,14 @@ contextBridge.exposeInMainWorld('workbench', {
     info: () => invoke('system:info'),
     openDataFolder: () => invoke('system:openDataFolder'),
     usage: () => invoke('system:usage'),
-    removeJava: () => invoke('system:removeJava'),
     openCurseForge: (url) => invoke('system:openCurseForge', url),
+    removeJava: () => invoke('system:removeJava'),
+    takeOpenedFile: () => invoke('system:takeOpenedFile'),
+  },
+  updates: {
+    status: () => invoke('updates:status'),
+    check: () => invoke('updates:check'),
+    install: () => invoke('updates:install'),
   },
   window: {
     setTheme: (dark) => invoke('window:setTheme', dark),

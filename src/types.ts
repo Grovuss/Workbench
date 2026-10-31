@@ -224,6 +224,7 @@ export interface AccountsState {
 export type LauncherOnLaunch = 'keep' | 'minimize' | 'hide';
 
 export interface Settings {
+  welcomed: boolean;
   memoryMb: number;
   /** Added before each profile's own Java arguments. */
   jvmArgs: string;
@@ -282,7 +283,16 @@ export type GameEvent =
   | { type: 'profiles-changed' }
   | ({ type: 'import-progress' } & ImportProgress)
   | { type: 'crash'; profileId: string; report: CrashReport }
-  | { type: 'worlds-backed-up'; profileId: string; count: number };
+  | { type: 'worlds-backed-up'; profileId: string; count: number }
+  | { type: 'open-pack'; path: string }
+  | ({ type: 'update' } & UpdateStatus);
+
+export interface UpdateStatus {
+  state: 'unsupported' | 'idle' | 'checking' | 'downloading' | 'ready' | 'latest' | 'error';
+  version?: string;
+  percent?: number;
+  message?: string;
+}
 
 export interface WorkbenchApi {
   platform: string;
@@ -467,8 +477,16 @@ export interface WorkbenchApi {
     openDataFolder(): Promise<void>;
     usage(): Promise<StorageUsage>;
     /** Deletes the downloaded Java runtimes so the next launch fetches them fresh. */
-    removeJava(): Promise<void>;
     openCurseForge(url: string): Promise<void>;
+    removeJava(): Promise<void>;
+    /** A pack file Workbench was opened with, before the window was ready; null after the first call. */
+    takeOpenedFile(): Promise<string | null>;
+  };
+  updates: {
+    status(): Promise<UpdateStatus>;
+    check(): Promise<UpdateStatus>;
+    /** Restarts into a downloaded update. */
+    install(): Promise<void>;
   };
   window: {
     setTheme(dark: boolean): Promise<void>;

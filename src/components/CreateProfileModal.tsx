@@ -1,4 +1,4 @@
-import { useEffect, useState, type DragEvent, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type DragEvent, type FormEvent } from 'react';
 import { ExternalLink, FileDown, Package, QrCode, Upload } from 'lucide-react';
 import logo from '../assets/logo.svg';
 import Modal from './Modal';
@@ -10,15 +10,20 @@ import type { ImportProgress, ImportResult, MissingPackFile, PackKind, Profile, 
 
 const INITIAL_SELECTION: VersionSelection = { mcVersion: '', loader: 'vanilla', loaderVersion: null };
 
-type Mode = 'new' | 'import';
+export type Mode = 'new' | 'import';
 
 interface Props {
   onClose: () => void;
   onCreated: (profile: Profile) => void;
+  /** Opens on Import and imports this pack straight away, e.g. one double-clicked in Explorer. */
+  initialFile?: string;
+  /** Opens on the Import tab. */
+  initialMode?: Mode;
 }
 
-export default function CreateProfileModal({ onClose, onCreated }: Props) {
-  const [mode, setMode] = useState<Mode>('new');
+export default function CreateProfileModal({ onClose, onCreated, initialFile, initialMode }: Props) {
+  const [mode, setMode] = useState<Mode>(initialFile ? 'import' : (initialMode ?? 'new'));
+  const startedFile = useRef(false);
   const [name, setName] = useState('');
   const [selection, setSelection] = useState(INITIAL_SELECTION);
   const [error, setError] = useState<string | null>(null);
@@ -75,6 +80,13 @@ export default function CreateProfileModal({ onClose, onCreated }: Props) {
   };
 
   const pick = (kind: PackKind) => run(() => api.packs.import(kind));
+
+  // Once, even though React runs effects twice in development.
+  useEffect(() => {
+    if (!initialFile || startedFile.current) return;
+    startedFile.current = true;
+    run(() => api.packs.importFile(initialFile));
+  }, [initialFile]);
 
   const changeCode = (text: string) => {
     setCode(text);

@@ -1,7 +1,7 @@
-import { Compass, Layers, Settings, Shirt, type LucideIcon } from 'lucide-react';
+import { Compass, Download, Layers, Settings, Shirt, type LucideIcon } from 'lucide-react';
 import AccountMenu from './AccountMenu';
 import { version } from '../../package.json';
-import type { AccountsState, Page } from '../types';
+import type { AccountsState, Page, UpdateStatus } from '../types';
 
 const NAV: { id: Page; label: string; icon: LucideIcon }[] = [
   { id: 'profiles', label: 'Profiles', icon: Layers },
@@ -17,9 +17,11 @@ interface Props {
   onLogin: () => void;
   onSwitchAccount: (id: string) => void;
   onLogout: (id: string) => void;
+  update: UpdateStatus | null;
+  onInstallUpdate: () => void;
 }
 
-export default function Sidebar({ page, onNavigate, accounts, onLogin, onSwitchAccount, onLogout }: Props) {
+export default function Sidebar({ page, onNavigate, accounts, onLogin, onSwitchAccount, onLogout, update, onInstallUpdate }: Props) {
   return (
     <aside className="sidebar">
       <nav className="nav" aria-label="Main">
@@ -38,7 +40,17 @@ export default function Sidebar({ page, onNavigate, accounts, onLogin, onSwitchA
 
       <div className="sidebar-footer">
         <AccountMenu accounts={accounts} onLogin={onLogin} onSwitch={onSwitchAccount} onLogout={onLogout} />
-        <span className="sidebar-version">Workbench v{version}</span>
+        {update?.state === 'ready' ? (
+          <button className="sidebar-update" onClick={onInstallUpdate} title="Restarts Workbench into the new version">
+            <Download size={15} />
+            <span>
+              Update to v{update.version}
+              <small>Restart to install</small>
+            </span>
+          </button>
+        ) : (
+          <span className="sidebar-version">Workbench v{version}</span>
+        )}
       </div>
     </aside>
   );

@@ -4383,3 +4383,229 @@ select.input option {
   flex: 1;
   min-width: 0;
 }
+
+/* ---------- Update ready (sidebar) ---------- */
+.sidebar-update {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  background: var(--nav-active-bg);
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 800;
+  text-align: left;
+}
+
+.sidebar-update svg {
+  flex: none;
+  color: var(--accent);
+}
+
+.sidebar-update small {
+  display: block;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.sidebar-update:hover {
+  background: color-mix(in srgb, var(--accent) 22%, var(--nav-active-bg));
+}
+
+/* ---------- First-run welcome ---------- */
+.welcome {
+  position: fixed;
+  inset: var(--titlebar-height) 0 0 0;
+  z-index: 50;
+  display: grid;
+  place-items: center;
+  overflow-y: auto;
+  padding: 32px 16px;
+  background: var(--bg-app);
+}
+
+.welcome-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: min(620px, 100%);
+  text-align: center;
+}
+
+.welcome-logo {
+  width: 64px;
+  height: 64px;
+  margin-bottom: 22px;
+}
+
+.welcome-steps {
+  display: flex;
+  gap: 18px;
+  margin: 0 0 28px;
+  padding: 0;
+  list-style: none;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--text-faint);
+}
+
+.welcome-steps li {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.welcome-steps li[aria-current],
+.welcome-steps li[data-done] {
+  color: var(--text);
+}
+
+.welcome-step-dot {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--bg-muted);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.welcome-steps li[aria-current] .welcome-step-dot,
+.welcome-steps li[data-done] .welcome-step-dot {
+  background: var(--accent);
+  color: var(--accent-text);
+}
+
+.welcome h1 {
+  margin: 0 0 10px;
+  font-family: var(--font-display);
+  font-size: 34px;
+  line-height: 1.1;
+}
+
+.welcome-lead {
+  max-width: 480px;
+  margin: 0 0 26px;
+  font-size: 15px;
+  line-height: 1.55;
+  color: var(--text-muted);
+}
+
+.welcome .btn-lg {
+  padding: 12px 22px;
+  font-size: 15px;
+}
+
+.welcome-signed-in {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--success) 14%, transparent);
+  font-weight: 700;
+}
+
+.welcome-signed-in svg {
+  color: var(--success);
+}
+
+.welcome-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 22px;
+}
+
+.welcome-note {
+  margin: 14px 0 0;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text-faint);
+}
+
+.welcome-themes,
+.welcome-choices {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  width: 100%;
+}
+
+.welcome-theme,
+.welcome-choice {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--bg-surface);
+  text-align: left;
+}
+
+.welcome-theme:hover,
+.welcome-choice:hover {
+  border-color: var(--border-strong);
+  background: var(--bg-surface-hover);
+}
+
+.welcome-theme[aria-pressed='true'] {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+.welcome-theme strong,
+.welcome-choice strong {
+  font-size: 14.5px;
+  font-weight: 800;
+}
+
+.welcome-theme small,
+.welcome-choice small {
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 1.45;
+  color: var(--text-muted);
+}
+
+.welcome-choice svg {
+  margin-bottom: 6px;
+  color: var(--accent);
+}
+
+/* A preview of each look, in its own colours whatever the current theme. */
+.welcome-theme-swatch {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 64px;
+  margin-bottom: 8px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+}
+
+.welcome-theme-light .welcome-theme-swatch {
+  background: #fef3dd;
+  color: #2a2a2b;
+}
+
+.welcome-theme-dark .welcome-theme-swatch {
+  background: #2a2a2b;
+  color: #fec424;
+}
+
+.welcome-theme-system .welcome-theme-swatch {
+  background: linear-gradient(135deg, #fef3dd 50%, #2a2a2b 50%);
+  color: #fec424;
+}
+
+@media (max-width: 640px) {
+  .welcome-themes,
+  .welcome-choices {
+    grid-template-columns: 1fr;
+  }
+}
