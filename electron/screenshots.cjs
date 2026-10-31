@@ -34,7 +34,8 @@ async function list(profileId) {
 
 async function remove(profileId, fileName) {
   const full = await file(profileId, fileName);
-  await fsp.rm(full, { force: true });
+  // Recycle Bin, so a stray click on a grid tile can be undone.
+  await shell.trashItem(full).catch(() => fsp.rm(full, { force: true }));
   const profile = await profiles.get(profileId);
   if (profile.cover === path.basename(full)) await profiles.update(profileId, { cover: null });
   return list(profileId);

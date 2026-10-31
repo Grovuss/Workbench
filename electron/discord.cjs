@@ -17,7 +17,7 @@ let socket = null;
 let connecting = null;
 
 function socketPath(i) {
-  if (process.platform === 'win32') return `\\\\?\\pipe\\discord-ipc-${i}`;
+  if (process.platform === 'win32') return `\\\\.\\pipe\\discord-ipc-${i}`;
   const dir = process.env.XDG_RUNTIME_DIR || process.env.TMPDIR || process.env.TMP || '/tmp';
   return path.join(dir, `discord-ipc-${i}`);
 }
@@ -50,10 +50,18 @@ async function connect() {
         s.on('close', () => {
           if (socket === s) socket = null;
         });
-        // Replies aren't needed; reading keeps the pipe from filling up.
+        // Discord ignores activity sent before it answers the handshake with READY.
+        const ready = new Promise((resolve) => {
+          s.once('data', resolve);
+          s.once('close', resolve);
+          setTimeout(resolve, 5000);
+        });
+        // Later replies aren't needed; reading keeps the pipe from filling up.
         s.on('data', () => {});
         socket = s;
         send(OP_HANDSHAKE, { v: 1, client_id: DISCORD_CLIENT_ID });
+        await ready;
+        if (socket !== s) continue;
         return s;
       } catch {}
     }

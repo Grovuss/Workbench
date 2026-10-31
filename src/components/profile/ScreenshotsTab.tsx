@@ -56,6 +56,14 @@ export default function ScreenshotsTab({ profile, running, onUpdated, onError, o
     }
   };
 
+  const copy = (shot: Screenshot) =>
+    api.screenshots
+      .copy(profileId, shot.fileName)
+      .then(() => onSuccess('Screenshot copied.'))
+      .catch((err) => onError(errorMessage(err)));
+  const reveal = (shot: Screenshot) => api.screenshots.reveal(profileId, shot.fileName).catch((err) => onError(errorMessage(err)));
+  const toggleCover = (shot: Screenshot) => setCover(shot.fileName === profile.cover ? null : shot.fileName);
+
   return (
     <>
       <div className="toolbar">
@@ -79,11 +87,32 @@ export default function ScreenshotsTab({ profile, running, onUpdated, onError, o
       ) : (
         <div className="shot-grid">
           {shots.map((shot, i) => (
-            <button key={shot.fileName} className="shot" onClick={() => setOpen(i)} aria-label={`Open screenshot from ${dateFmt.format(new Date(shot.takenAt))}`}>
-              <img src={src(profileId, shot, true)} alt="" loading="lazy" />
+            <div key={shot.fileName} className="shot">
+              <button className="shot-open" onClick={() => setOpen(i)} aria-label={`Open screenshot from ${dateFmt.format(new Date(shot.takenAt))}`}>
+                <img src={src(profileId, shot, true)} alt="" loading="lazy" />
+              </button>
               <span className="shot-date">{timeAgo(shot.takenAt)}</span>
               {shot.fileName === profile.cover && <span className="shot-cover">Cover</span>}
-            </button>
+              <div className="shot-actions">
+                <button
+                  className="shot-action"
+                  title={shot.fileName === profile.cover ? 'Remove cover' : 'Use as cover'}
+                  aria-label={shot.fileName === profile.cover ? 'Remove cover' : 'Use as cover'}
+                  onClick={() => toggleCover(shot)}
+                >
+                  {shot.fileName === profile.cover ? <ImageOff size={15} /> : <PanelTop size={15} />}
+                </button>
+                <button className="shot-action" title="Copy" aria-label="Copy" onClick={() => copy(shot)}>
+                  <Copy size={15} />
+                </button>
+                <button className="shot-action" title="Show in folder" aria-label="Show in folder" onClick={() => reveal(shot)}>
+                  <FolderOpen size={15} />
+                </button>
+                <button className="shot-action shot-action-danger" title="Delete" aria-label="Delete" onClick={() => remove(shot)}>
+                  <Trash2 size={15} />
+                </button>
+              </div>
+            </div>
           ))}
         </div>
       )}
@@ -93,19 +122,14 @@ export default function ScreenshotsTab({ profile, running, onUpdated, onError, o
           image={src(profileId, current, false)}
           caption={dateFmt.format(new Date(current.takenAt))}
           isCover={current.fileName === profile.cover}
-          onCover={() => setCover(current.fileName === profile.cover ? null : current.fileName)}
+          onCover={() => toggleCover(current)}
           hasPrev={open > 0}
           hasNext={open < shots.length - 1}
           onPrev={() => setOpen(open - 1)}
           onNext={() => setOpen(open + 1)}
           onClose={close}
-          onCopy={() =>
-            api.screenshots
-              .copy(profileId, current.fileName)
-              .then(() => onSuccess('Screenshot copied.'))
-              .catch((err) => onError(errorMessage(err)))
-          }
-          onReveal={() => api.screenshots.reveal(profileId, current.fileName).catch((err) => onError(errorMessage(err)))}
+          onCopy={() => copy(current)}
+          onReveal={() => reveal(current)}
           onDelete={() => remove(current)}
         />
       )}

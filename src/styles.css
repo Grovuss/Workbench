@@ -2743,7 +2743,16 @@ select.input option {
   background: var(--bg-muted);
 }
 
+.shot-open {
+  display: block;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+}
+
 .shot img {
+  display: block;
   width: 100%;
   height: 100%;
   object-fit: cover;
@@ -2754,9 +2763,14 @@ select.input option {
   transform: scale(1.03);
 }
 
-.shot:focus-visible {
+.shot-open:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
+}
+
+.shot-date,
+.shot-cover {
+  pointer-events: none;
 }
 
 .shot-date {
@@ -2774,7 +2788,7 @@ select.input option {
 .shot-cover {
   position: absolute;
   top: 8px;
-  right: 8px;
+  left: 8px;
   padding: 2px 8px;
   border-radius: 999px;
   background: var(--accent);
@@ -2783,16 +2797,52 @@ select.input option {
   font-weight: 800;
 }
 
+/* Quick actions on each tile, shown on hover or keyboard focus. */
+.shot-actions {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  display: flex;
+  gap: 4px;
+  opacity: 0;
+  transition: opacity 120ms;
+}
+
+.shot:hover .shot-actions,
+.shot:focus-within .shot-actions {
+  opacity: 1;
+}
+
+.shot-action {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: var(--radius-sm);
+  background: rgba(20, 20, 21, 0.72);
+  color: #f6f1e6;
+}
+
+.shot-action:hover {
+  background: rgba(20, 20, 21, 0.92);
+  color: #fff;
+}
+
+.shot-action-danger:hover {
+  color: #ff8080;
+}
+
+/* Starts below the title bar: its drag region would swallow clicks on anything over it. */
 .lightbox {
   position: fixed;
-  inset: 0;
+  inset: var(--titlebar-height) 0 0 0;
   z-index: 60;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   padding: 64px 72px 32px;
-  background: rgba(12, 12, 13, 0.88);
+  background: rgba(12, 12, 13, 0.92);
   animation: fade-in 120ms ease-out;
 }
 
