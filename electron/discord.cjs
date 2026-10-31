@@ -72,6 +72,7 @@ function activityFor({ profile, startedAt }) {
     details: profile.name.slice(0, 128),
     state: profile.loader === 'vanilla' ? `Minecraft ${profile.mcVersion}` : loader,
     timestamps: { start: startedAt },
+    assets: { large_image: 'logo', large_text: 'Workbench' },
     instance: false,
   };
 }

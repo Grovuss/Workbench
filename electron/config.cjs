@@ -18,7 +18,7 @@ const DEV_OFFLINE_NAME = 'Grovus';
 const CURSEFORGE_API_KEY = process.env.WORKBENCH_CURSEFORGE_KEY || secrets.CURSEFORGE_API_KEY || '';
 
 // Discord application id for Rich Presence (discord.com/developers/applications). The app's
-// name and icon are what Discord shows. Leave empty to turn Rich Presence off.
-const DISCORD_CLIENT_ID = process.env.WORKBENCH_DISCORD_CLIENT_ID || '';
+// name and its "logo" art asset are what Discord shows. Not a secret.
+const DISCORD_CLIENT_ID = process.env.WORKBENCH_DISCORD_CLIENT_ID ?? '1566157840568164352';
 
 module.exports = { MSA_CLIENT_ID, DEV_OFFLINE_NAME, CURSEFORGE_API_KEY, DISCORD_CLIENT_ID };
