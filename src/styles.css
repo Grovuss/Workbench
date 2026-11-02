@@ -3335,10 +3335,11 @@ select.input option {
 }
 
 .skin-stage {
+  position: relative;
   display: grid;
   place-items: center;
-  min-height: 330px;
-  padding: 20px;
+  height: 380px;
+  overflow: hidden;
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   background:
@@ -3429,16 +3430,43 @@ select.input option {
   flex-direction: column;
   align-items: center;
   gap: 8px;
-  padding: 14px 12px 12px;
+  padding: 6px 6px 12px;
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   background: var(--bg-surface);
+}
+
+/* The picture and name: click to wear. */
+.skin-card-wear {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  width: 100%;
+  padding: 8px 6px 10px;
+  border-radius: var(--radius-md);
+  transition: background 120ms;
+}
+
+.skin-card-wear:hover:not(:disabled) {
+  background: var(--bg-surface-hover);
+}
+
+.skin-card-wear:hover:not(:disabled) .skin-card-name {
+  color: var(--accent);
 }
 
 .skin-card-preview {
   display: grid;
   place-items: center;
   height: 168px;
+  margin-bottom: 6px;
+}
+
+.skin-card-cape {
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 700;
 }
 
 .skin-card-name {
@@ -5762,4 +5790,23 @@ select.input option {
   margin: 12px 0 0;
   color: var(--text-muted);
   font-size: 13px;
+}
+
+/* ---------- 3D skin ---------- */
+.skin-3d {
+  width: 100%;
+  height: 100%;
+}
+
+.skin-3d canvas {
+  display: block;
+  cursor: grab;
+}
+
+.skin-3d canvas:active {
+  cursor: grabbing;
+}
+
+.skin-library .profile-group-head {
+  margin-bottom: 10px;
 }

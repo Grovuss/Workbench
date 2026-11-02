@@ -89,6 +89,7 @@ contextBridge.exposeInMainWorld('workbench', {
     saveCurrent: () => invoke('skins:saveCurrent'),
     update: (id, patch) => invoke('skins:update', id, patch),
     remove: (id) => invoke('skins:remove', id),
+    renameGroup: (from, to) => invoke('skins:renameGroup', from, to),
   },
   modpacks: {
     search: (options) => invoke('modpacks:search', options),

@@ -1,7 +1,7 @@
 const fsp = require('node:fs/promises');
 const path = require('node:path');
 const { randomUUID } = require('node:crypto');
-const { nativeImage } = require('electron');
+const { app, nativeImage } = require('electron');
 const auth = require('./auth.cjs');
 const paths = require('./paths.cjs');
 const { readJson, writeJson, createLock } = require('./store.cjs');
@@ -97,18 +97,44 @@ async function setCape(capeId) {
 // ---------- Library ----------
 
 const loadLibrary = async () => (await readJson(libraryFile(), { skins: [] })).skins;
-const saveLibrary = (skins) => writeJson(libraryFile(), { skins });
+// `seeded` records that the Workbench skin was added, so deleting it isn't undone.
+const saveLibrary = (skins) => writeJson(libraryFile(), { seeded: true, skins });
 
 const listLibrary = async () => (await loadLibrary()).sort((a, b) => b.addedAt.localeCompare(a.addedAt));
 
-function addToLibrary(buf, name) {
-  const variant = inspect(buf);
+// Workbench's own skin, bundled with the app.
+const brandSkin = () => path.join(__dirname, '..', app.isPackaged ? 'dist' : 'public', 'DefaultSkin.png');
+
+/** The library, with the Workbench skin added the first time. */
+function library() {
+  return withLock(async () => {
+    const data = await readJson(libraryFile(), { skins: [] });
+    if (!data.seeded) {
+      const buf = await fsp.readFile(brandSkin()).catch(() => null);
+      const skins = data.skins ?? [];
+      if (buf) {
+        const entry = { id: randomUUID(), name: 'Workbench', variant: inspect(buf), group: null, addedAt: new Date().toISOString() };
+        await fsp.mkdir(libraryDir(), { recursive: true });
+        await fsp.writeFile(skinFile(entry.id), buf);
+        skins.push(entry);
+      }
+      await saveLibrary(skins);
+    }
+    return listLibrary();
+  });
+}
+
+/** Adds a skin. `extra` can set its variant and the cape to wear with it (capeId: null for none). */
+function addToLibrary(buf, name, extra = {}) {
+  const variant = extra.variant ?? inspect(buf);
   return withLock(async () => {
     const skins = await loadLibrary();
     const entry = {
       id: randomUUID(),
       name: String(name ?? '').trim().slice(0, 40) || 'Skin',
       variant,
+      group: null,
+      ...(extra.capeId !== undefined && { capeId: extra.capeId }),
       addedAt: new Date().toISOString(),
     };
     await fsp.mkdir(libraryDir(), { recursive: true });
@@ -129,13 +155,29 @@ async function addFiles(filePaths) {
   return result;
 }
 
-/** Saves the skin the account is wearing, so it isn't lost when switching. */
+/** The library entry with exactly these PNG bytes, if any. */
+async function findSame(buf) {
+  for (const entry of await loadLibrary()) {
+    const saved = await fsp.readFile(skinFile(entry.id)).catch(() => null);
+    if (saved?.equals(buf)) return entry;
+  }
+  return null;
+}
+
+/**
+ * Saves the skin the account is wearing, with its arm style and cape. A skin that's already
+ * in the library keeps its place and just takes the new arm style and cape.
+ */
 async function saveCurrent() {
-  const { skin, account } = await state();
+  const { skin, capes, account } = await state();
   if (!skin) throw new Error('You’re wearing a default skin.');
   const res = await fetch(skin.url);
   if (!res.ok) throw new Error('Couldn’t download your current skin.');
-  return addToLibrary(Buffer.from(await res.arrayBuffer()), `${account.name}’s skin`);
+  const buf = Buffer.from(await res.arrayBuffer());
+  const capeId = capes.find((c) => c.active)?.id ?? null;
+  const same = await findSame(buf);
+  if (same) return updateEntry(same.id, { variant: skin.variant, capeId });
+  return addToLibrary(buf, `${account.name}’s skin`, { variant: skin.variant, capeId });
 }
 
 const libraryEntry = async (id) => {
@@ -144,9 +186,14 @@ const libraryEntry = async (id) => {
   return entry;
 };
 
+/** Wears a library skin, and the cape saved with it (when this account owns that cape). */
 async function wear(id) {
   const entry = await libraryEntry(id);
-  return upload(await fsp.readFile(skinFile(entry.id)), entry.variant);
+  const result = await upload(await fsp.readFile(skinFile(entry.id)), entry.variant);
+  if (entry.capeId === undefined) return result;
+  const current = result.capes.find((c) => c.active)?.id ?? null;
+  const owned = entry.capeId === null || result.capes.some((c) => c.id === entry.capeId);
+  return owned && current !== entry.capeId ? setCape(entry.capeId) : result;
 }
 
 function updateEntry(id, patch) {
@@ -156,6 +203,21 @@ function updateEntry(id, patch) {
     if (!entry) throw new Error('Skin not found.');
     if (patch.variant !== undefined) entry.variant = patch.variant === 'slim' ? 'slim' : 'classic';
     if (patch.name !== undefined) entry.name = String(patch.name).trim().slice(0, 40) || entry.name;
+    if (patch.group !== undefined) entry.group = cleanGroup(patch.group);
+    if (patch.capeId !== undefined) entry.capeId = patch.capeId === null ? null : String(patch.capeId);
+    await saveLibrary(skins);
+    return listLibrary();
+  });
+}
+
+const cleanGroup = (name) => String(name ?? '').trim().slice(0, 40) || null;
+
+/** Renames a group of skins, or ungroups them (to: null). */
+function renameGroup(from, to) {
+  return withLock(async () => {
+    const skins = await loadLibrary();
+    const next = cleanGroup(to);
+    for (const s of skins) if (s.group === from) s.group = next;
     await saveLibrary(skins);
     return listLibrary();
   });
@@ -182,10 +244,11 @@ module.exports = {
   reset,
   setCape,
   wear,
-  listLibrary,
+  library,
   addFiles,
   saveCurrent,
   updateEntry,
   removeFromLibrary,
+  renameGroup,
   read,
 };

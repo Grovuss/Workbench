@@ -389,8 +389,10 @@ export interface WorkbenchApi {
     pick(): Promise<LibrarySkin[] | null>;
     addFiles(filePaths: string[]): Promise<LibrarySkin[]>;
     saveCurrent(): Promise<LibrarySkin[]>;
-    update(id: string, patch: { name?: string; variant?: SkinVariant }): Promise<LibrarySkin[]>;
+    update(id: string, patch: { name?: string; variant?: SkinVariant; group?: string | null; capeId?: string | null }): Promise<LibrarySkin[]>;
     remove(id: string): Promise<LibrarySkin[]>;
+    /** Renames a group, or ungroups its skins (to: null). */
+    renameGroup(from: string, to: string | null): Promise<LibrarySkin[]>;
   };
   modpacks: {
     search(options: ModpackSearchOptions): Promise<{ total: number; hits: ModpackHit[] }>;
@@ -672,6 +674,9 @@ export interface LibrarySkin {
   id: string;
   name: string;
   variant: SkinVariant;
+  group: string | null;
+  /** Cape worn with this skin: null for none; missing leaves the cape alone. */
+  capeId?: string | null;
   addedAt: string;
 }
 

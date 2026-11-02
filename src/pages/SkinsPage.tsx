@@ -1,9 +1,29 @@
-import { useCallback, useEffect, useRef, useState, type DragEvent } from 'react';
-import { Ban, Check, LoaderCircle, LogIn, RotateCcw, Save, Shirt, Trash2, Upload } from 'lucide-react';
+import { Suspense, lazy, useCallback, useEffect, useRef, useState, type DragEvent } from 'react';
+import {
+  Ban,
+  ChevronDown,
+  FolderInput,
+  FolderMinus,
+  LoaderCircle,
+  LogIn,
+  MoreHorizontal,
+  Pencil,
+  RotateCcw,
+  Save,
+  Shirt,
+  Trash2,
+  Upload,
+} from 'lucide-react';
 import PageHeader from '../components/PageHeader';
 import SkinView, { CapeView } from '../components/SkinView';
+import Dropdown from '../components/Dropdown';
+import GroupModal from '../components/GroupModal';
 import { api, errorMessage } from '../api';
+import { useStoredSet } from '../stored';
 import type { AccountsState, LibrarySkin, SkinState, SkinVariant } from '../types';
+
+// three.js is big, so the 3D view loads with this page rather than with the app.
+const Skin3D = lazy(() => import('../components/Skin3D'));
 
 interface Props {
   accounts: AccountsState;
@@ -27,6 +47,10 @@ export default function SkinsPage({ accounts, onLogin, onSkinChanged, onError, o
   const [busy, setBusy] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
   const dragDepth = useRef(0);
+  const [collapsed, toggleCollapsed] = useStoredSet('workbench.collapsedSkinGroups');
+  // A skin being moved to a group, or a group being renamed.
+  const [grouping, setGrouping] = useState<LibrarySkin | null>(null);
+  const [renaming, setRenaming] = useState<string | null>(null);
   const signedIn = Boolean(active && !active.offline);
 
   useEffect(() => {
@@ -65,15 +89,19 @@ export default function SkinsPage({ accounts, onLogin, onSkinChanged, onError, o
     try {
       const next = await pending;
       if (next) setLibrary(next);
+      return next;
     } catch (err) {
       onError(errorMessage(err));
+      return null;
     }
   };
 
   const saveCurrent = async () => {
     setBusy('save');
-    await updateLibrary(api.skins.saveCurrent());
+    const before = library?.length ?? 0;
+    const next = await updateLibrary(api.skins.saveCurrent());
     setBusy(null);
+    if (next) onSuccess(next.length > before ? 'Saved to your library.' : 'Already in your library: updated its arm style and cape.');
   };
 
   const hasFiles = (e: DragEvent) => e.dataTransfer.types.includes('Files');
@@ -102,11 +130,78 @@ export default function SkinsPage({ accounts, onLogin, onSkinChanged, onError, o
     );
   }
 
+  const activeCape = state?.capes.find((c) => c.active) ?? null;
+  const groupNames = [...new Set((library ?? []).map((s) => s.group).filter((g): g is string => Boolean(g)))].sort((a, b) =>
+    a.localeCompare(b),
+  );
+  const sections = groupNames.length
+    ? [
+        ...groupNames.map((name) => ({ name, items: library!.filter((s) => s.group === name) })),
+        { name: null, items: (library ?? []).filter((s) => !s.group) },
+      ].filter((s) => s.items.length > 0)
+    : [{ name: null, items: library ?? [] }];
+
   const addButton = (
     <button className="btn btn-primary" onClick={() => updateLibrary(api.skins.pick())}>
       <Upload size={16} /> Add skin
     </button>
   );
+
+  const card = (skin: LibrarySkin) => {
+    const cape = skin.capeId ? state?.capes.find((c) => c.id === skin.capeId) : null;
+    return (
+      <div key={skin.id} className="skin-card">
+        <button
+          className="skin-card-wear"
+          disabled={busy !== null}
+          onClick={() => run(skin.id, () => api.skins.wear(skin.id), `Now wearing ${skin.name}.`)}
+          title={`Wear ${skin.name}`}
+        >
+          <span className="skin-card-preview">
+            {busy === skin.id ? (
+              <LoaderCircle size={22} className="spin" />
+            ) : (
+              <SkinView url={`workbench://skin/${skin.id}`} variant={skin.variant} scale={5} label={skin.name} />
+            )}
+          </span>
+          <span className="skin-card-name">{skin.name}</span>
+          {cape && <span className="skin-card-cape">with {cape.alias} cape</span>}
+        </button>
+        <div className="skin-card-actions">
+          <div className="segmented skin-variant" role="group" aria-label="Arm style">
+            {VARIANTS.map((v) => (
+              <button
+                key={v.id}
+                aria-pressed={skin.variant === v.id}
+                onClick={() => updateLibrary(api.skins.update(skin.id, { variant: v.id }))}
+              >
+                {v.label}
+              </button>
+            ))}
+          </div>
+          <Dropdown
+            label={<MoreHorizontal size={16} />}
+            className="icon-btn"
+            chevron={false}
+            ariaLabel={`${skin.name} options`}
+            items={[
+              {
+                icon: <FolderInput size={16} />,
+                label: skin.group ? 'Change group' : 'Add to a group',
+                onSelect: () => setGrouping(skin),
+              },
+              {
+                icon: <Trash2 size={16} />,
+                label: 'Delete',
+                danger: true,
+                onSelect: () => updateLibrary(api.skins.remove(skin.id)),
+              },
+            ]}
+          />
+        </div>
+      </div>
+    );
+  };
 
   return (
     <div
@@ -137,7 +232,9 @@ export default function SkinsPage({ accounts, onLogin, onSkinChanged, onError, o
             {!state ? (
               <LoaderCircle size={24} className="spin" />
             ) : state.skin ? (
-              <SkinView url={state.skin.url} variant={state.skin.variant} scale={9} label={`${state.account.name}’s skin`} />
+              <Suspense fallback={<LoaderCircle size={24} className="spin" />}>
+                <Skin3D url={state.skin.url} variant={state.skin.variant} capeUrl={activeCape?.url} label={`${state.account.name}’s skin`} />
+              </Suspense>
             ) : (
               <div className="skin-default">
                 <Shirt size={36} strokeWidth={1.5} />
@@ -164,7 +261,7 @@ export default function SkinsPage({ accounts, onLogin, onSkinChanged, onError, o
               <div className="capes">
                 <button
                   className="cape-option"
-                  aria-pressed={!state.capes.some((c) => c.active)}
+                  aria-pressed={!activeCape}
                   disabled={busy !== null}
                   onClick={() => run('no-cape', () => api.skins.setCape(null), 'Cape hidden.')}
                 >
@@ -200,49 +297,76 @@ export default function SkinsPage({ accounts, onLogin, onSkinChanged, onError, o
               {addButton}
             </div>
           ) : (
-            <div className="skin-grid">
-              {library?.map((skin) => (
-                <div key={skin.id} className="skin-card">
-                  <div className="skin-card-preview">
-                    <SkinView url={`workbench://skin/${skin.id}`} variant={skin.variant} scale={5} label={skin.name} />
+            sections.map(({ name, items }) => {
+              if (groupNames.length === 0) {
+                return (
+                  <div key="all" className="skin-grid">
+                    {items.map(card)}
                   </div>
-                  <div className="skin-card-name" title={skin.name}>
-                    {skin.name}
-                  </div>
-                  <div className="segmented skin-variant" role="group" aria-label="Arm style">
-                    {VARIANTS.map((v) => (
-                      <button
-                        key={v.id}
-                        aria-pressed={skin.variant === v.id}
-                        onClick={() => updateLibrary(api.skins.update(skin.id, { variant: v.id }))}
-                      >
-                        {v.label}
-                      </button>
-                    ))}
-                  </div>
-                  <div className="skin-card-actions">
-                    <button
-                      className="btn btn-primary btn-sm"
-                      disabled={busy !== null}
-                      onClick={() => run(skin.id, () => api.skins.wear(skin.id), `Now wearing ${skin.name}.`)}
-                    >
-                      {busy === skin.id ? <LoaderCircle size={14} className="spin" /> : <Check size={14} />} Wear
+                );
+              }
+              const key = name ?? '';
+              const open = !collapsed.has(key);
+              return (
+                <section key={key} className="profile-group">
+                  <div className="profile-group-head">
+                    <button className="profile-group-toggle" aria-expanded={open} onClick={() => toggleCollapsed(key)}>
+                      <ChevronDown size={16} className="profile-group-chevron" />
+                      <span className="profile-group-name">{name ?? 'Other skins'}</span>
+                      <span className="chip-count">{items.length}</span>
                     </button>
-                    <button
-                      className="icon-btn icon-btn-danger"
-                      aria-label={`Delete ${skin.name}`}
-                      title="Delete"
-                      onClick={() => updateLibrary(api.skins.remove(skin.id))}
-                    >
-                      <Trash2 size={15} />
-                    </button>
+                    {name && (
+                      <Dropdown
+                        label={<MoreHorizontal size={16} />}
+                        className="icon-btn"
+                        chevron={false}
+                        ariaLabel={`${name} options`}
+                        items={[
+                          { icon: <Pencil size={16} />, label: 'Rename group', onSelect: () => setRenaming(name) },
+                          {
+                            icon: <FolderMinus size={16} />,
+                            label: 'Ungroup',
+                            hint: 'Skins stay, the group goes',
+                            onSelect: () => updateLibrary(api.skins.renameGroup(name, null)),
+                          },
+                        ]}
+                      />
+                    )}
                   </div>
-                </div>
-              ))}
-            </div>
+                  {open && <div className="skin-grid">{items.map(card)}</div>}
+                </section>
+              );
+            })
           )}
         </section>
       </div>
+
+      {grouping && (
+        <GroupModal
+          title={grouping.group ? 'Change group' : 'Add to a group'}
+          initial={grouping.group}
+          groups={groupNames}
+          submitLabel="Move"
+          removeLabel="Remove from group"
+          placeholder="Group name, like “PvP” or “Halloween”"
+          onSubmit={async (group) => {
+            await updateLibrary(api.skins.update(grouping.id, { group }));
+          }}
+          onClose={() => setGrouping(null)}
+        />
+      )}
+      {renaming && (
+        <GroupModal
+          title="Rename group"
+          initial={renaming}
+          groups={[]}
+          submitLabel="Rename"
+          onSubmit={async (name) => {
+            await updateLibrary(api.skins.renameGroup(renaming, name));
+          }}
+          onClose={() => setRenaming(null)}
+        />
+      )}
     </div>
   );
 }

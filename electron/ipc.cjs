@@ -233,7 +233,7 @@ function registerIpc() {
   handle('skins:reset', () => skins.reset());
   handle('skins:setCape', (_e, capeId) => skins.setCape(capeId == null ? null : String(capeId)));
   handle('skins:wear', (_e, id) => skins.wear(String(id)));
-  handle('skins:library', () => skins.listLibrary());
+  handle('skins:library', () => skins.library());
   handle('skins:pick', async (e) => {
     const { canceled, filePaths } = await dialog.showOpenDialog(BrowserWindow.fromWebContents(e.sender), {
       title: 'Add skins',
@@ -246,6 +246,7 @@ function registerIpc() {
   handle('skins:saveCurrent', () => skins.saveCurrent());
   handle('skins:update', (_e, id, patch) => skins.updateEntry(String(id), patch ?? {}));
   handle('skins:remove', (_e, id) => skins.removeFromLibrary(String(id)));
+  handle('skins:renameGroup', (_e, from, to) => skins.renameGroup(String(from), to == null ? null : String(to)));
 
   handle('modpacks:search', (_e, options) => packs.searchModpacks(options ?? {}));
   handle('modpacks:versions', (_e, projectId) => packs.modpackVersions(String(projectId)));

@@ -33,7 +33,7 @@ app.on('open-file', (e, file) => {
 
 // workbench:// serves local images to the renderer:
 //   profile-icon/<id>, screenshot/<profileId>/<file>[?thumb=1], skin/<libraryId>
-protocol.registerSchemesAsPrivileged([{ scheme: 'workbench', privileges: { standard: true, secure: true } }]);
+protocol.registerSchemesAsPrivileged([{ scheme: 'workbench', privileges: { standard: true, secure: true, corsEnabled: true } }]);
 
 const PROFILE_ID = /^[0-9a-f-]{36}$/;
 
@@ -58,7 +58,7 @@ function registerProtocol() {
     }
     if (url.hostname === 'skin') {
       const buf = await skins.read(id);
-      if (buf) return new Response(buf, { headers: { 'Content-Type': 'image/png' } });
+      if (buf) return new Response(buf, { headers: { 'Content-Type': 'image/png', 'Access-Control-Allow-Origin': '*' } });
     }
     return new Response(null, { status: 404 });
   });

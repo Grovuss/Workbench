@@ -11,12 +11,13 @@ interface Props {
   submitLabel: string;
   /** Shown as a button that clears the group, when given. */
   removeLabel?: string;
+  placeholder?: string;
   onSubmit: (name: string | null) => Promise<void> | void;
   onClose: () => void;
 }
 
-/** Picks or names a profile group: moving a profile into one, or renaming one. */
-export default function GroupModal({ title, initial, groups, submitLabel, removeLabel, onSubmit, onClose }: Props) {
+/** Picks or names a group: moving a profile or skin into one, or renaming one. */
+export default function GroupModal({ title, initial, groups, submitLabel, removeLabel, placeholder = 'Group name, like “Modded” or “With friends”', onSubmit, onClose }: Props) {
   const [name, setName] = useState(initial ?? '');
   const [busy, setBusy] = useState(false);
   const clean = name.trim();
@@ -61,7 +62,7 @@ export default function GroupModal({ title, initial, groups, submitLabel, remove
           className="input"
           value={name}
           maxLength={40}
-          placeholder="Group name, like “Modded” or “With friends”"
+          placeholder={placeholder}
           autoFocus
           onChange={(e) => setName(e.target.value)}
           aria-label="Group name"
