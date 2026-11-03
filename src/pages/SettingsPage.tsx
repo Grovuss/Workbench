@@ -367,6 +367,8 @@ function updateText(status: UpdateStatus | null, version: string) {
       return 'Checking for a new version…';
     case 'downloading':
       return `Downloading v${status.version}${status.percent ? ` (${status.percent}%)` : ''}…`;
+    case 'available':
+      return `v${status.version} is out. Download it to update.`;
     case 'ready':
       return `v${status.version} is ready. Restart Workbench to install it.`;
     case 'latest':
@@ -374,7 +376,9 @@ function updateText(status: UpdateStatus | null, version: string) {
     case 'error':
       return `Couldn’t check for updates. You’re on v${version}.`;
     default:
-      return `You’re on v${version}. New versions download by themselves and install when you restart.`;
+      return window.workbench.platform === 'darwin'
+        ? `You’re on v${version}. Workbench lets you know when there’s a new version.`
+        : `You’re on v${version}. New versions download by themselves and install when you restart.`;
   }
 }
 
@@ -384,9 +388,9 @@ function UpdatesRow({ version, onError }: { version: string; onError: (message: 
   const busy = status?.state === 'checking' || status?.state === 'downloading';
   return (
     <Row title="Updates" description={updateText(status, version)}>
-      {status?.state === 'ready' ? (
+      {status?.state === 'ready' || status?.state === 'available' ? (
         <button className="btn btn-primary" onClick={() => api.updates.install().catch((err) => onError(errorMessage(err)))}>
-          <Download size={15} /> Restart to update
+          <Download size={15} /> {status.state === 'ready' ? 'Restart to update' : 'Download'}
         </button>
       ) : (
         <button

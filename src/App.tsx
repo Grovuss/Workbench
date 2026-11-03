@@ -11,6 +11,7 @@ import BrowsePage from './pages/BrowsePage';
 import SkinsPage from './pages/SkinsPage';
 import SkinEditorPage from './pages/SkinEditorPage';
 import SettingsPage from './pages/SettingsPage';
+import HelpPage from './pages/HelpPage';
 import { api, errorMessage } from './api';
 import { useAppearance } from './appearance';
 import LaunchCheckModal from './components/LaunchCheckModal';
@@ -18,12 +19,14 @@ import { hideSplash } from './splash';
 import { useUpdateStatus } from './useUpdateStatus';
 import { useToasts } from './useToasts';
 import { useLaunches } from './useLaunches';
+import { useSupport } from './useSupport';
 import type { AccountsState, CrashReport, Page, Problem, Profile, QuickPlay, Route } from './types';
 
 const PAGE_TITLES: Record<Page, string> = {
   profiles: 'Profiles',
   browse: 'Browse',
   skins: 'Skins',
+  help: 'Help',
   settings: 'Settings',
 };
 
@@ -45,7 +48,8 @@ async function checkMods(profileId: string): Promise<Problem[]> {
 const sameRoute = (a: Route, b: Route) =>
   a.page === b.page &&
   (a.page !== 'profile' || (b.page === 'profile' && a.id === b.id && a.tab === b.tab)) &&
-  (a.page !== 'skin-editor' || (b.page === 'skin-editor' && a.id === b.id));
+  (a.page !== 'skin-editor' || (b.page === 'skin-editor' && a.id === b.id)) &&
+  (a.page !== 'help' || ('profileId' in a ? a.profileId : undefined) === ('profileId' in b ? b.profileId : undefined));
 
 export default function App() {
   const [history, setHistory] = useState<Route[]>([{ page: 'profiles' }]);
@@ -56,6 +60,7 @@ export default function App() {
   const [creating, setCreating] = useState<{ mode: CreateMode; file?: string } | null>(null);
   const [welcomed, setWelcomed] = useState<boolean | null>(null);
   const [update] = useUpdateStatus();
+  const support = useSupport();
   const [appearance, setAppearance] = useAppearance();
   // Play was pressed on a profile whose mods have problems.
   const [checking, setChecking] = useState<{ profile: Profile; quickPlay?: QuickPlay; problems: Problem[] } | null>(null);
@@ -230,6 +235,8 @@ export default function App() {
         launches={launches}
         onOpenProfile={(id) => openProfile(id)}
         onPlay={(p) => play(p)}
+        showHelp={support.enabled}
+        helpUnread={support.unread}
       />
       <main className="main">
         {route.page === 'profiles' && (
@@ -290,6 +297,16 @@ export default function App() {
             onSuccess={(message) => pushToast(message, 'success')}
           />
         )}
+        {route.page === 'help' && (
+          <HelpPage
+            key={'profileId' in route ? route.profileId : ''}
+            profiles={profiles}
+            reportProfileId={'profileId' in route ? route.profileId : undefined}
+            onTicketsChange={support.onTicketsChange}
+            onError={pushToast}
+            onSuccess={(message) => pushToast(message, 'success')}
+          />
+        )}
         {route.page === 'settings' && (
           <SettingsPage appearance={appearance} onAppearanceChange={setAppearance} onError={pushToast} />
         )}
@@ -300,6 +317,7 @@ export default function App() {
           report={crash.report}
           onClose={() => setCrash(null)}
           onOpenTab={(tab) => openProfile(crashedProfile.id, tab)}
+          onReport={support.enabled ? () => navigate({ page: 'help', profileId: crashedProfile.id }) : undefined}
           onError={pushToast}
         />
       )}

@@ -21,10 +21,13 @@ const openedAt = Date.now();
 const RETRY_MS = 20_000;
 let retryTimer = null;
 
-function socketPath(i) {
-  if (process.platform === 'win32') return `\\\\.\\pipe\\discord-ipc-${i}`;
+/** Where Discord's socket can be. On Linux, Flatpak and Snap installs keep it in a folder of their own. */
+function socketPaths(i) {
+  if (process.platform === 'win32') return [`\\\\.\\pipe\\discord-ipc-${i}`];
   const dir = process.env.XDG_RUNTIME_DIR || process.env.TMPDIR || process.env.TMP || '/tmp';
-  return path.join(dir, `discord-ipc-${i}`);
+  const name = `discord-ipc-${i}`;
+  if (process.platform !== 'linux') return [path.join(dir, name)];
+  return [path.join(dir, name), path.join(dir, 'app', 'com.discordapp.Discord', name), path.join(dir, 'snap.discord', name)];
 }
 
 function send(op, payload) {
@@ -35,12 +38,24 @@ function send(op, payload) {
   socket.write(Buffer.concat([header, body]));
 }
 
-function tryConnect(i) {
+function tryPath(p) {
   return new Promise((resolve, reject) => {
-    const s = net.createConnection(socketPath(i));
+    const s = net.createConnection(p);
     s.once('connect', () => resolve(s));
     s.once('error', reject);
   });
+}
+
+async function tryConnect(i) {
+  let last;
+  for (const p of socketPaths(i)) {
+    try {
+      return await tryPath(p);
+    } catch (err) {
+      last = err;
+    }
+  }
+  throw last;
 }
 
 /** Connects to the first Discord client found; null if Discord isn't open. */

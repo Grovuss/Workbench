@@ -15,6 +15,7 @@ const configs = require('./configs.cjs');
 const worlds = require('./worlds.cjs');
 const share = require('./share.cjs');
 const discord = require('./discord.cjs');
+const support = require('./support.cjs');
 const { exportServerPack } = require('./serverpack.cjs');
 const { ping } = require('./ping.cjs');
 const packs = require('./packs.cjs');
@@ -412,10 +413,20 @@ function registerIpc() {
     dataDir: paths.root(),
     curseforge: curseforge.enabled(),
     discord: discord.configured(),
+    support: support.configured(),
     version: require('../package.json').version,
     os: osName(),
     electron: process.versions.electron,
   }));
+  // Reports to Workbench; the relay and its Discord side are in support/.
+  const systemDetails = () => ({ version: require('../package.json').version, os: osName() });
+  handle('support:list', () => support.list());
+  handle('support:attachments', (_e, options) => support.attachments(options, systemDetails()));
+  handle('support:create', (_e, input) => support.create(input, systemDetails()));
+  handle('support:send', (_e, id, text) => support.send(String(id), text));
+  handle('support:refresh', (_e, id) => support.refresh(id == null ? undefined : String(id)));
+  handle('support:markRead', (_e, id) => support.markRead(String(id)));
+  handle('support:remove', (_e, id) => support.remove(String(id)));
   handle('system:usage', () => storage.usage());
   handle('system:takeOpenedFile', () => opened.take());
   handle('updates:status', () => updater.status());

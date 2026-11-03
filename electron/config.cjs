@@ -21,7 +21,11 @@ const CURSEFORGE_API_KEY = process.env.WORKBENCH_CURSEFORGE_KEY || secrets.CURSE
 // name and its "logo" art asset are what Discord shows. Not a secret.
 const DISCORD_CLIENT_ID = process.env.WORKBENCH_DISCORD_CLIENT_ID ?? '1566157840568164352';
 
+// Where bug reports, suggestions and questions go: the support relay in support/ (a Cloudflare
+// Worker). Not a secret; the Discord bot token lives only in the Worker. The Help page is hidden without it.
+const SUPPORT_URL = process.env.WORKBENCH_SUPPORT_URL ?? 'https://workbench-support.grovuss.workers.dev';
+
 // Sent with every web request; Modrinth asks apps to identify themselves.
 const USER_AGENT = `Grovuss/Workbench/${require('../package.json').version}`;
 
-module.exports = { USER_AGENT, MSA_CLIENT_ID, DEV_OFFLINE_NAME, CURSEFORGE_API_KEY, DISCORD_CLIENT_ID };
+module.exports = { USER_AGENT, MSA_CLIENT_ID, DEV_OFFLINE_NAME, CURSEFORGE_API_KEY, DISCORD_CLIENT_ID, SUPPORT_URL };

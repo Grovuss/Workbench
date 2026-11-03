@@ -10,11 +10,22 @@ const RUNTIME_INDEX_URL =
 
 let runtimeIndex = null;
 
-function platformKey() {
+/** Mojang's name for this computer. `intel` asks for the Intel build on an Apple Silicon Mac (it runs under Rosetta). */
+function platformKey(intel = false) {
   const { platform, arch } = process;
   if (platform === 'win32') return arch === 'arm64' ? 'windows-arm64' : arch === 'ia32' ? 'windows-x86' : 'windows-x64';
-  if (platform === 'darwin') return arch === 'arm64' ? 'mac-os-arm64' : 'mac-os';
+  if (platform === 'darwin') return arch === 'arm64' && !intel ? 'mac-os-arm64' : 'mac-os';
   return arch === 'ia32' ? 'linux-i386' : 'linux';
+}
+
+const appleSilicon = process.platform === 'darwin' && process.arch === 'arm64';
+
+/** Rosetta lets an Apple Silicon Mac run Intel programs; it's installed on first need, or by hand. */
+async function checkRosetta() {
+  if (await exists('/Library/Apple/usr/share/rosetta/rosetta')) return;
+  throw new Error(
+    'This version of Minecraft needs Rosetta on Apple Silicon Macs. Install it by running "softwareupdate --install-rosetta" in Terminal, then try again.',
+  );
 }
 
 function javaExecutable(dir) {
@@ -25,21 +36,33 @@ function javaExecutable(dir) {
 }
 
 
-/** Ensures the given runtime component (e.g. "java-runtime-delta") is installed; returns the java path. */
-async function ensureJava(component, onProgress) {
-  const dir = path.join(paths.javaDir(), component);
-  const exe = javaExecutable(dir);
-  const marker = path.join(dir, '.workbench-version');
-
+/**
+ * Ensures the given runtime component (e.g. "java-runtime-delta") is installed; returns the java path.
+ * `intel`: on an Apple Silicon Mac, use the Intel build, for versions whose libraries have no Apple Silicon support.
+ */
+async function ensureJava(component, onProgress, { intel = false } = {}) {
+  let useIntel = appleSilicon && intel;
   let entry;
   try {
     runtimeIndex ??= await fetchJson(RUNTIME_INDEX_URL);
-    entry = runtimeIndex[platformKey()]?.[component]?.[0];
+    entry = runtimeIndex[platformKey(useIntel)]?.[component]?.[0];
+    // Older runtimes only come as Intel builds for Mac.
+    if (!entry && appleSilicon && !useIntel) {
+      entry = runtimeIndex[platformKey(true)]?.[component]?.[0];
+      useIntel = Boolean(entry);
+    }
   } catch (err) {
+    const exe = javaExecutable(path.join(paths.javaDir(), useIntel ? `${component}-intel` : component));
     if (await exists(exe)) return exe; // offline but already installed
     throw err;
   }
-  if (!entry) throw new Error(`Java runtime "${component}" isn't available for ${platformKey()}.`);
+  if (!entry) throw new Error(`Java runtime "${component}" isn't available for ${platformKey(useIntel)}.`);
+  if (useIntel) await checkRosetta();
+
+  // Intel and Apple Silicon builds of the same runtime live side by side.
+  const dir = path.join(paths.javaDir(), useIntel ? `${component}-intel` : component);
+  const exe = javaExecutable(dir);
+  const marker = path.join(dir, '.workbench-version');
 
   const installed = await fsp.readFile(marker, 'utf8').catch(() => null);
   if (installed === entry.manifest.sha1 && (await exists(exe))) return exe;

@@ -1,8 +1,8 @@
-# Builds the Windows installer and publishes it as a GitHub Release when a version tag is pushed.
-# Installed copies of Workbench update themselves from these releases.
+# Builds Workbench for Windows, macOS and Linux and publishes them as one GitHub Release when a version tag is pushed.
+# Installed copies of Workbench check these releases for updates.
 #
-#   1. Bump "version" in package.json (e.g. 0.4.0) and commit.
-#   2. git tag v0.4.0 && git push origin v0.4.0
+#   1. Bump "version" in package.json (e.g. 0.7.0) and commit.
+#   2. git tag v0.7.0 && git push origin v0.7.0
 #
 # Optional repository secrets: WORKBENCH_CURSEFORGE_KEY (turns on CurseForge in the build).
 name: Release
@@ -15,10 +15,22 @@ permissions:
   contents: write
 
 jobs:
-  windows:
-    runs-on: windows-latest
+  build:
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - os: windows-latest
+            flags: --win
+          - os: macos-latest
+            flags: --mac
+          - os: ubuntu-latest
+            flags: --linux
+    runs-on: ${{ matrix.os }}
     env:
       CURSEFORGE_KEY: ${{ secrets.WORKBENCH_CURSEFORGE_KEY }}
+      # No paid Apple certificate: the Mac build is ad-hoc signed after packaging (scripts/after-pack.cjs).
+      CSC_IDENTITY_AUTO_DISCOVERY: false
     steps:
       - uses: actions/checkout@v4
 
@@ -44,6 +56,41 @@ jobs:
         run: |
           node -e "require('fs').writeFileSync('electron/secrets.cjs', 'module.exports = ' + JSON.stringify({ CURSEFORGE_API_KEY: process.env.CURSEFORGE_KEY }) + ';')"
 
-      - run: npm run release
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - run: npm run build
+
+      - run: npx electron-builder ${{ matrix.flags }} --publish never
+
+      # The installers, plus the latest*.yml files the update check reads.
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ matrix.os }}
+          if-no-files-found: error
+          path: |
+            release/*.exe
+            release/*.dmg
+            release/*.zip
+            release/*.AppImage
+            release/*.blockmap
+            release/latest*.yml
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: release
+          merge-multiple: true
+
+      - run: ls -la release
+
+      # Named like the earlier releases: "0.7.0", not "v0.7.0".
+      - id: version
+        run: echo "name=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          name: ${{ steps.version.outputs.name }}
+          tag_name: ${{ github.ref_name }}
+          files: release/*
+          fail_on_unmatched_files: true

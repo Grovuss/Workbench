@@ -1,0 +1,8 @@
+{
+  "name": "workbench-support",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "deploy": "npx wrangler@4 deploy"
+  }
+}

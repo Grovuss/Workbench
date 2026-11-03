@@ -56,6 +56,7 @@ import {
   topColors,
   type PartId,
 } from '../skinTexture';
+import { isMac, shortcut } from '../platform';
 import type { SkinBase, SkinVariant } from '../types';
 
 const SkinPaint3D = lazy(() => import('../components/SkinPaint3D'));
@@ -1442,10 +1443,10 @@ export default function SkinEditorPage({ id, base, canWear, onDone, onSkinChange
             <FlipHorizontal2 size={16} />
           </button>
           <span className="editor-tool-sep" />
-          <button className="editor-tool" onClick={doUndo} disabled={!undo.current.length} title="Undo (Ctrl+Z)" aria-label="Undo">
+          <button className="editor-tool" onClick={doUndo} disabled={!undo.current.length} title={`Undo (${shortcut('Z')})`} aria-label="Undo">
             <Undo2 size={16} />
           </button>
-          <button className="editor-tool" onClick={doRedo} disabled={!redo.current.length} title="Redo (Ctrl+Y)" aria-label="Redo">
+          <button className="editor-tool" onClick={doRedo} disabled={!redo.current.length} title={`Redo (${isMac ? shortcut('Z', true) : shortcut('Y')})`} aria-label="Redo">
             <Redo2 size={16} />
           </button>
           <span className="editor-tool-spacer" />

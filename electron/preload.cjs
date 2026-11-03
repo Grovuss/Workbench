@@ -49,6 +49,15 @@ contextBridge.exposeInMainWorld('workbench', {
     upload: (text) => invoke('logs:upload', text),
     open: (url) => invoke('logs:open', url),
   },
+  support: {
+    list: () => invoke('support:list'),
+    attachments: (options) => invoke('support:attachments', options),
+    create: (input) => invoke('support:create', input),
+    send: (id, text) => invoke('support:send', id, text),
+    refresh: (id) => invoke('support:refresh', id),
+    markRead: (id) => invoke('support:markRead', id),
+    remove: (id) => invoke('support:remove', id),
+  },
   modSets: {
     list: () => invoke('modsets:list'),
     create: (name, entries) => invoke('modsets:create', name, entries),

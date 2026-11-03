@@ -80,8 +80,12 @@ async function launchGame({ profile, gameDir, account, memoryMb, jvmArgs, resolu
   await fsp.mkdir(gameDir, { recursive: true });
 
   const component = vanilla.javaVersion?.component ?? 'jre-legacy';
-  const java = await ensureJava(component, (done, total) =>
-    onProgress({ stage: 'java', label: 'Downloading Java', done, total }),
+  // Minecraft before 1.19 has no Apple Silicon graphics libraries, so on those Macs it runs as Intel (under Rosetta).
+  const appleSiliconReady = (vanilla.libraries ?? []).some((lib) => /natives-macos-arm64/.test(lib.name));
+  const java = await ensureJava(
+    component,
+    (done, total) => onProgress({ stage: 'java', label: 'Downloading Java', done, total }),
+    { intel: !appleSiliconReady },
   );
   const version = await resolveVersion(profile, { vanilla, java, onProgress });
   if (quickPlay?.world && !supportsQuickPlay(version, 'is_quick_play_singleplayer')) {

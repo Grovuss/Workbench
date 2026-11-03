@@ -1,4 +1,4 @@
-import { Compass, Download, Layers, Play, Settings, Shirt, type LucideIcon } from 'lucide-react';
+import { Compass, Download, Layers, LifeBuoy, Play, Settings, Shirt, type LucideIcon } from 'lucide-react';
 import AccountMenu from './AccountMenu';
 import ProfileIcon from './ProfileIcon';
 import { version } from '../../package.json';
@@ -8,6 +8,7 @@ const NAV: { id: Page; label: string; icon: LucideIcon }[] = [
   { id: 'profiles', label: 'Profiles', icon: Layers },
   { id: 'browse', label: 'Browse', icon: Compass },
   { id: 'skins', label: 'Skins', icon: Shirt },
+  { id: 'help', label: 'Help', icon: LifeBuoy },
   { id: 'settings', label: 'Settings', icon: Settings },
 ];
 
@@ -26,6 +27,10 @@ interface Props {
   launches: Record<string, LaunchStatus>;
   onOpenProfile: (id: string) => void;
   onPlay: (profile: Profile) => void;
+  /** Help only shows when reporting is set up in this build. */
+  showHelp: boolean;
+  /** Replies to reports not read yet. */
+  helpUnread: number;
 }
 
 export default function Sidebar({
@@ -42,11 +47,13 @@ export default function Sidebar({
   launches,
   onOpenProfile,
   onPlay,
+  showHelp,
+  helpUnread,
 }: Props) {
   return (
     <aside className="sidebar">
       <nav className="nav" aria-label="Main">
-        {NAV.map(({ id, label, icon: Icon }) => (
+        {NAV.filter((item) => item.id !== 'help' || showHelp).map(({ id, label, icon: Icon }) => (
           <button
             key={id}
             className="nav-item"
@@ -55,6 +62,7 @@ export default function Sidebar({
           >
             <Icon size={18} strokeWidth={2} />
             {label}
+            {id === 'help' && helpUnread > 0 && <span className="nav-badge" aria-label={`${helpUnread} new ${helpUnread === 1 ? 'reply' : 'replies'}`}>{helpUnread}</span>}
           </button>
         ))}
       </nav>
@@ -84,12 +92,16 @@ export default function Sidebar({
 
       <div className="sidebar-footer">
         <AccountMenu accounts={accounts} onLogin={onLogin} onSwitch={onSwitchAccount} onLogout={onLogout} />
-        {update?.state === 'ready' ? (
-          <button className="sidebar-update" onClick={onInstallUpdate} title="Restarts Workbench into the new version">
+        {update?.state === 'ready' || update?.state === 'available' ? (
+          <button
+            className="sidebar-update"
+            onClick={onInstallUpdate}
+            title={update.state === 'ready' ? 'Restarts Workbench into the new version' : 'Opens the download page'}
+          >
             <Download size={15} />
             <span>
               Update to v{update.version}
-              <small>Restart to install</small>
+              <small>{update.state === 'ready' ? 'Restart to install' : 'Download the new version'}</small>
             </span>
           </button>
         ) : (

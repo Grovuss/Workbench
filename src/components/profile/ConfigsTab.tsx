@@ -5,6 +5,7 @@ import { api, errorMessage } from '../../api';
 import { highlight } from '../../highlight';
 import { timeAgo } from '../../time';
 import type { ConfigFile } from '../../types';
+import { shortcut } from '../../platform';
 
 interface Props {
   profileId: string;
@@ -177,7 +178,7 @@ export default function ConfigsTab({ profileId, running, onError, onSuccess }: P
                 <button className="btn btn-ghost btn-sm" onClick={() => setOpen({ ...open, text: open.saved })} disabled={!dirty || saving}>
                   <RotateCcw size={14} /> Undo changes
                 </button>
-                <button className="btn btn-primary btn-sm" onClick={() => save()} disabled={!dirty || saving} title="Save (Ctrl+S)">
+                <button className="btn btn-primary btn-sm" onClick={() => save()} disabled={!dirty || saving} title={`Save (${shortcut('S')})`}>
                   {saving ? <LoaderCircle size={14} className="spin" /> : <Save size={14} />} Save
                 </button>
               </div>

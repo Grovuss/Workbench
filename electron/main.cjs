@@ -122,6 +122,7 @@ app.whenReady().then(() => {
   const { broadcast } = require('./game.cjs');
   opened.listen((file) => broadcast({ type: 'open-pack', path: file }));
   updater.start(broadcast);
+  require('./support.cjs').start(broadcast);
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });

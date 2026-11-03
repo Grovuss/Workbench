@@ -1,4 +1,4 @@
-import { FileText, ScrollText } from 'lucide-react';
+import { FileText, LifeBuoy, ScrollText } from 'lucide-react';
 import Modal from './Modal';
 import ProblemList, { applyFix } from './content/ProblemList';
 import { api, errorMessage } from '../api';
@@ -10,11 +10,13 @@ interface Props {
   report: CrashReport;
   onClose: () => void;
   onOpenTab: (tab: ProfileTab) => void;
+  /** Starts a bug report about it; missing when reporting isn't set up. */
+  onReport?: () => void;
   onError: (message: string) => void;
 }
 
 /** Shown when the game crashes (or a mod loader stops it): the likely causes and fixes. */
-export default function CrashModal({ profile, report, onClose, onOpenTab, onError }: Props) {
+export default function CrashModal({ profile, report, onClose, onOpenTab, onReport, onError }: Props) {
   const { problems, crashReport, exitCode } = report;
   const goTo = (tab: ProfileTab) => {
     onClose();
@@ -33,6 +35,17 @@ export default function CrashModal({ profile, report, onClose, onOpenTab, onErro
               onClick={() => api.diagnose.openCrashReport(profile.id, crashReport).catch((err) => onError(errorMessage(err)))}
             >
               <FileText size={15} /> Crash report
+            </button>
+          )}
+          {onReport && (
+            <button
+              className="btn btn-ghost"
+              onClick={() => {
+                onClose();
+                onReport();
+              }}
+            >
+              <LifeBuoy size={15} /> Report it
             </button>
           )}
           <button className="btn btn-secondary" onClick={() => goTo('logs')}>

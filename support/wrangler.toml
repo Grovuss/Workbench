@@ -1,0 +1,21 @@
+# Workbench support relay. See README.md for setting it up.
+name = "workbench-support"
+main = "src/index.js"
+compatibility_date = "2025-09-01"
+workers_dev = true
+
+# Per-address limits. Cloudflare only allows periods of 10 or 60 seconds.
+[[ratelimits]]
+name = "CREATE_LIMITER"
+namespace_id = "1001"
+simple = { limit = 3, period = 60 }
+
+[[ratelimits]]
+name = "MESSAGE_LIMITER"
+namespace_id = "1002"
+simple = { limit = 20, period = 60 }
+
+[[ratelimits]]
+name = "READ_LIMITER"
+namespace_id = "1003"
+simple = { limit = 60, period = 60 }

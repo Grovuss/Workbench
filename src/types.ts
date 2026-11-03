@@ -1,4 +1,4 @@
-export type Page = 'profiles' | 'browse' | 'skins' | 'settings';
+export type Page = 'profiles' | 'browse' | 'skins' | 'help' | 'settings';
 
 export type ContentKind = 'mod' | 'resourcepack' | 'shader' | 'datapack';
 
@@ -129,6 +129,8 @@ export interface ImportProgress {
 export type Route =
   | { page: Page }
   | { page: 'profile'; id: string; tab?: string }
+  /** `profileId`: start a bug report about that profile. */
+  | { page: 'help'; profileId?: string }
   /** id null: a new skin, blank or starting from `base`. */
   | { page: 'skin-editor'; id: string | null; base?: SkinBase };
 
@@ -298,6 +300,8 @@ export interface SystemInfo {
   curseforge: boolean;
   /** Whether a Discord application id is configured, for Rich Presence. */
   discord: boolean;
+  /** Whether reports can be sent (a support relay is configured). */
+  support: boolean;
   version: string;
   os: string;
   electron: string;
@@ -326,10 +330,12 @@ export type GameEvent =
   | { type: 'crash'; profileId: string; report: CrashReport }
   | { type: 'worlds-backed-up'; profileId: string; count: number }
   | { type: 'open-pack'; path: string }
+  | { type: 'support-changed' }
   | ({ type: 'update' } & UpdateStatus);
 
 export interface UpdateStatus {
-  state: 'unsupported' | 'idle' | 'checking' | 'downloading' | 'ready' | 'latest' | 'error';
+  /** 'available': a new version is out but has to be downloaded by hand (Mac). */
+  state: 'unsupported' | 'idle' | 'checking' | 'available' | 'downloading' | 'ready' | 'latest' | 'error';
   version?: string;
   percent?: number;
   message?: string;
@@ -456,6 +462,19 @@ export interface WorkbenchApi {
     upload(text: string): Promise<string>;
     open(url: string): Promise<void>;
   };
+  support: {
+    /** Reports sent from this computer, most recent activity first. */
+    list(): Promise<SupportTicket[]>;
+    /** Exactly what a report sends besides what was typed, for showing before it goes. */
+    attachments(options: { profileId?: string; includeLog?: boolean }): Promise<SupportAttachments>;
+    create(input: SupportInput): Promise<SupportTicket>;
+    send(id: string, text: string): Promise<SupportTicket>;
+    /** Checks one report, or all open ones, for replies. */
+    refresh(id?: string): Promise<SupportTicket[]>;
+    markRead(id: string): Promise<SupportTicket>;
+    /** Forgets a report on this computer. */
+    remove(id: string): Promise<void>;
+  };
   versions: {
     list(): Promise<McVersion[]>;
   };
@@ -552,7 +571,7 @@ export interface WorkbenchApi {
   updates: {
     status(): Promise<UpdateStatus>;
     check(): Promise<UpdateStatus>;
-    /** Restarts into a downloaded update. */
+    /** Restarts into a downloaded update; on a Mac, opens the download page for an available one. */
     install(): Promise<void>;
   };
   window: {
@@ -621,6 +640,48 @@ export interface ContentCategory {
   name: string;
   /** Group, e.g. "categories", "features", "resolutions", "performance impact". */
   header: string;
+}
+
+export type SupportType = 'bug' | 'suggestion' | 'help';
+
+export interface SupportInput {
+  type: SupportType;
+  title: string;
+  text: string;
+  contact?: string;
+  profileId?: string;
+  includeLog?: boolean;
+}
+
+export interface SupportAttachments {
+  details: string;
+  log: { name: string; text: string } | null;
+}
+
+export interface SupportMessage {
+  id: string;
+  from: 'you' | 'staff';
+  /** Who replied, for replies from Workbench. */
+  name: string | null;
+  text: string;
+  at: string;
+  attachments: { name: string; url: string }[];
+}
+
+export interface SupportTicket {
+  id: string;
+  type: SupportType;
+  title: string;
+  /** The first message. */
+  text: string;
+  contact: string;
+  details: string;
+  logSent: boolean;
+  createdAt: string;
+  /** Closed on Discord: no more replies. */
+  closed: boolean;
+  messages: SupportMessage[];
+  unread: number;
 }
 
 export type QuickPlay = { server: string } | { world: string };
