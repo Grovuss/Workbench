@@ -233,6 +233,7 @@ function registerIpc() {
   handle('skins:reset', () => skins.reset());
   handle('skins:setCape', (_e, capeId) => skins.setCape(capeId == null ? null : String(capeId)));
   handle('skins:wear', (_e, id) => skins.wear(String(id)));
+  handle('skins:setVariant', (_e, variant) => skins.setVariant(variant === 'slim' ? 'slim' : 'classic'));
   handle('skins:library', () => skins.library());
   handle('skins:pick', async (e) => {
     const { canceled, filePaths } = await dialog.showOpenDialog(BrowserWindow.fromWebContents(e.sender), {
@@ -244,6 +245,22 @@ function registerIpc() {
   });
   handle('skins:addFiles', (_e, filePaths) => skins.addFiles((Array.isArray(filePaths) ? filePaths : []).map(String)));
   handle('skins:saveCurrent', () => skins.saveCurrent());
+  // The picture behind the 3D player: a file you pick, or one of your screenshots. Each returns a new version string.
+  handle('skins:pickBackground', async (e) => {
+    const { canceled, filePaths } = await dialog.showOpenDialog(BrowserWindow.fromWebContents(e.sender), {
+      title: 'Choose a background for your skin',
+      properties: ['openFile'],
+      filters: [{ name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'webp', 'gif'] }],
+    });
+    return canceled ? null : background.skinStage.set(filePaths[0]);
+  });
+  handle('skins:screenshotBackground', async (_e, profileId, fileName) =>
+    background.skinStage.set(await screenshots.file(String(profileId), String(fileName))),
+  );
+  handle('skins:removeBackground', () => background.skinStage.remove());
+  handle('skins:saveEdited', (_e, id, base64, name, variant) =>
+    skins.saveEdited(id == null ? null : String(id), String(base64), String(name ?? ''), variant),
+  );
   handle('skins:update', (_e, id, patch) => skins.updateEntry(String(id), patch ?? {}));
   handle('skins:remove', (_e, id) => skins.removeFromLibrary(String(id)));
   handle('skins:renameGroup', (_e, from, to) => skins.renameGroup(String(from), to == null ? null : String(to)));

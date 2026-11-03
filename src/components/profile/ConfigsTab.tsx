@@ -278,7 +278,7 @@ export default function ConfigsTab({ profileId, running, onError, onSuccess }: P
 
 /**
  * A textarea with line numbers; Tab indents and Ctrl+S saves. The text is see-through and
- * a coloured copy sits behind it, so typing, selection and undo stay the browser's own.
+ * a colored copy sits behind it, so typing, selection and undo stay the browser's own.
  */
 function CodeEditor({
   path,

@@ -126,7 +126,18 @@ export interface ImportProgress {
 }
 
 /** `tab` opens a profile on a specific tab (see ProfileTab). */
-export type Route = { page: Page } | { page: 'profile'; id: string; tab?: string };
+export type Route =
+  | { page: Page }
+  | { page: 'profile'; id: string; tab?: string }
+  /** id null: a new skin, blank or starting from `base`. */
+  | { page: 'skin-editor'; id: string | null; base?: SkinBase };
+
+/** A picture to start a new skin from. */
+export interface SkinBase {
+  url: string;
+  name: string;
+  variant: SkinVariant;
+}
 
 export type ProfileFolder = 'saves' | 'screenshots' | 'logs' | 'resourcepacks' | 'shaderpacks' | 'mods' | 'crash-reports';
 
@@ -341,7 +352,7 @@ export interface WorkbenchApi {
     /** Tail of the last launch log, or null if never launched. */
     readLog(id: string): Promise<string | null>;
     openFolder(id: string, sub?: ProfileFolder): Promise<void>;
-    /** Opens an image picker; resolves to the updated profile, or null if cancelled. */
+    /** Opens an image picker; resolves to the updated profile, or null if canceled. */
     setIcon(id: string): Promise<Profile | null>;
     removeIcon(id: string): Promise<Profile>;
     /** Copies the profile's folder and settings into a new profile. */
@@ -382,10 +393,16 @@ export interface WorkbenchApi {
     reset(): Promise<SkinState>;
     /** null hides the cape. */
     setCape(capeId: string | null): Promise<SkinState>;
+    /** The picture behind the 3D player. Each resolves to a version string for the image URL (null if canceled). */
+    pickBackground(): Promise<string | null>;
+    screenshotBackground(profileId: string, fileName: string): Promise<string>;
+    removeBackground(): Promise<void>;
     /** Uploads a library skin as the account's skin. */
     wear(id: string): Promise<SkinState>;
+    /** Switches the current skin between wide and slim arms. */
+    setVariant(variant: SkinVariant): Promise<SkinState>;
     library(): Promise<LibrarySkin[]>;
-    /** Opens a file picker; null if cancelled. */
+    /** Opens a file picker; null if canceled. */
     pick(): Promise<LibrarySkin[] | null>;
     addFiles(filePaths: string[]): Promise<LibrarySkin[]>;
     saveCurrent(): Promise<LibrarySkin[]>;
@@ -393,6 +410,8 @@ export interface WorkbenchApi {
     remove(id: string): Promise<LibrarySkin[]>;
     /** Renames a group, or ungroups its skins (to: null). */
     renameGroup(from: string, to: string | null): Promise<LibrarySkin[]>;
+    /** Saves a PNG (base64) from the editor over a library skin, or as a new one (id null). */
+    saveEdited(id: string | null, base64: string, name: string, variant: SkinVariant): Promise<{ id: string | null; library: LibrarySkin[] }>;
   };
   modpacks: {
     search(options: ModpackSearchOptions): Promise<{ total: number; hits: ModpackHit[] }>;
@@ -411,7 +430,7 @@ export interface WorkbenchApi {
     move(profileId: string, folder: string, targetProfileId: string): Promise<World[]>;
     /** Sends the world to the Recycle Bin. */
     remove(profileId: string, folder: string): Promise<World[]>;
-    /** Opens a picker for a world folder or .zip; null if cancelled. */
+    /** Opens a picker for a world folder or .zip; null if canceled. */
     import(profileId: string, kind: 'folder' | 'zip'): Promise<World[] | null>;
     importPath(profileId: string, filePath: string): Promise<World[]>;
     backups(profileId: string, folder: string): Promise<WorldBackup[]>;
@@ -429,7 +448,7 @@ export interface WorkbenchApi {
     import(code: string): Promise<{ profile: Profile; failed: number }>;
   };
   serverPack: {
-    /** Asks where to put it; null if cancelled. */
+    /** Asks where to put it; null if canceled. */
     export(profileId: string): Promise<{ folder: string; modCount: number; clientOnly: string[] } | null>;
   };
   logs: {
@@ -495,7 +514,7 @@ export interface WorkbenchApi {
     addFiles(target: ContentTarget, filePaths: string[]): Promise<InstalledContent[]>;
     /** Copies files of any kind into a profile, sorted by what they are. Resolves to counts per kind. */
     addAny(profileId: string, filePaths: string[]): Promise<Partial<Record<ContentKind, number>>>;
-    /** Opens a file picker, then adds like addAny (or into `target`, for data packs); null if cancelled. */
+    /** Opens a file picker, then adds like addAny (or into `target`, for data packs); null if canceled. */
     pickFiles(profileId: string, target?: ContentTarget): Promise<Partial<Record<ContentKind, number>> | null>;
     /** Updates the given files, or every file with an update when fileNames is omitted. */
     update(target: ContentTarget, fileNames?: string[]): Promise<InstalledContent[]>;
@@ -510,10 +529,10 @@ export interface WorkbenchApi {
     ping(address: string): Promise<ServerStatus>;
   };
   packs: {
-    /** Opens a file picker; resolves to the new profile, or null if cancelled. */
+    /** Opens a file picker; resolves to the new profile, or null if canceled. */
     import(kind?: PackKind): Promise<ImportResult | null>;
     importFile(filePath: string): Promise<ImportResult>;
-    /** Opens a save dialog; resolves to the written path, or null if cancelled. */
+    /** Opens a save dialog; resolves to the written path, or null if canceled. */
     export(profileId: string, include: ExportItem[]): Promise<string | null>;
   };
   /** Absolute path of a file dropped onto the window. */
@@ -537,11 +556,11 @@ export interface WorkbenchApi {
     install(): Promise<void>;
   };
   window: {
-    /** Title bar colours, window background and zoom; remembered for the next start. */
+    /** Title bar colors, window background and zoom; remembered for the next start. */
     setLook(look: WindowLook): Promise<void>;
   };
   appearance: {
-    /** Opens a picker and stores the image; resolves to its version, or null if cancelled. */
+    /** Opens a picker and stores the image; resolves to its version, or null if canceled. */
     pickBackground(): Promise<string | null>;
     removeBackground(): Promise<void>;
   };
@@ -678,6 +697,8 @@ export interface LibrarySkin {
   /** Cape worn with this skin: null for none; missing leaves the cape alone. */
   capeId?: string | null;
   addedAt: string;
+  /** Set when the editor changed the picture. */
+  updatedAt?: string;
 }
 
 export interface ChangelogEntry {

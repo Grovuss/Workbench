@@ -40,10 +40,10 @@ export default function SkinView({ url, variant, scale = 6, label = 'Skin previe
 
   useEffect(() => {
     const img = new Image();
-    let cancelled = false;
+    let canceled = false;
     img.onload = () => {
       const ctx = canvas.current?.getContext('2d');
-      if (cancelled || !ctx) return;
+      if (canceled || !ctx) return;
       // HD skins are larger multiples of 64.
       const k = img.naturalWidth / 64;
       const legacy = img.naturalHeight * 2 === img.naturalWidth;
@@ -64,7 +64,7 @@ export default function SkinView({ url, variant, scale = 6, label = 'Skin previe
     };
     img.src = url.replace(/^http:/, 'https:');
     return () => {
-      cancelled = true;
+      canceled = true;
     };
   }, [url, variant, scale]);
 
@@ -77,10 +77,10 @@ export function CapeView({ url, scale = 4, label = 'Cape' }: { url: string; scal
 
   useEffect(() => {
     const img = new Image();
-    let cancelled = false;
+    let canceled = false;
     img.onload = () => {
       const ctx = canvas.current?.getContext('2d');
-      if (cancelled || !ctx) return;
+      if (canceled || !ctx) return;
       const k = img.naturalWidth / 64;
       ctx.clearRect(0, 0, 10 * scale, 16 * scale);
       ctx.imageSmoothingEnabled = false;
@@ -88,7 +88,7 @@ export function CapeView({ url, scale = 4, label = 'Cape' }: { url: string; scal
     };
     img.src = url.replace(/^http:/, 'https:');
     return () => {
-      cancelled = true;
+      canceled = true;
     };
   }, [url, scale]);
 

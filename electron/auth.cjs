@@ -111,7 +111,7 @@ function promptForCode(parent) {
     win.webContents.on('will-navigate', (e, u) => {
       if (intercept(e.url ?? u)) e.preventDefault();
     });
-    win.on('closed', () => finish(Object.assign(new Error('Sign-in cancelled.'), { cancelled: true })));
+    win.on('closed', () => finish(Object.assign(new Error('Sign-in canceled.'), { canceled: true })));
     win.loadURL(url.toString());
   });
 }
@@ -221,7 +221,7 @@ async function login(parent) {
   try {
     auth = await promptForCode(parent);
   } catch (err) {
-    if (err.cancelled) return null;
+    if (err.canceled) return null;
     throw err;
   }
   const tokens = await msToken({ grant_type: 'authorization_code', code: auth.code, code_verifier: auth.verifier, redirect_uri: REDIRECT_URI });

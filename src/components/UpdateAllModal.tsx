@@ -26,25 +26,25 @@ export default function UpdateAllModal({ profiles, launches, onClose }: Props) {
   const [running, setRunning] = useState(false);
 
   useEffect(() => {
-    let cancelled = false;
+    let canceled = false;
     const queue = [...profiles];
     const next = async (): Promise<void> => {
       const profile = queue.shift();
-      if (!profile || cancelled) return;
+      if (!profile || canceled) return;
       setRows((r) => ({ ...r, [profile.id]: { state: 'checking' } }));
       try {
         const result = await api.content.pendingUpdates(profile.id);
-        if (cancelled) return;
+        if (canceled) return;
         setRows((r) => ({ ...r, [profile.id]: { state: 'ready', ...result } }));
         if (result.updates.length) setSelected((s) => new Set(s).add(profile.id));
       } catch (err) {
-        if (!cancelled) setRows((r) => ({ ...r, [profile.id]: { state: 'failed', error: errorMessage(err) } }));
+        if (!canceled) setRows((r) => ({ ...r, [profile.id]: { state: 'failed', error: errorMessage(err) } }));
       }
       return next();
     };
     Array.from({ length: CHECKS_AT_ONCE }, next);
     return () => {
-      cancelled = true;
+      canceled = true;
     };
     // Checked once, when opened.
   }, []);

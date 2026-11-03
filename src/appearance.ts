@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { api } from './api';
 import { writeStored } from './stored';
 
-// How the launcher looks: theme, accent colour, custom themes, density, size and background.
+// How the launcher looks: theme, accent color, custom themes, density, size and background.
 // Kept per device in localStorage. index.html applies a cached copy before the page paints.
 
 export type ThemeMode = 'light' | 'dark';
@@ -22,7 +22,7 @@ export interface CustomTheme {
 export interface Appearance {
   /** 'system', a built-in theme's id, or a custom theme's id. */
   theme: string;
-  /** An ACCENTS id, or a #rrggbb colour. */
+  /** An ACCENTS id, or a #rrggbb color. */
   accent: string;
   customThemes: CustomTheme[];
   compact: boolean;
@@ -30,7 +30,7 @@ export interface Appearance {
   scale: number;
   /** Version of the stored background image; null for none. */
   background: string | null;
-  /** How much the page colour covers the background image, 0 to 0.9. */
+  /** How much the page color covers the background image, 0 to 0.9. */
   backgroundDim: number;
   backgroundBlur: boolean;
   /** On a profile's page, show its cover screenshot behind it. */
@@ -122,7 +122,7 @@ function load(): Appearance {
   }
 }
 
-// ---------- Colour maths ----------
+// ---------- Color maths ----------
 
 const channels = (hex: string) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255);
 
@@ -140,7 +140,7 @@ export function contrast(a: string, b: string) {
 const DARK_INK = '#2a2a2b';
 const LIGHT_INK = '#ffffff';
 
-/** Charcoal or white, whichever reads better on the colour. */
+/** Charcoal or white, whichever reads better on the color. */
 export const inkOn = (hex: string) => (contrast(hex, DARK_INK) >= contrast(hex, LIGHT_INK) ? DARK_INK : LIGHT_INK);
 
 export const accentColor = (accent: string) => ACCENTS.find((a) => a.id === accent)?.color ?? accent;
@@ -157,7 +157,7 @@ function accentVars(hex: string, mode: ThemeMode): Record<string, string> {
   };
 }
 
-/** Every colour token, worked out from a custom theme's three colours. */
+/** Every color token, worked out from a custom theme's three colors. */
 function themeVars(t: CustomTheme): Record<string, string> {
   const mix = (a: string, b: string, pct: number) => `color-mix(in srgb, ${a}, ${b} ${pct}%)`;
   return {
@@ -176,7 +176,7 @@ function themeVars(t: CustomTheme): Record<string, string> {
   };
 }
 
-/** A CSS colour (variables, color-mix…) as #rrggbb, by painting it. */
+/** A CSS color (variables, color-mix…) as #rrggbb, by painting it. */
 function resolveColor(cssVar: string) {
   const probe = document.createElement('span');
   probe.style.color = `var(${cssVar})`;
@@ -224,7 +224,7 @@ function applyAppearance(a: Appearance, systemDark: boolean) {
   const accent = custom?.accent ?? accentColor(a.accent);
   const vars: Record<string, string> = {
     ...(custom ? themeVars(custom) : {}),
-    // The stylesheet's own yellow is tuned by hand for each theme; other colours are worked out.
+    // The stylesheet's own yellow is tuned by hand for each theme; other colors are worked out.
     ...(accent === ACCENTS[0].color && !custom ? {} : accentVars(accent, mode)),
     '--ui-scale': String(a.scale),
   };
@@ -265,7 +265,7 @@ export function useAppearance() {
 
 const newId = () => `custom-${Date.now().toString(36)}`;
 
-/** A new custom theme that starts from the colours on screen now. */
+/** A new custom theme that starts from the colors on screen now. */
 export function themeFromCurrent(mode: ThemeMode, name: string): CustomTheme {
   return {
     id: newId(),

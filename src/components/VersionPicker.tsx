@@ -38,14 +38,14 @@ export default function VersionPicker({ initial, onChange }: Props) {
       setSupported(null);
       return;
     }
-    let cancelled = false;
+    let canceled = false;
     setSupported(new Set());
     api.loaders
       .games(sel.loader)
-      .then((ids) => !cancelled && setSupported(new Set(ids)))
-      .catch((err) => !cancelled && setError(errorMessage(err)));
+      .then((ids) => !canceled && setSupported(new Set(ids)))
+      .catch((err) => !canceled && setError(errorMessage(err)));
     return () => {
-      cancelled = true;
+      canceled = true;
     };
   }, [sel.loader]);
 
@@ -71,20 +71,20 @@ export default function VersionPicker({ initial, onChange }: Props) {
       setLoaderVersions(null);
       return;
     }
-    let cancelled = false;
+    let canceled = false;
     setLoaderVersions(null);
     api.loaders
       .versions(sel.loader, sel.mcVersion)
       .then((list) => {
-        if (cancelled) return;
+        if (canceled) return;
         setLoaderVersions(list);
         setSel((s) =>
           list.some((v) => v.version === s.loaderVersion) ? s : { ...s, loaderVersion: defaultLoaderVersion(list) },
         );
       })
-      .catch((err) => !cancelled && setError(errorMessage(err)));
+      .catch((err) => !canceled && setError(errorMessage(err)));
     return () => {
-      cancelled = true;
+      canceled = true;
     };
   }, [sel.loader, sel.mcVersion]);
 

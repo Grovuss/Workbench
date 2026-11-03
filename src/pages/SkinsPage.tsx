@@ -1,9 +1,13 @@
 import { Suspense, lazy, useCallback, useEffect, useRef, useState, type DragEvent } from 'react';
 import {
   Ban,
+  Brush,
   ChevronDown,
   FolderInput,
   FolderMinus,
+  ImageOff,
+  ImagePlus,
+  Images,
   LoaderCircle,
   LogIn,
   MoreHorizontal,
@@ -18,9 +22,11 @@ import PageHeader from '../components/PageHeader';
 import SkinView, { CapeView } from '../components/SkinView';
 import Dropdown from '../components/Dropdown';
 import GroupModal from '../components/GroupModal';
+import ScreenshotPickerModal from '../components/ScreenshotPickerModal';
 import { api, errorMessage } from '../api';
 import { useStoredSet } from '../stored';
-import type { AccountsState, LibrarySkin, SkinState, SkinVariant } from '../types';
+import { skinUrl } from '../skinTexture';
+import type { AccountsState, LibrarySkin, SkinBase, SkinState, SkinVariant } from '../types';
 
 // three.js is big, so the 3D view loads with this page rather than with the app.
 const Skin3D = lazy(() => import('../components/Skin3D'));
@@ -30,16 +36,28 @@ interface Props {
   onLogin: () => void;
   /** The account's skin changed: refresh the sidebar head. */
   onSkinChanged: () => void;
+  /** Opens the editor on a library skin, or on a new one (null). */
+  onEdit: (id: string | null, base?: SkinBase) => void;
   onError: (message: string) => void;
   onSuccess: (message: string) => void;
 }
+
+// The picture behind the 3D player: a version string for its URL, or nothing for the plain background.
+const STAGE_KEY = 'workbench.skinStageBackground';
+const readStage = () => {
+  try {
+    return localStorage.getItem(STAGE_KEY);
+  } catch {
+    return null;
+  }
+};
 
 const VARIANTS: { id: SkinVariant; label: string }[] = [
   { id: 'classic', label: 'Wide' },
   { id: 'slim', label: 'Slim' },
 ];
 
-export default function SkinsPage({ accounts, onLogin, onSkinChanged, onError, onSuccess }: Props) {
+export default function SkinsPage({ accounts, onLogin, onSkinChanged, onEdit, onError, onSuccess }: Props) {
   const active = accounts.accounts.find((a) => a.id === accounts.activeId);
   const [state, setState] = useState<SkinState | null>(null);
   const [library, setLibrary] = useState<LibrarySkin[] | null>(null);
@@ -52,6 +70,32 @@ export default function SkinsPage({ accounts, onLogin, onSkinChanged, onError, o
   const [grouping, setGrouping] = useState<LibrarySkin | null>(null);
   const [renaming, setRenaming] = useState<string | null>(null);
   const signedIn = Boolean(active && !active.offline);
+  const [stage, setStageState] = useState<string | null>(readStage);
+  const [pickingShot, setPickingShot] = useState(false);
+
+  const setStage = (version: string | null) => {
+    setStageState(version);
+    try {
+      if (version) localStorage.setItem(STAGE_KEY, version);
+      else localStorage.removeItem(STAGE_KEY);
+    } catch {
+      // Only remembered for this visit.
+    }
+  };
+
+  const uploadStage = async () => {
+    try {
+      const version = await api.skins.pickBackground();
+      if (version) setStage(version);
+    } catch (err) {
+      onError(errorMessage(err));
+    }
+  };
+
+  const removeStage = async () => {
+    setStage(null);
+    await api.skins.removeBackground().catch(() => {});
+  };
 
   useEffect(() => {
     api.skins
@@ -141,67 +185,68 @@ export default function SkinsPage({ accounts, onLogin, onSkinChanged, onError, o
       ].filter((s) => s.items.length > 0)
     : [{ name: null, items: library ?? [] }];
 
+  const pickSkins = () => updateLibrary(api.skins.pick());
   const addButton = (
-    <button className="btn btn-primary" onClick={() => updateLibrary(api.skins.pick())}>
+    <button className="btn btn-primary" onClick={pickSkins}>
       <Upload size={16} /> Add skin
     </button>
+  );
+  const headerActions = (
+    <div className="page-header-actions">
+      <button className="btn btn-secondary" onClick={() => onEdit(null)}>
+        <Brush size={16} /> New skin
+      </button>
+      {addButton}
+    </div>
   );
 
   const card = (skin: LibrarySkin) => {
     const cape = skin.capeId ? state?.capes.find((c) => c.id === skin.capeId) : null;
     return (
-      <div key={skin.id} className="skin-card">
+      <div key={skin.id} className="skin-card" data-busy={busy === skin.id || undefined}>
         <button
           className="skin-card-wear"
           disabled={busy !== null}
           onClick={() => run(skin.id, () => api.skins.wear(skin.id), `Now wearing ${skin.name}.`)}
           title={`Wear ${skin.name}`}
         >
-          <span className="skin-card-preview">
-            {busy === skin.id ? (
-              <LoaderCircle size={22} className="spin" />
-            ) : (
-              <SkinView url={`workbench://skin/${skin.id}`} variant={skin.variant} scale={5} label={skin.name} />
+          <span className="skin-card-cover">
+            <SkinView url={skinUrl(skin)} variant={skin.variant} scale={8} label={skin.name} />
+            {busy === skin.id && (
+              <span className="skin-card-busy">
+                <LoaderCircle size={22} className="spin" />
+              </span>
             )}
           </span>
-          <span className="skin-card-name">{skin.name}</span>
-          {cape && <span className="skin-card-cape">with {cape.alias} cape</span>}
+          <span className="skin-card-body">
+            <span className="skin-card-name">{skin.name}</span>
+            {cape && <span className="skin-card-meta">{cape.alias} cape</span>}
+          </span>
         </button>
-        <div className="skin-card-actions">
-          <div className="segmented skin-variant" role="group" aria-label="Arm style">
-            {VARIANTS.map((v) => (
-              <button
-                key={v.id}
-                aria-pressed={skin.variant === v.id}
-                onClick={() => updateLibrary(api.skins.update(skin.id, { variant: v.id }))}
-              >
-                {v.label}
-              </button>
-            ))}
-          </div>
-          <Dropdown
-            label={<MoreHorizontal size={16} />}
-            className="icon-btn"
-            chevron={false}
-            ariaLabel={`${skin.name} options`}
-            items={[
-              {
-                icon: <FolderInput size={16} />,
-                label: skin.group ? 'Change group' : 'Add to a group',
-                onSelect: () => setGrouping(skin),
-              },
-              {
-                icon: <Trash2 size={16} />,
-                label: 'Delete',
-                danger: true,
-                onSelect: () => updateLibrary(api.skins.remove(skin.id)),
-              },
-            ]}
-          />
-        </div>
+        <Dropdown
+          label={<MoreHorizontal size={16} />}
+          className="icon-btn skin-card-more"
+          chevron={false}
+          ariaLabel={`${skin.name} options`}
+          items={[
+            { icon: <Brush size={16} />, label: 'Edit', onSelect: () => onEdit(skin.id) },
+            {
+              icon: <FolderInput size={16} />,
+              label: skin.group ? 'Change group' : 'Add to a group',
+              onSelect: () => setGrouping(skin),
+            },
+            {
+              icon: <Trash2 size={16} />,
+              label: 'Delete',
+              danger: true,
+              onSelect: () => updateLibrary(api.skins.remove(skin.id)),
+            },
+          ]}
+        />
       </div>
     );
   };
+
 
   return (
     <div
@@ -224,51 +269,74 @@ export default function SkinsPage({ accounts, onLogin, onSkinChanged, onError, o
         </div>
       )}
 
-      <PageHeader title="Skins" subtitle={`Playing as ${active!.name}`} actions={addButton} />
+      <PageHeader title="Skins" subtitle={`Playing as ${active!.name}`} actions={headerActions} />
 
-      <div className="skins-layout">
-        <section className="skin-current">
-          <div className="skin-stage">
-            {!state ? (
-              <LoaderCircle size={24} className="spin" />
-            ) : state.skin ? (
-              <Suspense fallback={<LoaderCircle size={24} className="spin" />}>
-                <Skin3D url={state.skin.url} variant={state.skin.variant} capeUrl={activeCape?.url} label={`${state.account.name}’s skin`} />
-              </Suspense>
-            ) : (
-              <div className="skin-default">
-                <Shirt size={36} strokeWidth={1.5} />
-                <span>Default skin</span>
+      <div className="profile-layout skins-layout">
+        <aside className="profile-side">
+          <section className="profile-panel skin-panel" aria-label="Your skin">
+            <div
+              className="skin-stage"
+              data-image={stage ? true : undefined}
+              style={stage ? { backgroundImage: `url("workbench://skin-background/?v=${encodeURIComponent(stage)}")` } : undefined}
+            >
+              <Dropdown
+                label={<ImagePlus size={16} />}
+                className="icon-btn skin-stage-bg"
+                chevron={false}
+                ariaLabel="Background"
+                items={[
+                  { icon: <Upload size={16} />, label: 'Upload an image…', onSelect: uploadStage },
+                  { icon: <Images size={16} />, label: 'Use a screenshot…', onSelect: () => setPickingShot(true) },
+                  ...(stage ? [{ icon: <ImageOff size={16} />, label: 'Remove background', onSelect: removeStage }] : []),
+                ]}
+              />
+              {!state ? (
+                <LoaderCircle size={24} className="spin" />
+              ) : state.skin ? (
+                <Suspense fallback={<LoaderCircle size={24} className="spin" />}>
+                  <Skin3D url={state.skin.url} variant={state.skin.variant} capeUrl={activeCape?.url} label={`${state.account.name}’s skin`} />
+                </Suspense>
+              ) : (
+                <div className="skin-default">
+                  <Shirt size={36} strokeWidth={1.5} />
+                  <span>Default skin</span>
+                </div>
+              )}
+            </div>
+
+            {state?.skin && (
+              <div className="segmented skin-variant" role="group" aria-label="Arm style">
+                {VARIANTS.map((v) => (
+                  <button
+                    key={v.id}
+                    aria-pressed={state.skin!.variant === v.id}
+                    disabled={busy !== null}
+                    onClick={() => {
+                      if (state.skin!.variant === v.id) return;
+                      run('variant', () => api.skins.setVariant(v.id), `Switched to ${v.label.toLowerCase()} arms.`).then(() =>
+                        api.skins.library().then(setLibrary).catch(() => {}),
+                      );
+                    }}
+                  >
+                    {v.label}
+                  </button>
+                ))}
               </div>
             )}
-          </div>
-          <div className="skin-current-actions">
-            <button className="btn btn-secondary btn-sm" onClick={saveCurrent} disabled={!state?.skin || busy !== null}>
-              {busy === 'save' ? <LoaderCircle size={14} className="spin" /> : <Save size={14} />} Save to library
-            </button>
-            <button
-              className="btn btn-ghost btn-sm"
-              onClick={() => run('reset', api.skins.reset, 'Back to the default skin.')}
-              disabled={!state?.skin || busy !== null}
-            >
-              {busy === 'reset' ? <LoaderCircle size={14} className="spin" /> : <RotateCcw size={14} />} Reset
-            </button>
-          </div>
 
-          {state && state.capes.length > 0 && (
-            <>
-              <h2 className="section-label">Cape</h2>
-              <div className="capes">
+            {state?.skin && state.capes.length > 0 && (
+              <div className="capes" role="group" aria-label="Cape">
                 <button
                   className="cape-option"
                   aria-pressed={!activeCape}
                   disabled={busy !== null}
                   onClick={() => run('no-cape', () => api.skins.setCape(null), 'Cape hidden.')}
+                  title="No cape"
                 >
                   <span className="cape-none">
-                    <Ban size={20} />
+                    {busy === 'no-cape' ? <LoaderCircle size={18} className="spin" /> : <Ban size={18} />}
                   </span>
-                  <span>None</span>
+                  <span>No cape</span>
                 </button>
                 {state.capes.map((cape) => (
                   <button
@@ -277,18 +345,46 @@ export default function SkinsPage({ accounts, onLogin, onSkinChanged, onError, o
                     aria-pressed={cape.active}
                     disabled={busy !== null}
                     onClick={() => run(cape.id, () => api.skins.setCape(cape.id), `Wearing the ${cape.alias} cape.`)}
+                    title={cape.alias}
                   >
-                    {busy === cape.id ? <LoaderCircle size={20} className="spin" /> : <CapeView url={cape.url} label={cape.alias} />}
+                    {busy === cape.id ? <LoaderCircle size={18} className="spin" /> : <CapeView url={cape.url} label={cape.alias} />}
                     <span>{cape.alias}</span>
                   </button>
                 ))}
               </div>
-            </>
-          )}
-        </section>
+            )}
 
-        <section className="skin-library">
-          <h2 className="section-label section-label-first">Library</h2>
+            <div className="profile-panel-actions">
+              <button
+                className="btn btn-secondary hero-more"
+                onClick={() => state?.skin && onEdit(null, { url: state.skin.url, name: `${state.account.name}’s skin`, variant: state.skin.variant })}
+                disabled={!state?.skin || busy !== null}
+                aria-label="Edit this skin"
+                title="Edit this skin (saves as a new skin)"
+              >
+                <Brush size={16} />
+              </button>
+              <button className="btn btn-secondary skin-save" onClick={saveCurrent} disabled={!state?.skin || busy !== null}>
+                {busy === 'save' ? <LoaderCircle size={16} className="spin" /> : <Save size={16} />} Save to library
+              </button>
+              <button
+                className="btn btn-secondary hero-more"
+                onClick={() => run('reset', api.skins.reset, 'Back to the default skin.')}
+                disabled={!state?.skin || busy !== null}
+                aria-label="Reset to the default skin"
+                title="Reset to the default skin"
+              >
+                {busy === 'reset' ? <LoaderCircle size={16} className="spin" /> : <RotateCcw size={16} />}
+              </button>
+            </div>
+          </section>
+        </aside>
+
+        <section className="profile-main skin-library" aria-labelledby="skin-library-title">
+          <header className="skin-library-head">
+            <h2 id="skin-library-title">Library</h2>
+            {library && library.length > 0 && <span>Click a skin to wear it</span>}
+          </header>
           {library && library.length === 0 ? (
             <div className="empty empty-compact">
               <Shirt className="empty-icon" size={40} strokeWidth={1.5} />
@@ -298,13 +394,12 @@ export default function SkinsPage({ accounts, onLogin, onSkinChanged, onError, o
             </div>
           ) : (
             sections.map(({ name, items }) => {
-              if (groupNames.length === 0) {
-                return (
-                  <div key="all" className="skin-grid">
-                    {items.map(card)}
-                  </div>
-                );
-              }
+              const grid = (
+                <div className="skin-grid">
+                  {items.map(card)}
+                </div>
+              );
+              if (groupNames.length === 0) return <div key="all">{grid}</div>;
               const key = name ?? '';
               const open = !collapsed.has(key);
               return (
@@ -333,7 +428,7 @@ export default function SkinsPage({ accounts, onLogin, onSkinChanged, onError, o
                       />
                     )}
                   </div>
-                  {open && <div className="skin-grid">{items.map(card)}</div>}
+                  {open && grid}
                 </section>
               );
             })
@@ -353,6 +448,14 @@ export default function SkinsPage({ accounts, onLogin, onSkinChanged, onError, o
             await updateLibrary(api.skins.update(grouping.id, { group }));
           }}
           onClose={() => setGrouping(null)}
+        />
+      )}
+      {pickingShot && (
+        <ScreenshotPickerModal
+          title="Use a screenshot as the background"
+          onPick={async (profileId, fileName) => setStage(await api.skins.screenshotBackground(profileId, fileName))}
+          onClose={() => setPickingShot(false)}
+          onError={onError}
         />
       )}
       {renaming && (

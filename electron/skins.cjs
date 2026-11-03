@@ -155,6 +155,34 @@ async function addFiles(filePaths) {
   return result;
 }
 
+/**
+ * Saves a skin from the editor: over library entry `id`, or as a new entry when id is null.
+ * Returns the entry's id and the library.
+ */
+async function saveEdited(id, base64, name, variant) {
+  const buf = Buffer.from(String(base64), 'base64');
+  if (buf.length > 1024 * 1024) throw new Error('That skin is too large.');
+  inspect(buf);
+  const cleanVariant = variant === 'slim' ? 'slim' : 'classic';
+  if (!id) {
+    const before = new Set((await loadLibrary()).map((s) => s.id));
+    const library = await addToLibrary(buf, name, { variant: cleanVariant });
+    return { id: library.find((s) => !before.has(s.id))?.id ?? null, library };
+  }
+  return withLock(async () => {
+    const skins = await loadLibrary();
+    const entry = skins.find((s) => s.id === id);
+    if (!entry) throw new Error('Skin not found.');
+    await fsp.writeFile(skinFile(id), buf);
+    entry.name = String(name ?? '').trim().slice(0, 40) || entry.name;
+    entry.variant = cleanVariant;
+    // Changes the picture's address, so previews don't show the old one.
+    entry.updatedAt = new Date().toISOString();
+    await saveLibrary(skins);
+    return { id, library: await listLibrary() };
+  });
+}
+
 /** The library entry with exactly these PNG bytes, if any. */
 async function findSame(buf) {
   for (const entry of await loadLibrary()) {
@@ -178,6 +206,19 @@ async function saveCurrent() {
   const same = await findSame(buf);
   if (same) return updateEntry(same.id, { variant: skin.variant, capeId });
   return addToLibrary(buf, `${account.name}’s skin`, { variant: skin.variant, capeId });
+}
+
+/** Re-uploads the current skin with the other arm style, and keeps its library copy in step. */
+async function setVariant(variant) {
+  const { skin } = await state();
+  if (!skin) throw new Error('You’re wearing a default skin.');
+  const res = await fetch(skin.url);
+  if (!res.ok) throw new Error('Couldn’t download your current skin.');
+  const buf = Buffer.from(await res.arrayBuffer());
+  const result = await upload(buf, variant);
+  const same = await findSame(buf);
+  if (same) await updateEntry(same.id, { variant });
+  return result;
 }
 
 const libraryEntry = async (id) => {
@@ -244,11 +285,13 @@ module.exports = {
   reset,
   setCape,
   wear,
+  setVariant,
   library,
   addFiles,
   saveCurrent,
   updateEntry,
   removeFromLibrary,
   renameGroup,
+  saveEdited,
   read,
 };

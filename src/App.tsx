@@ -9,6 +9,7 @@ import ProfilesPage from './pages/ProfilesPage';
 import ProfilePage, { type ProfileTab } from './pages/ProfilePage';
 import BrowsePage from './pages/BrowsePage';
 import SkinsPage from './pages/SkinsPage';
+import SkinEditorPage from './pages/SkinEditorPage';
 import SettingsPage from './pages/SettingsPage';
 import { api, errorMessage } from './api';
 import { useAppearance } from './appearance';
@@ -42,7 +43,9 @@ async function checkMods(profileId: string): Promise<Problem[]> {
 }
 
 const sameRoute = (a: Route, b: Route) =>
-  a.page === b.page && (a.page !== 'profile' || (b.page === 'profile' && a.id === b.id && a.tab === b.tab));
+  a.page === b.page &&
+  (a.page !== 'profile' || (b.page === 'profile' && a.id === b.id && a.tab === b.tab)) &&
+  (a.page !== 'skin-editor' || (b.page === 'skin-editor' && a.id === b.id));
 
 export default function App() {
   const [history, setHistory] = useState<Route[]>([{ page: 'profiles' }]);
@@ -188,6 +191,8 @@ export default function App() {
       { label: 'Profiles', onClick: () => navigate({ page: 'profiles' }) },
       { label: currentProfile?.name ?? '…' },
     ];
+  } else if (route.page === 'skin-editor') {
+    crumbs = [{ label: 'Skins', onClick: back }, { label: route.id ? 'Edit skin' : 'New skin' }];
   } else {
     crumbs = [{ label: PAGE_TITLES[route.page] }];
   }
@@ -212,7 +217,7 @@ export default function App() {
         onStop={stop}
       />
       <Sidebar
-        page={route.page === 'profile' ? 'profiles' : route.page}
+        page={route.page === 'profile' ? 'profiles' : route.page === 'skin-editor' ? 'skins' : route.page}
         onNavigate={(page) => navigate({ page })}
         accounts={accounts}
         onLogin={login}
@@ -263,7 +268,28 @@ export default function App() {
           />
         )}
         {route.page === 'browse' && <BrowsePage profiles={profiles} onProfileCreated={addProfile} onError={pushToast} />}
-        {route.page === 'skins' && <SkinsPage accounts={accounts} onLogin={login} onSkinChanged={refreshAccounts} onError={pushToast} onSuccess={(message) => pushToast(message, 'success')} />}
+        {route.page === 'skins' && (
+          <SkinsPage
+            accounts={accounts}
+            onLogin={login}
+            onSkinChanged={refreshAccounts}
+            onEdit={(id, base) => navigate({ page: 'skin-editor', id, base })}
+            onError={pushToast}
+            onSuccess={(message) => pushToast(message, 'success')}
+          />
+        )}
+        {route.page === 'skin-editor' && (
+          <SkinEditorPage
+            key={route.id ?? 'new'}
+            id={route.id}
+            base={route.base}
+            canWear={Boolean(accounts.accounts.find((a) => a.id === accounts.activeId && !a.offline))}
+            onDone={back}
+            onSkinChanged={refreshAccounts}
+            onError={pushToast}
+            onSuccess={(message) => pushToast(message, 'success')}
+          />
+        )}
         {route.page === 'settings' && (
           <SettingsPage appearance={appearance} onAppearanceChange={setAppearance} onError={pushToast} />
         )}

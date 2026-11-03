@@ -83,4 +83,4 @@ async function read(profileId, fileName, thumb) {
   return { buf, type: 'image/jpeg' };
 }
 
-module.exports = { list, remove, setCover, copy, reveal, read };
+module.exports = { list, remove, setCover, copy, reveal, read, file };

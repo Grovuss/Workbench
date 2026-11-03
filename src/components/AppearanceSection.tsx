@@ -28,7 +28,7 @@ interface Props {
 
 const percent = (n: number) => `${Math.round(n * 100)}%`;
 
-/** Settings → Appearance: themes (built-in and your own), accent colour, size, density and background. */
+/** Settings → Appearance: themes (built-in and your own), accent color, size, density and background. */
 export default function AppearanceSection({ appearance, onChange, onError }: Props) {
   const [reduceMotion, setReduceMotionState] = useState(reduceMotionStored);
   const [importing, setImporting] = useState(false);
@@ -75,7 +75,7 @@ export default function AppearanceSection({ appearance, onChange, onError }: Pro
       <div className="settings-row settings-row-stacked">
         <div>
           <h3>Theme</h3>
-          <p>Pick one, or make your own from three colours.</p>
+          <p>Pick one, or make your own from three colors.</p>
         </div>
         <div className="theme-grid" role="radiogroup" aria-label="Theme">
           {BUILTIN_THEMES.map((t) => (
@@ -113,12 +113,12 @@ export default function AppearanceSection({ appearance, onChange, onError }: Pro
       {editing && <ThemeEditor theme={editing} copied={copied} onChange={saveTheme} onCopy={() => copyCode(editing)} onDelete={() => deleteTheme(editing.id)} />}
 
       <Row
-        title="Accent colour"
+        title="Accent color"
         description={
           editing?.accent ? `Set by ${editing.name}. Turn off its own accent to use this.` : 'Buttons, highlights and the selected page.'
         }
       >
-        <div className="accent-swatches" role="radiogroup" aria-label="Accent colour">
+        <div className="accent-swatches" role="radiogroup" aria-label="Accent color">
           {ACCENTS.map((a) => (
             <button
               key={a.id}
@@ -136,7 +136,7 @@ export default function AppearanceSection({ appearance, onChange, onError }: Pro
           ))}
           <label
             className="accent-swatch accent-swatch-custom"
-            title="Any colour"
+            title="Any color"
             aria-checked={appearance.accent.startsWith('#')}
             style={appearance.accent.startsWith('#') ? { background: appearance.accent } : undefined}
           >
@@ -145,7 +145,7 @@ export default function AppearanceSection({ appearance, onChange, onError }: Pro
               value={accentColor(appearance.accent)}
               disabled={Boolean(editing?.accent)}
               onChange={(e) => onChange({ accent: e.target.value })}
-              aria-label="Custom accent colour"
+              aria-label="Custom accent color"
             />
             {appearance.accent.startsWith('#') ? <Check size={14} strokeWidth={3} /> : <Plus size={14} strokeWidth={3} />}
           </label>
@@ -192,7 +192,7 @@ export default function AppearanceSection({ appearance, onChange, onError }: Pro
       </Row>
       {(appearance.background || appearance.profileCovers) && (
         <>
-          <Row title="Background fade" description="How much the page colour covers the image. More is easier to read.">
+          <Row title="Background fade" description="How much the page color covers the image. More is easier to read.">
             <div className="memory-control">
               <input
                 type="range"
@@ -331,10 +331,10 @@ function ThemeEditor({
           ) : (
             <span className="theme-editor-accent-off">Accent from the setting below</span>
           )}
-          <Toggle label="Own accent colour" checked={theme.accent !== null} onChange={(on) => set({ accent: on ? '#fec424' : null })} />
+          <Toggle label="Own accent color" checked={theme.accent !== null} onChange={(on) => set({ accent: on ? '#fec424' : null })} />
         </div>
       </div>
-      {!readable && <p className="theme-editor-warning">Text may be hard to read on these colours. Try more contrast.</p>}
+      {!readable && <p className="theme-editor-warning">Text may be hard to read on these colors. Try more contrast.</p>}
       <div className="theme-editor-actions">
         <button className="btn btn-secondary btn-sm" onClick={onCopy}>
           {copied ? <Check size={14} /> : <ClipboardCopy size={14} />} {copied ? 'Copied' : 'Copy theme code'}

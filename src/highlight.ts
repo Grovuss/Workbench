@@ -1,4 +1,4 @@
-// Just enough syntax colouring for mod config files: keys, strings, numbers, booleans and comments.
+// Just enough syntax coloring for mod config files: keys, strings, numbers, booleans and comments.
 
 export type TokenKind = 'key' | 'string' | 'number' | 'bool' | 'comment' | 'section';
 export type Token = { kind: TokenKind | null; text: string };

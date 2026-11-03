@@ -32,7 +32,7 @@ app.on('open-file', (e, file) => {
 });
 
 // workbench:// serves local images to the renderer:
-//   profile-icon/<id>, screenshot/<profileId>/<file>[?thumb=1], skin/<libraryId>
+//   profile-icon/<id>, screenshot/<profileId>/<file>[?thumb=1], skin/<libraryId>, background, skin-background
 protocol.registerSchemesAsPrivileged([{ scheme: 'workbench', privileges: { standard: true, secure: true, corsEnabled: true } }]);
 
 const PROFILE_ID = /^[0-9a-f-]{36}$/;
@@ -54,6 +54,10 @@ function registerProtocol() {
     }
     if (url.hostname === 'background') {
       const image = await background.read();
+      if (image) return new Response(image.buf, { headers: { 'Content-Type': image.type, 'Cache-Control': 'no-cache' } });
+    }
+    if (url.hostname === 'skin-background') {
+      const image = await background.skinStage.read();
       if (image) return new Response(image.buf, { headers: { 'Content-Type': image.type, 'Cache-Control': 'no-cache' } });
     }
     if (url.hostname === 'skin') {

@@ -2565,7 +2565,7 @@ select.input option {
   flex: none;
 }
 
-/* Range, pages centred, page size; the side columns share the width so the pages stay centred. */
+/* Range, pages centered, page size; the side columns share the width so the pages stay centered. */
 .pagination {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
@@ -3321,30 +3321,56 @@ select.input option {
 }
 
 /* ---------- Skins ---------- */
-.skins-layout {
-  display: grid;
-  grid-template-columns: 260px 1fr;
-  gap: 28px;
-  align-items: start;
+/* Same frame as a profile: your skin on the left, the library on the right. */
+/* Stays a column at every width (a profile panel turns into a row when narrow). */
+.profile-panel.skin-panel {
+  display: flex;
+  align-items: stretch;
+  gap: 12px;
+  padding: 8px 8px 16px;
 }
 
-.skin-current {
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
+.skin-panel > .profile-panel-actions {
+  padding-inline: 8px;
 }
 
 .skin-stage {
   position: relative;
   display: grid;
   place-items: center;
-  height: 380px;
+  height: 320px;
   overflow: hidden;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  background:
-    radial-gradient(circle at 50% 85%, color-mix(in srgb, var(--accent) 22%, transparent), transparent 60%),
-    var(--bg-surface);
+  border-radius: var(--radius-md);
+  background-color: var(--icon-tile-bg);
+  background-position: center;
+  background-size: cover;
+}
+
+/* Picks the picture behind the player. */
+.skin-stage > .dropdown {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 2;
+}
+
+.icon-btn.skin-stage-bg {
+  background: color-mix(in srgb, var(--bg-surface) 78%, transparent);
+  backdrop-filter: blur(6px);
+  color: var(--text-muted);
+  opacity: 0.85;
+}
+
+.skin-stage:hover .icon-btn.skin-stage-bg,
+.icon-btn.skin-stage-bg:focus-visible,
+.icon-btn.skin-stage-bg[aria-expanded='true'] {
+  opacity: 1;
+  color: var(--text);
+}
+
+.skin-save {
+  flex: 1;
+  justify-content: center;
 }
 
 .skin-view,
@@ -3362,36 +3388,39 @@ select.input option {
   font-weight: 700;
 }
 
-.skin-current-actions {
+.skin-variant {
   display: flex;
-  justify-content: center;
-  gap: 6px;
-  margin-top: 10px;
+  margin: 0 8px;
 }
 
-.skin-current .section-label {
-  margin-top: 24px;
+.skin-variant button {
+  flex: 1;
+  justify-content: center;
+  padding: 5px 10px;
+  font-size: 12.5px;
 }
 
 .capes {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
+  display: grid;
+  margin: 0 8px;
+  grid-template-columns: repeat(auto-fill, minmax(54px, 1fr));
+  gap: 6px;
 }
 
 .cape-option {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 6px;
-  width: 72px;
-  padding: 8px 4px;
+  gap: 5px;
+  min-width: 0;
+  padding: 7px 3px 6px;
   border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  background: var(--bg-surface);
-  font-size: 11.5px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-app);
+  font-size: 11px;
   font-weight: 700;
   color: var(--text-muted);
+  transition: border-color 120ms;
 }
 
 .cape-option span {
@@ -3401,7 +3430,7 @@ select.input option {
   white-space: nowrap;
 }
 
-.cape-option:hover {
+.cape-option:hover:not(:disabled) {
   border-color: var(--border-strong);
 }
 
@@ -3411,82 +3440,147 @@ select.input option {
   color: var(--text);
 }
 
+.cape-option .cape-view,
+.cape-none {
+  height: 48px;
+}
+
 .cape-none {
   display: grid;
   place-items: center;
-  width: 40px;
-  height: 64px;
+  width: 30px;
   color: var(--text-faint);
+}
+
+/* Library */
+.skin-library-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.skin-library-head h2 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 20px;
+  font-weight: 800;
+}
+
+.skin-library-head span {
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 600;
 }
 
 .skin-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-  gap: 12px;
+  gap: 14px;
 }
 
+/* Built like a profile card: picture on top, name below. */
 .skin-card {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 6px 12px;
+  position: relative;
+  min-width: 0;
+  overflow: hidden;
+  background: var(--bg-surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
-  background: var(--bg-surface);
+  box-shadow: var(--shadow-card);
+  transition: border-color 120ms, transform 120ms;
 }
 
-/* The picture and name: click to wear. */
+.skin-card:hover {
+  border-color: var(--border-strong);
+  transform: translateY(-2px);
+}
+
+.skin-card:has(.skin-card-wear:focus-visible) {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
 .skin-card-wear {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 2px;
   width: 100%;
-  padding: 8px 6px 10px;
-  border-radius: var(--radius-md);
-  transition: background 120ms;
+  text-align: left;
 }
 
-.skin-card-wear:hover:not(:disabled) {
-  background: var(--bg-surface-hover);
+.skin-card-wear:focus-visible {
+  outline: none;
+}
+
+/* A tall slot, so the figure fills it evenly instead of sitting small in a wide box. */
+.skin-card-cover {
+  position: relative;
+  display: block;
+  width: 100%;
+  aspect-ratio: 5 / 6;
+  background: var(--icon-tile-bg);
+}
+
+.skin-card-cover .skin-view {
+  position: absolute;
+  top: 7%;
+  left: 50%;
+  height: 86%;
+  width: auto;
+  transform: translateX(-50%);
+  filter: drop-shadow(0 6px 8px rgba(0, 0, 0, 0.22));
+  transition: transform 160ms ease-out;
+}
+
+.skin-card-wear:hover:not(:disabled) .skin-view {
+  transform: translateX(-50%) translateY(-3px);
+}
+
+.skin-card-busy {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: color-mix(in srgb, var(--icon-tile-bg) 70%, transparent);
+  color: var(--accent);
+}
+
+.skin-card-body {
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  /* Room on the right for the options button. */
+  padding: 10px 40px 12px 12px;
+}
+
+.skin-card-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 14px;
+  font-weight: 800;
+  transition: color 120ms;
 }
 
 .skin-card-wear:hover:not(:disabled) .skin-card-name {
   color: var(--accent);
 }
 
-.skin-card-preview {
-  display: grid;
-  place-items: center;
-  height: 168px;
-  margin-bottom: 6px;
-}
-
-.skin-card-cape {
-  color: var(--text-muted);
-  font-size: 12px;
-  font-weight: 700;
-}
-
-.skin-card-name {
-  max-width: 100%;
+.skin-card-meta {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 13.5px;
-  font-weight: 800;
-}
-
-.skin-variant button {
-  padding: 4px 10px;
+  color: var(--text-muted);
   font-size: 12px;
+  font-weight: 600;
 }
 
-.skin-card-actions {
-  display: flex;
-  align-items: center;
-  gap: 4px;
+.skin-card > .dropdown {
+  position: absolute;
+  right: 6px;
+  bottom: 7px;
 }
 
 /* ---------- Browse: modpacks ---------- */
@@ -3516,12 +3610,6 @@ select.input option {
 .mod-meta .badge {
   font-size: 11px;
   padding: 1px 8px;
-}
-
-@media (max-width: 860px) {
-  .skins-layout {
-    grid-template-columns: 1fr;
-  }
 }
 
 /* ---------- Picking a version ---------- */
@@ -4220,7 +4308,7 @@ select.input option {
   user-select: none;
 }
 
-/* The textarea's text is transparent; .code-colored behind it shows the same text in colour. */
+/* The textarea's text is transparent; .code-colored behind it shows the same text in color. */
 .code-area {
   position: relative;
   display: flex;
@@ -4717,7 +4805,7 @@ select.input option {
   color: var(--accent);
 }
 
-/* A preview of each look, in its own colours whatever the current theme. */
+/* A preview of each look, in its own colors whatever the current theme. */
 .welcome-theme-swatch {
   display: grid;
   place-items: center;
@@ -5165,7 +5253,7 @@ select.input option {
 }
 
 /* ---------- Background image ---------- */
-/* Behind the pages only: the sidebar and title bar keep their colour. */
+/* Behind the pages only: the sidebar and title bar keep their color. */
 .app-backdrop {
   position: fixed;
   z-index: -1;
@@ -5177,7 +5265,7 @@ select.input option {
   pointer-events: none;
 }
 
-/* The body paints above layers behind it, so the page colour moves to the root while an image shows.
+/* The body paints above layers behind it, so the page color moves to the root while an image shows.
    :root outranks the splash styles in index.html. */
 :root:has(.app-backdrop) {
   background: var(--bg-app);
@@ -5793,9 +5881,10 @@ select.input option {
 }
 
 /* ---------- 3D skin ---------- */
+/* Out of the grid flow, so the canvas's starting size can't push the player off-center. */
 .skin-3d {
-  width: 100%;
-  height: 100%;
+  position: absolute;
+  inset: 0;
 }
 
 .skin-3d canvas {
@@ -5809,4 +5898,735 @@ select.input option {
 
 .skin-library .profile-group-head {
   margin-bottom: 10px;
+}
+
+/* ---------- Skin editor ---------- */
+.skin-editor {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.editor-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.editor-name {
+  flex: 0 1 220px;
+  min-width: 120px;
+  padding: 8px 12px;
+}
+
+.editor-header > :not(.editor-name) {
+  flex: none;
+}
+
+.editor-actions {
+  display: flex;
+  gap: 6px;
+  margin-left: auto;
+}
+
+.menu-icon-blank {
+  display: inline-block;
+  width: 16px;
+}
+
+/* The editing area: a tool strip on top of the windows. */
+.editor-frame {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--bg-surface);
+}
+
+.editor-tools {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 46px;
+  padding: 6px 8px;
+  overflow-x: auto;
+  border-bottom: 1px solid var(--border);
+}
+
+.editor-tool-group {
+  display: flex;
+  gap: 2px;
+}
+
+.editor-tool {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  color: var(--text-muted);
+  transition: background 100ms, color 100ms;
+}
+
+.editor-tool:hover:not(:disabled) {
+  background: var(--bg-surface-hover);
+  color: var(--text);
+}
+
+.editor-tool[aria-pressed='true'] {
+  background: color-mix(in srgb, var(--accent) 20%, transparent);
+  color: var(--accent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 55%, transparent);
+}
+
+.editor-tool:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.editor-size span {
+  display: block;
+  border-radius: 2px;
+  background: currentColor;
+}
+
+.editor-tool-sep {
+  flex: none;
+  width: 1px;
+  height: 22px;
+  margin: 0 6px;
+  background: var(--border);
+}
+
+.editor-tool-spacer {
+  flex: 1;
+  min-width: 8px;
+}
+
+.editor-tool-color {
+  flex: none;
+  width: 26px;
+  height: 26px;
+  margin-right: 6px;
+  border-radius: 7px;
+  box-shadow: inset 0 0 0 1px rgba(128, 128, 128, 0.4);
+}
+
+.editor-tools .dropdown {
+  flex: none;
+}
+
+.editor-tool.editor-tool-text {
+  display: flex;
+  gap: 6px;
+  width: auto;
+  padding: 0 10px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+/* Windows: move by the title bar, resize from the edges. */
+.editor-workspace {
+  position: relative;
+  height: max(520px, calc(100vh - 232px));
+  background: color-mix(in srgb, var(--bg-app) 65%, var(--bg-surface));
+  overflow: hidden;
+}
+
+.editor-workspace-area {
+  position: absolute;
+  inset: 6px;
+}
+
+.ewin {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.ewin-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex: none;
+  height: 32px;
+  padding: 0 4px 0 10px;
+  border-bottom: 1px solid var(--border);
+  cursor: grab;
+  user-select: none;
+  touch-action: none;
+}
+
+.ewin-head:active {
+  cursor: grabbing;
+}
+
+.ewin-title {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  font-size: 12.5px;
+  font-weight: 800;
+}
+
+.ewin-title svg {
+  flex: none;
+  color: var(--text-muted);
+}
+
+.ewin-actions {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  cursor: default;
+}
+
+.ewin-btn {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  flex: none;
+  border-radius: 7px;
+  color: var(--text-muted);
+}
+
+.ewin-btn.editor-zoom-level {
+  width: auto;
+  min-width: 42px;
+  padding: 0 4px;
+  font-size: 11.5px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.ewin-btn[aria-pressed='true'] {
+  color: var(--accent);
+}
+
+/* Show/hide eyes stay quiet; a hidden thing is the one to notice. */
+.ewin-btn.editor-eye[aria-pressed='true'] {
+  color: var(--text-muted);
+}
+
+.ewin-btn.editor-eye[aria-pressed='false'] {
+  color: var(--text-faint);
+  opacity: 0.7;
+}
+
+.ewin-btn:hover:not(:disabled) {
+  background: var(--bg-surface-hover);
+  color: var(--text);
+}
+
+.ewin-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.ewin-body {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  border-radius: 0 0 9px 9px;
+}
+
+.ewin-resize {
+  position: absolute;
+  z-index: 1;
+  touch-action: none;
+}
+
+.ewin-resize-e { top: 8px; right: -4px; bottom: 12px; width: 8px; cursor: ew-resize; }
+.ewin-resize-w { top: 8px; left: -4px; bottom: 12px; width: 8px; cursor: ew-resize; }
+.ewin-resize-s { left: 12px; right: 12px; bottom: -4px; height: 8px; cursor: ns-resize; }
+.ewin-resize-se { right: -4px; bottom: -4px; width: 16px; height: 16px; cursor: nwse-resize; }
+.ewin-resize-sw { left: -4px; bottom: -4px; width: 16px; height: 16px; cursor: nesw-resize; }
+
+/* Flat view: square, as big as the window allows. */
+.editor-flat {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+/* The texture is placed by script so it can be zoomed and moved. */
+.editor-flat-fit {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  touch-action: none;
+}
+
+.editor-flat-fit[data-panning] canvas {
+  cursor: grabbing;
+}
+
+.editor-flat canvas {
+  position: absolute;
+  display: block;
+  border-radius: var(--radius-sm);
+  image-rendering: pixelated;
+  cursor: crosshair;
+  touch-action: none;
+}
+
+.editor-flat canvas[data-tool='picker'] { cursor: copy; }
+.editor-flat canvas[data-cursor='move'] { cursor: move; }
+.editor-flat canvas[data-cursor='nw'],
+.editor-flat canvas[data-cursor='se'] { cursor: nwse-resize; }
+.editor-flat canvas[data-cursor='ne'],
+.editor-flat canvas[data-cursor='sw'] { cursor: nesw-resize; }
+
+.editor-placing {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  padding: 8px 10px;
+  border-top: 1px solid var(--border);
+  font-size: 12px;
+}
+
+.editor-placing-text {
+  flex: 1 1 140px;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.editor-placing-smooth {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.editor-placing-smooth input {
+  accent-color: var(--accent);
+}
+
+/* 3D */
+.editor-model {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  background:
+    radial-gradient(ellipse 60% 30% at 50% 92%, color-mix(in srgb, var(--accent) 10%, transparent), transparent 70%),
+    var(--bg-muted);
+}
+
+.skin-paint-3d {
+  position: absolute;
+  inset: 0;
+  cursor: grab;
+  touch-action: none;
+}
+
+.skin-paint-3d:active {
+  cursor: grabbing;
+}
+
+.skin-paint-3d[data-over='model'] {
+  cursor: crosshair;
+}
+
+.skin-paint-3d canvas {
+  display: block;
+}
+
+.editor-model-hint {
+  position: absolute;
+  left: 50%;
+  bottom: 8px;
+  max-width: calc(100% - 16px);
+  margin: 0;
+  padding: 3px 10px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--bg-surface) 82%, transparent);
+  color: var(--text-muted);
+  font-size: 11.5px;
+  font-weight: 700;
+  white-space: nowrap;
+  pointer-events: none;
+  transform: translateX(-50%);
+}
+
+/* Layers */
+.editor-layers {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.editor-layer-list {
+  flex: 1;
+  min-height: 0;
+  margin: 0;
+  padding: 6px;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.editor-layer {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding-right: 4px;
+  border-radius: var(--radius-sm);
+}
+
+.editor-layer + .editor-layer {
+  margin-top: 2px;
+}
+
+.editor-layer:hover {
+  background: var(--bg-surface-hover);
+}
+
+.editor-layer[data-active] {
+  background: var(--bg-muted);
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+
+.editor-layer[data-hidden] .editor-layer-thumb,
+.editor-layer[data-hidden] .editor-layer-name {
+  opacity: 0.45;
+}
+
+.editor-layer-pick {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+  padding: 4px;
+  text-align: left;
+}
+
+.editor-layer-thumb {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border-radius: 5px;
+  background: repeating-conic-gradient(var(--bg-muted) 0 25%, var(--bg-surface) 0 50%) 0 0 / 8px 8px;
+  box-shadow: inset 0 0 0 1px var(--border);
+  image-rendering: pixelated;
+}
+
+.editor-layer-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.editor-layer-name em {
+  color: var(--accent);
+  font-style: normal;
+}
+
+.editor-layer-name-input {
+  flex: 1;
+  min-width: 0;
+  padding: 4px 8px;
+  font-size: 13px;
+}
+
+.editor-layer-foot {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 10px 10px;
+  border-top: 1px solid var(--border);
+}
+
+.editor-opacity {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.editor-opacity input {
+  flex: 1;
+  min-width: 0;
+  accent-color: var(--accent);
+}
+
+.editor-opacity-value {
+  width: 34px;
+  color: var(--text);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.editor-layer-buttons {
+  display: flex;
+  justify-content: space-between;
+}
+
+/* Color */
+/* The color square takes whatever room the window has. */
+.editor-color {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 100%;
+  padding: 12px;
+}
+
+.editor-sv {
+  position: relative;
+  flex: 1 1 140px;
+  min-height: 90px;
+  border-radius: var(--radius-sm);
+  cursor: crosshair;
+  touch-action: none;
+}
+
+.editor-sv-dot {
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.45);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+.editor-hue {
+  flex: none;
+  width: 100%;
+  height: 12px;
+  margin: 0;
+  border-radius: 999px;
+  background: linear-gradient(to right, #f00, #ff0, #0f0, #0ff, #00f, #f0f, #f00);
+  appearance: none;
+  cursor: pointer;
+}
+
+.editor-hue::-webkit-slider-thumb {
+  width: 16px;
+  height: 16px;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  background: transparent;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.45);
+  appearance: none;
+}
+
+.editor-hue:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+.editor-hex {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.editor-hex-swatch {
+  flex: none;
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius-sm);
+  box-shadow: inset 0 0 0 1px rgba(128, 128, 128, 0.35);
+}
+
+.editor-hex-input {
+  padding: 7px 10px;
+  font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
+  font-variant-numeric: tabular-nums;
+  text-transform: uppercase;
+}
+
+.editor-swatches {
+  flex: none;
+}
+
+.editor-swatch-tabs {
+  display: flex;
+  gap: 2px;
+  margin: 2px 0 8px;
+}
+
+.editor-swatch-tabs button {
+  padding: 3px 8px;
+  border-radius: 6px;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.editor-swatch-tabs button:hover {
+  color: var(--text);
+}
+
+.editor-swatch-tabs button[aria-selected='true'] {
+  background: var(--bg-muted);
+  color: var(--text);
+}
+
+.editor-swatch-empty {
+  display: grid;
+  place-items: center;
+  height: 44px;
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.editor-swatch-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(18px, 1fr));
+  gap: 4px;
+}
+
+.editor-swatch {
+  aspect-ratio: 1;
+  border-radius: 5px;
+  box-shadow: inset 0 0 0 1px rgba(128, 128, 128, 0.35);
+  transition: transform 100ms;
+}
+
+.editor-swatch:hover {
+  transform: scale(1.12);
+}
+
+.editor-swatch[aria-pressed='true'] {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+/* Parts: show or hide each part's base and outer layer. */
+.editor-parts {
+  padding: 4px 6px 6px;
+}
+
+.editor-parts-head,
+.editor-part {
+  display: grid;
+  grid-template-columns: 1fr 44px 44px;
+  align-items: center;
+  justify-items: center;
+}
+
+.editor-parts-head > :first-child,
+.editor-part > :first-child {
+  justify-self: start;
+  padding-left: 8px;
+}
+
+.editor-parts-head {
+  height: 24px;
+  color: var(--text-muted);
+  font-size: 11.5px;
+  font-weight: 700;
+}
+
+.editor-parts-head > [title] {
+  cursor: help;
+}
+
+.editor-part {
+  height: 30px;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.editor-part:hover {
+  background: var(--bg-surface-hover);
+}
+
+.editor-part[data-hidden] > :first-child {
+  opacity: 0.45;
+}
+
+/* ---------- Screenshot picker ---------- */
+.shot-picker-loading {
+  display: grid;
+  place-items: center;
+  height: 160px;
+  color: var(--text-muted);
+}
+
+.shot-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.shot-picker-group h3 {
+  margin: 0 0 8px;
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.shot-picker-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 8px;
+}
+
+.shot-picker-item {
+  position: relative;
+  overflow: hidden;
+  padding: 0;
+  aspect-ratio: 16 / 9;
+  border-radius: var(--radius-sm);
+  background: var(--bg-muted);
+  transition: transform 120ms, box-shadow 120ms;
+}
+
+.shot-picker-item img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.shot-picker-item:hover:not(:disabled) {
+  box-shadow: 0 0 0 2px var(--accent);
+  transform: translateY(-1px);
+}
+
+.shot-picker-item:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.shot-picker-busy {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: rgba(0, 0, 0, 0.45);
+  color: #fff;
 }
