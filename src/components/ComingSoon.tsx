@@ -1,6 +1,5 @@
 const ITEMS = [
   { title: 'CurseForge Packs', body: 'Import CurseForge modpacks (waiting on an API key)' },
-  { title: 'Microsoft sign-in', body: 'Play online with your own account (waiting on approval)' },
 ];
 
 export default function ComingSoon() {
