@@ -14,7 +14,7 @@ export const useVersionSort = () =>
   useStoredChoice<VersionSort>('workbench.versionSort', VERSION_SORTS.map((s) => s.id), 'newest');
 
 /** Compares "1.20.1"-style versions; snapshots and other names sort below releases. */
-function compareGameVersions(a: string, b: string) {
+export function compareGameVersions(a: string, b: string) {
   const pa = /^\d+(\.\d+)*$/.test(a) ? a.split('.').map(Number) : null;
   const pb = /^\d+(\.\d+)*$/.test(b) ? b.split('.').map(Number) : null;
   if (!pa || !pb) return pa ? 1 : pb ? -1 : 0;

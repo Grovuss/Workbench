@@ -182,7 +182,7 @@ export default function ProjectDetails({ project, actions, target, installedVers
                   )}
                   {details.license && (
                     <>
-                      <dt>Licence</dt>
+                      <dt>License</dt>
                       <dd>{details.license.name || details.license.id}</dd>
                     </>
                   )}

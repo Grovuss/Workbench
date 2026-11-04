@@ -1,11 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ArrowDownWideNarrow, Check, ChevronDown, Download, LoaderCircle } from 'lucide-react';
 import Markdown from '../Markdown';
 import { api, errorMessage } from '../../api';
 import { categoryLabel } from '../../content';
 import { timeAgo } from '../../time';
 import { formatCount } from '../../format';
-import { VERSION_SORTS, sortVersions, useVersionSort, versionRange, type VersionSort } from './versionSort';
+import { VERSION_SORTS, compareGameVersions, sortVersions, useVersionSort, versionRange, type VersionSort } from './versionSort';
 import type { ContentTarget, InstalledContent, ProjectVersion } from '../../types';
 
 const PAGE = 30;
@@ -24,6 +24,8 @@ export default function ProjectVersions({ projectId, target, installedVersionId,
   const [sort, setSort] = useVersionSort();
   const [releasesOnly, setReleasesOnly] = useState(false);
   const [onlyFits, setOnlyFits] = useState(Boolean(target));
+  const [gameVersion, setGameVersion] = useState('');
+  const [loader, setLoader] = useState('');
   const [shown, setShown] = useState(PAGE);
   const [expanded, setExpanded] = useState<string | null>(null);
   const [installing, setInstalling] = useState<string | null>(null);
@@ -38,7 +40,17 @@ export default function ProjectVersions({ projectId, target, installedVersionId,
     // Loaded once per opened project.
   }, [projectId]);
 
-  useEffect(() => setShown(PAGE), [sort, releasesOnly, onlyFits]);
+  useEffect(() => setShown(PAGE), [sort, releasesOnly, onlyFits, gameVersion, loader]);
+
+  // What the project has been released for, to filter by. Snapshots only show up when there are no releases to list.
+  const { gameVersions, loaders } = useMemo(() => {
+    const all = [...new Set((versions ?? []).flatMap((v) => v.gameVersions))];
+    const releases = all.filter((g) => /^\d+(\.\d+)+$/.test(g));
+    return {
+      gameVersions: (releases.length ? releases : all).sort((a, b) => compareGameVersions(b, a)),
+      loaders: [...new Set((versions ?? []).flatMap((v) => v.loaders))].sort(),
+    };
+  }, [versions]);
 
   if (error) return <p className="mod-empty">Couldn’t load the versions. {error}</p>;
   if (!versions) {
@@ -50,7 +62,13 @@ export default function ProjectVersions({ projectId, target, installedVersionId,
   }
 
   const list = sortVersions(
-    versions.filter((v) => (!releasesOnly || v.type === 'release') && (!onlyFits || v.fits)),
+    versions.filter(
+      (v) =>
+        (!releasesOnly || v.type === 'release') &&
+        (!onlyFits || v.fits) &&
+        (!gameVersion || v.gameVersions.includes(gameVersion)) &&
+        (!loader || v.loaders.includes(loader)),
+    ),
     sort,
   );
   const canInstall = Boolean(target && onInstalled);
@@ -84,6 +102,30 @@ export default function ProjectVersions({ projectId, target, installedVersionId,
               All
             </button>
           </div>
+        )}
+        {gameVersions.length > 1 && (
+          <label className="select-pill">
+            <select value={gameVersion} onChange={(e) => setGameVersion(e.target.value)} aria-label="Game version">
+              <option value="">Any game version</option>
+              {gameVersions.map((g) => (
+                <option key={g} value={g}>
+                  {g}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
+        {loaders.length > 1 && (
+          <label className="select-pill">
+            <select value={loader} onChange={(e) => setLoader(e.target.value)} aria-label="Loader">
+              <option value="">Any loader</option>
+              {loaders.map((l) => (
+                <option key={l} value={l}>
+                  {categoryLabel(l)}
+                </option>
+              ))}
+            </select>
+          </label>
         )}
         <label className="select-pill">
           <select value={releasesOnly ? 'release' : 'all'} onChange={(e) => setReleasesOnly(e.target.value === 'release')} aria-label="Channel">
