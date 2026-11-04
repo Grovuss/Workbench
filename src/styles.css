@@ -7087,3 +7087,50 @@ select.input option {
   font-size: 13px;
   font-weight: 700;
 }
+
+/* ---------- Install to (browsing without a profile) ---------- */
+.install-to-list {
+  max-height: 340px;
+  margin: 8px 0 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+
+.install-to-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 52px;
+  padding: 8px 12px;
+}
+
+.install-to-row + .install-to-row {
+  border-top: 1px solid var(--border);
+}
+
+.install-to-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.install-to-info strong {
+  overflow: hidden;
+  font-size: 14px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.install-to-info span {
+  color: var(--text-muted);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.install-to-row.is-off strong {
+  color: var(--text-muted);
+}

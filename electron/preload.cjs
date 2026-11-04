@@ -128,6 +128,7 @@ contextBridge.exposeInMainWorld('workbench', {
     openFolder: (target) => invoke('content:openFolder', target),
     search: (target, options) => invoke('content:search', target, options),
     searchAll: (id, options) => invoke('content:searchAll', id, options),
+    searchAnywhere: (kind, options) => invoke('content:searchAnywhere', kind, options),
     categories: (kind) => invoke('content:categories', kind),
     install: (target, projectId, versionId) => invoke('content:install', target, projectId, versionId),
     installMany: (target, projectIds) => invoke('content:installMany', target, projectIds),

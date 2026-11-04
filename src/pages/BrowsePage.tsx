@@ -23,15 +23,16 @@ interface Props {
 export default function BrowsePage({ profiles, onProfileCreated, onError }: Props) {
   const [section, setSection] = useState<'content' | 'modpacks'>('content');
   const [kind, setKind] = useState<BrowseKind>('all');
-  const [profileId, setProfileId] = useState<string | null>(null);
+  // Empty: every project on Modrinth, with the profile chosen at install time.
+  const [profileId, setProfileId] = useState('');
   const [lists, setLists] = useState<Partial<Record<ContentKind, InstalledContent[]>> | null>(null);
   // Every profile can use resource packs, so "All" works anywhere.
   const eligible = (profiles ?? []).filter((p) => kind === 'all' || !contentBlockedReason(kind, p.loader));
-  const profile = eligible.find((p) => p.id === profileId) ?? eligible[0] ?? null;
+  const profile = profileId ? (eligible.find((p) => p.id === profileId) ?? eligible[0] ?? null) : null;
 
   useEffect(() => {
-    if (!profile) return;
     setLists(null);
+    if (!profile) return setLists({});
     const usable = KINDS.filter((k) => !contentBlockedReason(k, profile.loader));
     Promise.all(usable.map((k) => api.content.list({ profileId: profile.id, kind: k }).then((items) => [k, items] as const)))
       .then((entries) => setLists(Object.fromEntries(entries)))
@@ -49,10 +50,11 @@ export default function BrowsePage({ profiles, onProfileCreated, onError }: Prop
     [lists],
   );
 
-  const picker = profile && (
+  const picker = (profiles?.length ?? 0) > 0 && (
     <label className="profile-picker">
-      <span>Install into</span>
-      <select className="input" value={profile.id} onChange={(e) => setProfileId(e.target.value)}>
+      <span>Browse for</span>
+      <select className="input" value={profile?.id ?? ''} onChange={(e) => setProfileId(e.target.value)}>
+        <option value="">Any profile (show everything)</option>
         {eligible.map((p) => (
           <option key={p.id} value={p.id}>
             {p.name} ({LOADER_LABELS[p.loader]} {p.mcVersion})
@@ -78,7 +80,7 @@ export default function BrowsePage({ profiles, onProfileCreated, onError }: Prop
         </button>
       </div>
       {section === 'modpacks' && <ModpackBrowser onInstalled={onProfileCreated} onError={onError} />}
-      {section === 'content' && profiles && !profile && (
+      {section === 'content' && profiles && profileId && !profile && (
         <div className="empty">
           <Puzzle className="empty-icon" size={48} strokeWidth={1.5} />
           <h2>{kind === 'all' ? 'No profiles yet' : `No profiles can use ${CONTENT[kind].nounPlural}`}</h2>
@@ -96,10 +98,11 @@ export default function BrowsePage({ profiles, onProfileCreated, onError }: Prop
           )}
         </div>
       )}
-      {section === 'content' && profile && lists && (
+      {section === 'content' && profiles && (profile || !profileId) && lists && (
         <ContentBrowser
-          key={profile.id}
+          key={profile?.id ?? 'anywhere'}
           profile={profile}
+          profiles={profiles}
           kind={kind}
           kindOptions={KIND_OPTIONS}
           onKindChange={setKind}

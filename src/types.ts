@@ -527,6 +527,8 @@ export interface WorkbenchApi {
     search(target: ContentTarget, options: SearchOptions): Promise<ContentSearchResult>;
     /** Mods, resource packs and shaders at once, whichever the profile can use. */
     searchAll(profileId: string, options: SearchOptions): Promise<ContentSearchResult>;
+    /** Everything on Modrinth, not filtered to any profile. */
+    searchAnywhere(kind: ContentKind | 'all', options: SearchOptions): Promise<ContentSearchResult>;
     categories(kind: ContentKind | 'modpack'): Promise<ContentCategory[]>;
     /** Installs a version (the newest compatible one by default) plus required dependencies for mods. Replaces any other installed version. */
     install(target: ContentTarget, projectId: string, versionId?: string): Promise<InstalledContent[]>;

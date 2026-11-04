@@ -320,6 +320,7 @@ function registerIpc() {
   handle('content:openFolder', async (_e, t) => openDir(await content.folder(contentTarget(t))));
   handle('content:search', (_e, t, options) => content.search(contentTarget(t), options));
   handle('content:searchAll', (_e, id, options) => content.searchAll(String(id), options));
+  handle('content:searchAnywhere', (_e, kind, options) => content.searchAnywhere(String(kind), options));
   handle('content:categories', (_e, kind) => content.categories(String(kind)));
   handle('content:install', (_e, t, projectId, versionId) =>
     content.install(contentTarget(t), String(projectId), versionId == null ? null : String(versionId)),

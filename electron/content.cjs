@@ -360,6 +360,15 @@ async function searchAll(profileId, options = {}) {
   return runSearch(facets, options, (h) => PROJECT_TYPE_KINDS[h.project_type] ?? 'mod');
 }
 
+/** Modrinth search with no profile in mind: every mod, resource pack or shader, whatever it runs on. */
+async function searchAnywhere(kind, options = {}) {
+  const kinds = kind === 'all' ? SEARCH_ALL_KINDS : SEARCH_ALL_KINDS.includes(kind) ? [kind] : null;
+  if (!kinds) throw new Error('Unknown content type.');
+  const facets = [kinds.map((k) => `project_type:${KINDS[k].projectType}`)];
+  if (kind !== 'all' && options.category) facets.push([`categories:${String(options.category)}`]);
+  return runSearch(facets, options, (h) => PROJECT_TYPE_KINDS[h.project_type] ?? 'mod');
+}
+
 // Category tags that are really loaders or platforms, not things to browse by.
 const NON_BROWSABLE_HEADERS = new Set(['loaders', 'platforms']);
 let categoryCache = null;
@@ -908,6 +917,7 @@ module.exports = {
   remove,
   search,
   searchAll,
+  searchAnywhere,
   categories,
   install,
   installMany,

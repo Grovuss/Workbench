@@ -4,6 +4,7 @@ import ContentIcon from './ContentIcon';
 import VersionModal from './VersionModal';
 import ProjectDetails from './ProjectDetails';
 import InstallClashModal from './InstallClashModal';
+import InstallToModal from './InstallToModal';
 import { api, errorMessage } from '../../api';
 import { CONTENT, categoryLabel } from '../../content';
 import { formatCount } from '../../format';
@@ -36,7 +37,10 @@ const HEADER_LABELS: Record<string, string> = {
 export type BrowseKind = ContentKind | 'all';
 
 interface Props {
-  profile: Profile;
+  /** The profile to install into; null browses everything on Modrinth and asks where to install. */
+  profile: Profile | null;
+  /** Profiles offered by the install picker when there's no profile. */
+  profiles?: Profile[];
   kind: BrowseKind;
   /** Type chips to show; omit to hide them. */
   kindOptions?: BrowseKind[];
@@ -50,7 +54,7 @@ interface Props {
 }
 
 /** Modrinth search filtered to what works on the profile, with type, category and sort filters. */
-export default function ContentBrowser({ profile, kind, kindOptions, onKindChange, world, installedIds, onInstalled, onError }: Props) {
+export default function ContentBrowser({ profile, profiles = [], kind, kindOptions, onKindChange, world, installedIds, onInstalled, onError }: Props) {
   const [query, setQuery] = useState('');
   const [sort, setSort] = useState<ContentSort | null>(null);
   const [category, setCategory] = useState('');
@@ -63,6 +67,7 @@ export default function ContentBrowser({ profile, kind, kindOptions, onKindChang
   const [viewing, setViewing] = useState<ContentSearchHit | null>(null);
   // Mods that would clash with what's installed, by Modrinth slug.
   const [clashes, setClashes] = useState<Map<string, InstallClash>>(new Map());
+  const [installTo, setInstallTo] = useState<ContentSearchHit | null>(null);
   const [guard, setGuard] = useState<{ hit: ContentSearchHit; clash: InstallClash; run: () => void } | null>(null);
   const requestId = useRef(0);
   // Until a sort is picked: best matches while searching, most downloaded otherwise.
@@ -79,12 +84,12 @@ export default function ContentBrowser({ profile, kind, kindOptions, onKindChang
   }, [kind]);
 
   const refreshClashes = useCallback(() => {
-    if (profile.loader === 'vanilla') return setClashes(new Map());
+    if (!profile || profile.loader === 'vanilla') return setClashes(new Map());
     api.diagnose
       .installClashes(profile.id)
       .then((list) => setClashes(new Map(list.map((c) => [c.slug, c]))))
       .catch(() => {});
-  }, [profile.id, profile.loader]);
+  }, [profile?.id, profile?.loader]);
 
   useEffect(refreshClashes, [refreshClashes]);
 
@@ -104,6 +109,7 @@ export default function ContentBrowser({ profile, kind, kindOptions, onKindChang
 
   const fetchPage = (offset: number) => {
     const options = { query: query.trim(), offset, sort: effectiveSort, category: category || undefined };
+    if (!profile) return api.content.searchAnywhere(kind, options);
     return kind === 'all'
       ? api.content.searchAll(profile.id, options)
       : api.content.search({ profileId: profile.id, kind, world }, options);
@@ -124,7 +130,7 @@ export default function ContentBrowser({ profile, kind, kindOptions, onKindChang
     }, query ? 300 : 0);
     return () => window.clearTimeout(timer);
     // fetchPage reads exactly these values.
-  }, [profile.id, profile.loader, profile.mcVersion, kind, world, query, effectiveSort, category, onError]);
+  }, [profile?.id, profile?.loader, profile?.mcVersion, kind, world, query, effectiveSort, category, onError]);
 
   const loadMore = async () => {
     if (!hits) return;
@@ -141,6 +147,7 @@ export default function ContentBrowser({ profile, kind, kindOptions, onKindChang
   };
 
   const install = async (hit: ContentSearchHit) => {
+    if (!profile) return;
     setInstalling((s) => new Set(s).add(hit.projectId));
     try {
       installed(hit.kind, await api.content.install({ profileId: profile.id, kind: hit.kind, world }, hit.projectId));
@@ -156,6 +163,13 @@ export default function ContentBrowser({ profile, kind, kindOptions, onKindChang
   };
 
   const installAction = (hit: ContentSearchHit) => {
+    if (!profile) {
+      return (
+        <button className="btn btn-primary btn-play" onClick={() => setInstallTo(hit)}>
+          <Download size={15} /> Install
+        </button>
+      );
+    }
     if (installedIds.has(hit.projectId)) {
       return (
         <span className="mod-installed">
@@ -193,7 +207,7 @@ export default function ContentBrowser({ profile, kind, kindOptions, onKindChang
         <input
           className="input"
           value={query}
-          placeholder={`Search Modrinth for ${profile.mcVersion} ${noun}…`}
+          placeholder={profile ? `Search Modrinth for ${profile.mcVersion} ${noun}…` : `Search all ${noun} on Modrinth…`}
           onChange={(e) => setQuery(e.target.value)}
           autoFocus
         />
@@ -245,7 +259,7 @@ export default function ContentBrowser({ profile, kind, kindOptions, onKindChang
         </div>
       ) : hits.length === 0 ? (
         <p className="mod-empty">
-          No {noun} found for {profile.mcVersion}
+          No {noun} found{profile ? ` for ${profile.mcVersion}` : ''}
           {category ? ` in ${categoryLabel(category)}` : ''}.
         </p>
       ) : (
@@ -293,13 +307,13 @@ export default function ContentBrowser({ profile, kind, kindOptions, onKindChang
         <ProjectDetails
           project={viewing}
           actions={installAction(viewing)}
-          target={{ profileId: profile.id, kind: viewing.kind, world }}
+          target={profile ? { profileId: profile.id, kind: viewing.kind, world } : undefined}
           onInstalled={(items) => installed(viewing.kind, items)}
           onClose={() => setViewing(null)}
         />
       )}
 
-      {choosing && (
+      {choosing && profile && (
         <VersionModal
           title={choosing.title}
           iconUrl={choosing.iconUrl}
@@ -310,7 +324,11 @@ export default function ContentBrowser({ profile, kind, kindOptions, onKindChang
         />
       )}
 
-      {guard && (
+      {installTo && (
+        <InstallToModal project={installTo} profiles={profiles} onClose={() => setInstallTo(null)} onError={onError} />
+      )}
+
+      {guard && profile && (
         <InstallClashModal
           title={guard.hit.title}
           clash={guard.clash}
