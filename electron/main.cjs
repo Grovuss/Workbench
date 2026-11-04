@@ -123,10 +123,32 @@ app.whenReady().then(() => {
   opened.listen((file) => broadcast({ type: 'open-pack', path: file }));
   updater.start(broadcast);
   require('./support.cjs').start(broadcast);
+  require('./usercount.cjs').start();
+  startCatchUp(broadcast);
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
 });
+
+// Content a copy to another version left behind gets installed once it has a version for it.
+const CATCH_UP_EVERY_MS = 6 * 60 * 60 * 1000;
+function startCatchUp(broadcast) {
+  const content = require('./content.cjs');
+  const profiles = require('./profiles.cjs');
+  const game = require('./game.cjs');
+  const run = async () => {
+    for (const profile of await profiles.list().catch(() => [])) {
+      if (game.isActive(profile.id)) continue;
+      try {
+        if (!(await content.hasWaiting(profile.id))) continue;
+        const titles = await content.catchUp(profile.id);
+        if (titles.length) broadcast({ type: 'content-caught-up', profileId: profile.id, profileName: profile.name, mcVersion: profile.mcVersion, titles });
+      } catch {}
+    }
+  };
+  setTimeout(run, 30_000).unref?.();
+  setInterval(run, CATCH_UP_EVERY_MS).unref?.();
+}
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();

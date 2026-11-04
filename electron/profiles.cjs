@@ -101,10 +101,20 @@ async function create({ name, ...selection }) {
 const SKIP_ON_DUPLICATE = new Set(['logs', 'crash-reports']);
 
 /** Copies a profile: its whole folder (mods, worlds, config, icon) and settings. */
-async function duplicate(id, name) {
+/**
+ * Copies a profile. With a `selection` (another Minecraft version or loader) the copy gets that version;
+ * moving its mods over is up to the caller (content.portToVersion).
+ */
+async function duplicate(id, name, selection = null) {
   const source = await get(id);
+  const version = selection ? await validateVersion(selection) : null;
+  const changed =
+    version && (version.mcVersion !== source.mcVersion || version.loader !== source.loader || version.loaderVersion !== source.loaderVersion);
   const copy = normalize({
     ...source,
+    ...(changed ? version : {}),
+    // Pack updates would put it back on the pack's version.
+    ...(changed ? { pack: null } : {}),
     id: randomUUID(),
     name: String(name ?? '').trim().slice(0, 48) || `${source.name} (copy)`.slice(0, 48),
     createdAt: new Date().toISOString(),

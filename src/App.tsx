@@ -113,8 +113,13 @@ export default function App() {
       .catch(() => {});
     return api.game.onEvent((event) => {
       if (event.type === 'open-pack') setCreating({ mode: 'import', file: event.path });
+      if (event.type === 'content-caught-up') {
+        const { titles, profileName, mcVersion } = event;
+        const what = titles.length === 1 ? titles[0] : `${titles.length} mods and packs`;
+        pushToast(`${what} now ${titles.length === 1 ? 'has a version' : 'have versions'} for ${mcVersion}, and ${titles.length === 1 ? 'is' : 'are'} back in “${profileName}”.`, 'success');
+      }
     });
-  }, []);
+  }, [pushToast]);
 
   const finishWelcome = (choice: WelcomeChoice) => {
     setWelcomed(true);

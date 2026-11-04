@@ -292,6 +292,12 @@ export default function SettingsPage({ appearance, onAppearanceChange, onError }
           <Section id="help" title="Updates & help">
             <UpdatesRow version={system.version} onError={onError} />
             <SystemInfoRow system={system} />
+            <Row
+              title="Count me on the website"
+              description="Workbench’s website shows how many people use it. This sends a random number once, nothing about you or your computer."
+            >
+              <Toggle label="Count me on the website" checked={settings.countMe} onChange={(on) => update({ countMe: on })} />
+            </Row>
             <JavaRow onError={onError} />
             <ResetRow
               onReset={(next) => {

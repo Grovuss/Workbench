@@ -26,6 +26,8 @@ export interface InstalledContent {
   updateVersion: string | null;
   /** Kept at this version: updates skip it in this profile. */
   held: boolean;
+  /** Left behind when the profile was copied to another version; installed once it has a version for it. */
+  waiting: boolean;
   /** When the file was added to the folder. */
   addedAt: string;
 }
@@ -235,6 +237,19 @@ export interface Profile extends VersionSelection {
   pack: { projectId: string; versionId: string; versionNumber: string; title: string } | null;
 }
 
+/** port: null for a plain copy; what moved over to the new version; or why that couldn't be done. */
+export interface DuplicateResult {
+  profile: Profile;
+  port: null | { error: string } | { moved: number; missing: PortMissing[] };
+}
+
+export interface PortMissing {
+  kind: 'mod' | 'resourcepack' | 'shader';
+  title: string;
+  /** no-version: none for the new version yet; unknown: not on Modrinth, so it couldn't be checked; loader: the copy has no mod loader. */
+  reason: 'no-version' | 'unknown' | 'loader';
+}
+
 export interface LoaderVersion {
   version: string;
   stable: boolean;
@@ -282,6 +297,8 @@ export interface Settings {
   discordPresence: boolean;
   discordShowProfile: boolean;
   shareOptions: boolean;
+  /** Counted, anonymously, in the number of people using Workbench shown on the website. */
+  countMe: boolean;
   downloadThreads: number;
 }
 
@@ -331,6 +348,7 @@ export type GameEvent =
   | { type: 'worlds-backed-up'; profileId: string; count: number }
   | { type: 'open-pack'; path: string }
   | { type: 'support-changed' }
+  | { type: 'content-caught-up'; profileId: string; profileName: string; mcVersion: string; titles: string[] }
   | ({ type: 'update' } & UpdateStatus);
 
 export interface UpdateStatus {
@@ -362,7 +380,8 @@ export interface WorkbenchApi {
     setIcon(id: string): Promise<Profile | null>;
     removeIcon(id: string): Promise<Profile>;
     /** Copies the profile's folder and settings into a new profile. */
-    duplicate(id: string, name?: string): Promise<Profile>;
+    /** With a selection, the copy is for that version, and its mods are moved over to their versions for it. */
+    duplicate(id: string, name?: string, selection?: VersionSelection): Promise<DuplicateResult>;
   };
   modSets: {
     list(): Promise<ModSet[]>;

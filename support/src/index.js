@@ -41,6 +41,11 @@ async function route(request, env) {
   const method = request.method;
 
   if (parts.length === 0 && method === 'GET') return json({ ok: true });
+  if (parts[0] === 'stats' && parts.length === 1 && method === 'GET') return stats(env);
+  if (parts[0] === 'installs' && method === 'POST' && parts.length <= 2) {
+    await limit(env.CREATE_LIMITER, request, 'Too many requests. Wait a minute.');
+    return json(await count(env, await body(request), parts[1] === 'remove'));
+  }
   if (parts[0] !== 'tickets') throw new HttpError(404, 'Not found.');
 
   if (parts.length === 1 && method === 'POST') {
@@ -142,6 +147,41 @@ async function reply(env, id, input) {
   if (thread.thread_metadata?.archived) await discord(env, 'PATCH', `/channels/${id}`, { archived: false }).catch(() => {});
   const m = await discord(env, 'POST', `/channels/${id}/messages`, { content: text, allowed_mentions: { parse: [] } });
   return { id: m.id, from: 'you', name: null, text: m.content, at: m.timestamp, attachments: [] };
+}
+
+// ── People using Workbench ───────────────────────────────────────────────────
+// Each copy of the app sends a random id once (and again to take itself off). Nothing else is kept.
+// The website shows the total, never less than USER_BASE: the people using it before counting began
+// are counted once they update, so they aren't counted twice.
+
+const INSTALL_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+
+async function count(env, input, remove) {
+  const id = String(input.id ?? '');
+  if (!INSTALL_ID.test(id)) throw new HttpError(400, 'Bad request.');
+  const key = `install:${id}`;
+  const known = (await env.USERS.get(key)) !== null;
+  if (known === remove) {
+    const total = Number((await env.USERS.get('count')) ?? 0);
+    const next = Math.max(0, total + (remove ? -1 : 1));
+    await env.USERS.put('count', String(next));
+    if (remove) await env.USERS.delete(key);
+    else await env.USERS.put(key, '1');
+  }
+  return { ok: true };
+}
+
+async function stats(env) {
+  const counted = Number((await env.USERS.get('count')) ?? 0);
+  const users = Math.max(Number(env.USER_BASE ?? 0), counted);
+  return new Response(JSON.stringify({ users }), {
+    headers: {
+      'Content-Type': 'application/json; charset=utf-8',
+      // For the website.
+      'Access-Control-Allow-Origin': '*',
+      'Cache-Control': 'public, max-age=300',
+    },
+  });
 }
 
 // ── Keys ─────────────────────────────────────────────────────────────────────

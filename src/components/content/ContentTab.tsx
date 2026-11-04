@@ -481,6 +481,11 @@ export default function ContentTab({
                           'Local file'
                         )}
                         {hasUpdate(m) && <span className="mod-update-to">→ {m.updateVersion}</span>}
+                        {m.waiting && (
+                          <span className="mod-waiting" title="It’s installed and turned back on by itself once it has a version for this profile.">
+                            Waiting for a version
+                          </span>
+                        )}
                         <span className="dot">·</span>
                         <span className="mod-file">{m.fileName}</span>
                       </span>

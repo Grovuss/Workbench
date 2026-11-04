@@ -182,6 +182,7 @@ function toPublic(loc, { fileName, enabled, info, addedAt }) {
     iconUrl: info.iconUrl ?? null,
     updateVersion: info.update?.versionNumber ?? null,
     held: Boolean(info.projectId && loc.profile.held?.includes(info.projectId)),
+    waiting: Boolean(info.waiting),
     addedAt,
   };
 }
@@ -762,12 +763,141 @@ function recordInstalledMods(profileId, entries) {
   });
 }
 
+/**
+ * For a profile copied to another Minecraft version (or loader): swaps each mod, resource pack and
+ * shader pack for its newest version that fits, with required dependencies. Mods with no such
+ * version, or that Modrinth doesn't know, are turned off so the game still starts; packs stay as
+ * they are, since an older pack usually still loads. Resolves to
+ * { moved, missing: [{ kind, title, reason: 'no-version' | 'unknown' | 'loader' }] }.
+ */
+function portToVersion(profileId) {
+  return withLock(async () => {
+    let moved = 0;
+    const missing = [];
+    for (const kind of PROFILE_KINDS) {
+      const loc = await locate({ profileId, kind });
+      const items = await scan(loc);
+      if (!items.length) continue;
+      if (items.some((i) => !i.info.hashChecked)) throw new Error('Couldn’t reach Modrinth to look up versions.');
+      const titleOf = (i) => i.info.title ?? i.fileName.slice(0, -loc.spec.ext.length);
+      const turnOff = (i) => fsp.rename(path.join(loc.dir, i.fileName), path.join(loc.dir, `${i.fileName}.disabled`)).catch(() => {});
+
+      let loaders;
+      try {
+        loaders = modrinthLoaders(kind, loc.profile);
+      } catch {
+        // A vanilla copy can't run mods or shaders at all.
+        for (const i of items) {
+          if (i.enabled) await turnOff(i);
+          missing.push({ kind, title: titleOf(i), reason: 'loader' });
+        }
+        continue;
+      }
+
+      const known = items.filter((i) => i.info.projectId);
+      const latest = known.length
+        ? await modrinth('/version_files/update', {
+            hashes: known.map((i) => i.info.sha1),
+            algorithm: 'sha1',
+            loaders,
+            game_versions: [loc.profile.mcVersion],
+          })
+        : {};
+      const ctx = await installContext(loc);
+      try {
+        for (const item of items) {
+          const { projectId } = item.info;
+          if (!projectId) {
+            if (kind === 'mod') {
+              if (item.enabled) await turnOff(item);
+              missing.push({ kind, title: titleOf(item), reason: 'unknown' });
+            }
+            continue;
+          }
+          if (ctx.visited.has(projectId)) continue;
+          let next = latest[item.info.sha1];
+          if (!next) {
+            if (kind === 'mod' && item.enabled) await turnOff(item);
+            missing.push({ kind, title: titleOf(item), reason: 'no-version' });
+            // catchUp installs it once a version comes out, and turns it back on if it was on.
+            if (ctx.meta[item.fileName]) ctx.meta[item.fileName].waiting = { wasEnabled: item.enabled };
+            continue;
+          }
+          // Prefer a release over a newer beta.
+          if (next.version_type !== 'release') next = (await newestCompatible(projectId, kind, loc.profile)) ?? next;
+          ctx.visited.add(projectId);
+          if (next.id === item.info.versionId) continue;
+          await placeVersion(ctx, projectId, next, { title: titleOf(item), iconUrl: item.info.iconUrl ?? null }, item.enabled);
+          moved++;
+        }
+      } finally {
+        await saveMeta(loc, ctx.meta);
+      }
+    }
+    return { moved, missing };
+  });
+}
+
+/**
+ * Installs content a copy to another version had to leave behind (marked `waiting`), for whatever
+ * has a version for the profile now, and turns mods back on. Resolves to the titles caught up.
+ */
+function catchUp(profileId) {
+  return withLock(async () => {
+    const done = [];
+    for (const kind of PROFILE_KINDS) {
+      const loc = await locate({ profileId, kind });
+      const meta = await loadMeta(loc);
+      const waiting = Object.entries(meta).filter(([, m]) => m.waiting && m.projectId);
+      if (!waiting.length) continue;
+      let loaders;
+      try {
+        loaders = modrinthLoaders(kind, loc.profile);
+      } catch {
+        continue;
+      }
+      const latest = await modrinth('/version_files/update', {
+        hashes: waiting.map(([, m]) => m.sha1),
+        algorithm: 'sha1',
+        loaders,
+        game_versions: [loc.profile.mcVersion],
+      });
+      const ctx = await installContext(loc);
+      try {
+        for (const [name, m] of waiting) {
+          let next = latest[m.sha1];
+          if (!next) continue;
+          if (next.version_type !== 'release') next = (await newestCompatible(m.projectId, kind, loc.profile)) ?? next;
+          // Replaces the left-behind file; the new entry isn't waiting any more.
+          await placeVersion(ctx, m.projectId, next, { title: m.title ?? name, iconUrl: m.iconUrl ?? null }, m.waiting.wasEnabled !== false);
+          done.push(m.title ?? name);
+        }
+      } finally {
+        await saveMeta(loc, ctx.meta);
+      }
+    }
+    return done;
+  });
+}
+
+/** Whether any of a profile's content is waiting for a version (cheap: reads the metadata files only). */
+async function hasWaiting(profileId) {
+  for (const kind of PROFILE_KINDS) {
+    const meta = await loadMeta(await locate({ profileId, kind }));
+    if (Object.values(meta).some((m) => m.waiting)) return true;
+  }
+  return false;
+}
+
 const modsDir = (profileId) => path.join(profiles.gameDir(profileId), KINDS.mod.folder);
 
 /** The folder a target's files live in. */
 const folder = async (target) => (await locate(target)).dir;
 
 module.exports = {
+  portToVersion,
+  catchUp,
+  hasWaiting,
   setHeld,
   pendingUpdates,
   folder,

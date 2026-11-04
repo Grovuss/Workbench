@@ -1,4 +1,4 @@
-import { useState, type FormEvent, type ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import {
   FileArchive,
   FileCog,
@@ -34,6 +34,7 @@ import ConfigsTab from '../components/profile/ConfigsTab';
 import { ModpackUpdateBanner, ServerPackModal, ShareCodeModal } from '../components/profile/ShareTools';
 import Dropdown from '../components/Dropdown';
 import GroupModal from '../components/GroupModal';
+import DuplicateModal from '../components/DuplicateModal';
 import { api, errorMessage } from '../api';
 import { contentBlockedReason } from '../content';
 import { formatPlaytime, timeAgo } from '../time';
@@ -356,53 +357,3 @@ export default function ProfilePage({
   );
 }
 
-function DuplicateModal({
-  profile,
-  onClose,
-  onDuplicated,
-  onError,
-}: {
-  profile: Profile;
-  onClose: () => void;
-  onDuplicated: (profile: Profile) => void;
-  onError: (message: string) => void;
-}) {
-  const [name, setName] = useState(`${profile.name} (copy)`.slice(0, 48));
-  const [busy, setBusy] = useState(false);
-
-  const submit = async (e: FormEvent) => {
-    e.preventDefault();
-    setBusy(true);
-    try {
-      onDuplicated(await api.profiles.duplicate(profile.id, name));
-    } catch (err) {
-      onError(errorMessage(err));
-      setBusy(false);
-    }
-  };
-
-  return (
-    <Modal
-      title="Duplicate profile"
-      onClose={busy ? () => {} : onClose}
-      footer={
-        <>
-          <button className="btn btn-secondary" onClick={onClose} disabled={busy}>
-            Cancel
-          </button>
-          <button type="submit" form="duplicate-profile" className="btn btn-primary" disabled={busy || !name.trim()}>
-            {busy ? 'Copying…' : 'Duplicate'}
-          </button>
-        </>
-      }
-    >
-      <form id="duplicate-profile" className="form" onSubmit={submit}>
-        <p className="modal-text">Copies everything: mods, worlds, config and settings. Playtime starts from zero.</p>
-        <label className="field">
-          <span className="field-label">Name</span>
-          <input className="input" value={name} maxLength={48} onChange={(e) => setName(e.target.value)} autoFocus />
-        </label>
-      </form>
-    </Modal>
-  );
-}

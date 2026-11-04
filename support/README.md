@@ -45,6 +45,14 @@ Never change it later: every report's key is signed with it, so the app couldn't
 `deploy` prints the Worker's address (`https://workbench-support.<you>.workers.dev`). Put it in
 `SUPPORT_URL` in `electron/config.cjs`. The Help page shows up once that's set.
 
+## People using Workbench
+
+Installed copies of Workbench send a random id once (`POST /installs`), unless "Count me on the website"
+is off in Settings, which takes it back off (`POST /installs/remove`). The website reads the total from
+`GET /stats`. It never shows less than `USER_BASE` in `wrangler.toml`, for the people using Workbench
+before counting began: they're counted once they update, so they aren't counted twice. The ids and total
+live in the `USERS` KV namespace.
+
 ## Replying
 
 - Type in the post. Only replies from the user ids in `STAFF_IDS` reach the app.

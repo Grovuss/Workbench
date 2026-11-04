@@ -1,16 +1,25 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState, type MouseEvent } from 'react';
 import {
   ArrowDownWideNarrow,
   ArrowUpCircle,
   ChevronDown,
+  Copy,
+  FolderInput,
   FolderMinus,
+  FolderOpen,
   LayoutGrid,
   Layers,
   List,
   MoreHorizontal,
   Pencil,
+  Pin,
+  PinOff,
+  Play,
   Plus,
   Search,
+  Square,
+  SquareArrowOutUpRight,
+  Trash2,
 } from 'lucide-react';
 import PageHeader from '../components/PageHeader';
 import ProfileRow from '../components/ProfileRow';
@@ -20,6 +29,9 @@ import CreateProfileModal from '../components/CreateProfileModal';
 import Dropdown from '../components/Dropdown';
 import GroupModal from '../components/GroupModal';
 import UpdateAllModal from '../components/UpdateAllModal';
+import ContextMenu from '../components/ContextMenu';
+import DuplicateModal from '../components/DuplicateModal';
+import Modal from '../components/Modal';
 import { api, errorMessage } from '../api';
 import type { LaunchStatus, Profile } from '../types';
 import { useStoredChoice, useStoredSet } from '../stored';
@@ -58,6 +70,74 @@ export default function ProfilesPage({ profiles, launches, onCreated, onOpen, on
   const [collapsed, toggleCollapsed] = useStoredSet('workbench.collapsedGroups');
   const [renaming, setRenaming] = useState<string | null>(null);
   const [updatingAll, setUpdatingAll] = useState(false);
+  // Right-click menu, and what was picked from it.
+  const [menu, setMenu] = useState<{ profile: Profile; x: number; y: number } | null>(null);
+  const [duplicating, setDuplicating] = useState<Profile | null>(null);
+  const [grouping, setGrouping] = useState<Profile | null>(null);
+  const [deleting, setDeleting] = useState<Profile | null>(null);
+  const [deleteBusy, setDeleteBusy] = useState(false);
+  const closeMenu = useCallback(() => setMenu(null), []);
+
+  const openMenu = (profile: Profile, e: MouseEvent) => {
+    e.preventDefault();
+    // From the keyboard's menu key there's no pointer position; use the item's corner.
+    const fromKeyboard = e.clientX === 0 && e.clientY === 0;
+    const box = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    setMenu({ profile, x: fromKeyboard ? box.left + 16 : e.clientX, y: fromKeyboard ? box.top + 16 : e.clientY });
+  };
+
+  const replace = (next: Profile) => onProfilesChanged((profiles ?? []).map((p) => (p.id === next.id ? next : p)));
+  const organize = (profile: Profile, patch: { group?: string | null; pinned?: boolean }) =>
+    api.profiles
+      .organize(profile.id, patch)
+      .then(replace)
+      .catch((err) => onError(errorMessage(err)));
+  const confirmDelete = async (profile: Profile) => {
+    setDeleteBusy(true);
+    try {
+      await api.profiles.delete(profile.id);
+      onProfilesChanged((profiles ?? []).filter((p) => p.id !== profile.id));
+      setDeleting(null);
+    } catch (err) {
+      onError(errorMessage(err));
+    } finally {
+      setDeleteBusy(false);
+    }
+  };
+
+  const menuItems = (p: Profile) => {
+    const state = launches[p.id]?.state;
+    return [
+      state
+        ? { icon: <Square size={16} />, label: state === 'running' ? 'Stop' : 'Cancel', onSelect: () => onStop(p.id) }
+        : { icon: <Play size={16} />, label: 'Play', onSelect: () => onPlay(p) },
+      { icon: <SquareArrowOutUpRight size={16} />, label: 'Open', onSelect: () => onOpen(p.id) },
+      {
+        icon: <Copy size={16} />,
+        label: 'Duplicate',
+        hint: 'Also to another version',
+        disabled: Boolean(state),
+        onSelect: () => setDuplicating(p),
+      },
+      {
+        icon: p.pinned ? <PinOff size={16} /> : <Pin size={16} />,
+        label: p.pinned ? 'Unpin from sidebar' : 'Pin to sidebar',
+        onSelect: () => organize(p, { pinned: !p.pinned }),
+      },
+      {
+        icon: <FolderInput size={16} />,
+        label: p.group ? 'Change group' : 'Add to a group',
+        hint: p.group ? `In “${p.group}”` : undefined,
+        onSelect: () => setGrouping(p),
+      },
+      {
+        icon: <FolderOpen size={16} />,
+        label: 'Open folder',
+        onSelect: () => api.profiles.openFolder(p.id).catch((err) => onError(errorMessage(err))),
+      },
+      { icon: <Trash2 size={16} />, label: 'Delete', danger: true, disabled: Boolean(state), onSelect: () => setDeleting(p) },
+    ];
+  };
 
 
   const shown = useMemo(() => {
@@ -105,6 +185,7 @@ export default function ProfilesPage({ profiles, launches, onCreated, onOpen, on
           onOpen={() => onOpen(p.id)}
           onPlay={() => onPlay(p)}
           onStop={() => onStop(p.id)}
+          onMenu={(e) => openMenu(p, e)}
         />
       ))}
     </div>
@@ -211,6 +292,47 @@ export default function ProfilesPage({ profiles, launches, onCreated, onOpen, on
       {creating && <CreateProfileModal onClose={() => setCreating(false)} onCreated={onCreated} />}
       {updatingAll && profiles && (
         <UpdateAllModal profiles={profiles} launches={launches} onClose={() => setUpdatingAll(false)} />
+      )}
+      {menu && <ContextMenu x={menu.x} y={menu.y} items={menuItems(menu.profile)} onClose={closeMenu} />}
+      {duplicating && (
+        <DuplicateModal
+          profile={duplicating}
+          onClose={() => setDuplicating(null)}
+          onDuplicated={(p) => {
+            setDuplicating(null);
+            onCreated(p);
+          }}
+          onError={onError}
+        />
+      )}
+      {grouping && (
+        <GroupModal
+          title={grouping.group ? 'Change group' : 'Add to a group'}
+          initial={grouping.group}
+          groups={groupNames}
+          submitLabel={grouping.group ? 'Move' : 'Add'}
+          removeLabel="Remove from group"
+          onSubmit={(group) => organize(grouping, { group })}
+          onClose={() => setGrouping(null)}
+        />
+      )}
+      {deleting && (
+        <Modal
+          title={`Delete “${deleting.name}”?`}
+          onClose={() => !deleteBusy && setDeleting(null)}
+          footer={
+            <>
+              <button className="btn btn-secondary" onClick={() => setDeleting(null)} disabled={deleteBusy}>
+                Cancel
+              </button>
+              <button className="btn btn-danger-fill" onClick={() => confirmDelete(deleting)} disabled={deleteBusy}>
+                {deleteBusy ? 'Deleting…' : 'Delete profile'}
+              </button>
+            </>
+          }
+        >
+          <p className="modal-text">This permanently deletes the profile’s folder, including its worlds, screenshots and settings.</p>
+        </Modal>
       )}
       {renaming && (
         <GroupModal

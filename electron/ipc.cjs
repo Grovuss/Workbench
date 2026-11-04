@@ -16,6 +16,7 @@ const worlds = require('./worlds.cjs');
 const share = require('./share.cjs');
 const discord = require('./discord.cjs');
 const support = require('./support.cjs');
+const usercount = require('./usercount.cjs');
 const { exportServerPack } = require('./serverpack.cjs');
 const { ping } = require('./ping.cjs');
 const packs = require('./packs.cjs');
@@ -180,9 +181,18 @@ function registerIpc() {
     return canceled ? null : icons.setFromFile(id, filePaths[0]);
   });
   handle('profiles:removeIcon', (_e, id) => icons.remove(id));
-  handle('profiles:duplicate', (_e, id, name) => {
+  // With a selection, the copy is for another version and its mods are moved over to that version.
+  handle('profiles:duplicate', async (_e, id, name, selection) => {
     if (game.isActive(String(id))) throw new Error('Close the game before duplicating this profile.');
-    return profiles.duplicate(String(id), name);
+    const source = await profiles.get(String(id));
+    const profile = await profiles.duplicate(String(id), name, selection ?? null);
+    const changed = ['mcVersion', 'loader', 'loaderVersion'].some((k) => profile[k] !== source[k]);
+    if (!changed) return { profile, port: null };
+    try {
+      return { profile, port: await content.portToVersion(profile.id) };
+    } catch (err) {
+      return { profile, port: { error: err?.message ?? String(err) } };
+    }
   });
   handle('profiles:openFolder', async (_e, id, sub) => {
     if (sub !== undefined && !PROFILE_SUBFOLDERS.has(sub)) throw new Error('Unknown folder.');
@@ -400,11 +410,13 @@ function registerIpc() {
   handle('settings:set', async (_e, patch) => {
     const next = await settings.set(patch ?? {});
     if ('discordPresence' in (patch ?? {}) || 'discordShowProfile' in (patch ?? {})) discord.settingsChanged();
+    if ('countMe' in (patch ?? {})) usercount.settingsChanged();
     return next;
   });
   handle('settings:reset', async () => {
     const next = await settings.reset();
     discord.settingsChanged();
+    usercount.settingsChanged();
     return next;
   });
 

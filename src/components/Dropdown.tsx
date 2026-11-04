@@ -59,32 +59,41 @@ export default function Dropdown({ label, className = 'btn btn-secondary', disab
       </button>
       {open && (
         <div className="dropdown-popover" role="menu">
-          {items.map((item, i) => [
-            item.section && (
-              <div key={`section-${item.section}`} className="menu-section" role="presentation">
-                {i > 0 && <div className="menu-sep" />}
-                <span>{item.section}</span>
-              </div>
-            ),
-            <button
-              key={item.label}
-              role="menuitem"
-              className={item.danger ? 'menu-item menu-danger' : 'menu-item'}
-              disabled={item.disabled}
-              onClick={() => {
-                setOpen(false);
-                item.onSelect();
-              }}
-            >
-              {item.icon}
-              <span className="menu-item-text">
-                <span>{item.label}</span>
-                {item.hint && <small>{item.hint}</small>}
-              </span>
-            </button>,
-          ])}
+          <MenuItems items={items} onPick={() => setOpen(false)} />
         </div>
       )}
     </div>
+  );
+}
+
+/** A menu's items, with section headings; used by Dropdown and ContextMenu. */
+export function MenuItems({ items, onPick }: { items: DropdownItem[]; onPick: () => void }) {
+  return (
+    <>
+      {items.map((item, i) => [
+        item.section && (
+          <div key={`section-${item.section}`} className="menu-section" role="presentation">
+            {i > 0 && <div className="menu-sep" />}
+            <span>{item.section}</span>
+          </div>
+        ),
+        <button
+          key={item.label}
+          role="menuitem"
+          className={item.danger ? 'menu-item menu-danger' : 'menu-item'}
+          disabled={item.disabled}
+          onClick={() => {
+            onPick();
+            item.onSelect();
+          }}
+        >
+          {item.icon}
+          <span className="menu-item-text">
+            <span>{item.label}</span>
+            {item.hint && <small>{item.hint}</small>}
+          </span>
+        </button>,
+      ])}
+    </>
   );
 }

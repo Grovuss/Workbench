@@ -9,7 +9,7 @@ const withLock = createLock();
 const totalMemoryMb = () => Math.floor(os.totalmem() / 1024 / 1024);
 
 const LAUNCHER_ON_LAUNCH = ['keep', 'minimize', 'hide'];
-const TOGGLES = ['welcomed', 'autoBackup', 'discordPresence', 'discordShowProfile', 'shareOptions', 'fullscreen', 'checkModsOnLaunch'];
+const TOGGLES = ['welcomed', 'autoBackup', 'discordPresence', 'discordShowProfile', 'shareOptions', 'fullscreen', 'checkModsOnLaunch', 'countMe'];
 const TEXTS = ['jvmArgs', 'preLaunchCommand', 'postExitCommand'];
 
 function defaults() {
@@ -41,6 +41,8 @@ function defaults() {
     discordShowProfile: true,
     // Copy game settings (keybinds, video, sound) into new profiles from the most recently played one.
     shareOptions: true,
+    // Counted (anonymously, once) in the number of people using Workbench on the website.
+    countMe: true,
     // Files downloaded at once when installing a version.
     downloadThreads: 16,
   };

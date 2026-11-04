@@ -22,7 +22,7 @@ contextBridge.exposeInMainWorld('workbench', {
     openFolder: (id, sub) => invoke('profiles:openFolder', id, sub),
     setIcon: (id) => invoke('profiles:setIcon', id),
     removeIcon: (id) => invoke('profiles:removeIcon', id),
-    duplicate: (id, name) => invoke('profiles:duplicate', id, name),
+    duplicate: (id, name, selection) => invoke('profiles:duplicate', id, name, selection),
   },
   worlds: {
     rename: (id, folder, name) => invoke('worlds:rename', id, folder, name),

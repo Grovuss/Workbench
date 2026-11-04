@@ -12,10 +12,12 @@ interface Props {
   onOpen: () => void;
   onPlay: () => void;
   onStop: () => void;
+  /** Right-click (or the menu key): the profile's options. */
+  onMenu?: (e: MouseEvent) => void;
 }
 
 /** A profile as a tile, for the grid view of the profiles page. */
-export default function ProfileCard({ profile, launch, onOpen, onPlay, onStop }: Props) {
+export default function ProfileCard({ profile, launch, onOpen, onPlay, onStop, onMenu }: Props) {
   const state = launch?.state ?? 'idle';
   const playtime = formatPlaytime(profile.playtimeMs);
   const iconUrl = `workbench://profile-icon/${profile.id}?v=${encodeURIComponent(profile.icon ?? '')}`;
@@ -30,7 +32,7 @@ export default function ProfileCard({ profile, launch, onOpen, onPlay, onStop }:
   const stop = (e: MouseEvent) => e.stopPropagation();
 
   return (
-    <div className="profile-card" role="link" tabIndex={0} onClick={onOpen} onKeyDown={onKeyDown}>
+    <div className="profile-card" role="link" tabIndex={0} onClick={onOpen} onKeyDown={onKeyDown} onContextMenu={onMenu}>
       <div className="profile-card-cover" data-shot={coverUrl ? true : undefined}>
         {coverUrl ? (
           <img className="profile-card-shot" src={coverUrl} alt="" />

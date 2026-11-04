@@ -12,9 +12,11 @@ interface Props {
   onOpen: () => void;
   onPlay: () => void;
   onStop: () => void;
+  /** Right-click (or the menu key): the profile's options. */
+  onMenu?: (e: MouseEvent) => void;
 }
 
-export default function ProfileRow({ profile, launch, onOpen, onPlay, onStop }: Props) {
+export default function ProfileRow({ profile, launch, onOpen, onPlay, onStop, onMenu }: Props) {
   const state = launch?.state ?? 'idle';
   const progress = launch?.progress;
   const playtime = formatPlaytime(profile.playtimeMs);
@@ -29,7 +31,7 @@ export default function ProfileRow({ profile, launch, onOpen, onPlay, onStop }: 
   const stop = (e: MouseEvent) => e.stopPropagation();
 
   return (
-    <div className="profile-row" role="link" tabIndex={0} onClick={onOpen} onKeyDown={onKeyDown}>
+    <div className="profile-row" role="link" tabIndex={0} onClick={onOpen} onKeyDown={onKeyDown} onContextMenu={onMenu}>
       <ProfileIcon profile={profile} className="profile-icon" />
 
       <div className="profile-info">
