@@ -6,6 +6,7 @@ const { readJson, writeJson, createLock } = require('./store.cjs');
 const { getManifest } = require('./launcher/versions.cjs');
 const { LOADER_NAMES, loaderVersions } = require('./launcher/loaders.cjs');
 const settings = require('./settings.cjs');
+const recover = require('./recover.cjs');
 const { totalMemoryMb } = settings;
 
 const file = () => path.join(paths.root(), 'profiles.json');
@@ -38,7 +39,39 @@ function normalize(p) {
   };
 }
 
-const load = async () => (await readJson(file(), [])).map(normalize);
+// Rebuilding runs once even if several reads find the list damaged at the same time.
+let rebuilding = null;
+async function rebuildList() {
+  rebuilding ??= recover.rebuild().then(async (list) => {
+    if (list.length) await save(list);
+    return list;
+  });
+  try {
+    return await rebuilding;
+  } finally {
+    rebuilding = null;
+  }
+}
+
+const load = async () => (await readJson(file(), [], { recover: rebuildList })).map(normalize);
+
+// What each profile's snapshot last held, so unchanged ones aren't rewritten.
+const snapshots = new Map();
+
+/** Saves the list, plus a copy of each entry in its own folder to rebuild from if the list is ever lost. */
+async function save(all) {
+  await writeJson(file(), all);
+  for (const p of all) {
+    const text = JSON.stringify(p);
+    if (snapshots.get(p.id) === text) continue;
+    try {
+      await writeJson(path.join(gameDir(p.id), recover.SNAPSHOT), p, { backup: false });
+      snapshots.set(p.id, text);
+    } catch {
+      // The folder may be gone; the list itself is saved.
+    }
+  }
+}
 
 /** Checks a version/loader combination exists; returns the cleaned selection. */
 async function validateVersion({ mcVersion, loader = 'vanilla', loaderVersion = null }) {
@@ -92,7 +125,7 @@ async function create({ name, ...selection }) {
     const all = await load();
     await copySharedOptions(all, profile.id).catch(() => {});
     all.push(profile);
-    await writeJson(file(), all);
+    await save(all);
     return profile;
   });
 }
@@ -137,7 +170,7 @@ async function duplicate(id, name, selection = null) {
   return withLock(async () => {
     const all = await load();
     all.push(copy);
-    await writeJson(file(), all);
+    await save(all);
     return copy;
   });
 }
@@ -148,7 +181,7 @@ function update(id, patch) {
     const profile = all.find((p) => p.id === id);
     if (!profile) throw new Error('Profile not found.');
     Object.assign(profile, patch);
-    await writeJson(file(), all);
+    await save(all);
     return profile;
   });
 }
@@ -160,7 +193,7 @@ function addPlaytime(id, ms) {
     const profile = all.find((p) => p.id === id);
     if (!profile) return;
     profile.playtimeMs += Math.round(ms);
-    await writeJson(file(), all);
+    await save(all);
   });
 }
 
@@ -231,7 +264,7 @@ function setHeld(id, projectId, held) {
     if (!profile) throw new Error('Profile not found.');
     const rest = profile.held.filter((p) => p !== projectId);
     profile.held = held ? [...rest, projectId] : rest;
-    await writeJson(file(), all);
+    await save(all);
     return profile;
   });
 }
@@ -242,7 +275,7 @@ function renameGroup(from, to) {
   return withLock(async () => {
     const all = await load();
     for (const p of all) if (p.group === from) p.group = name;
-    await writeJson(file(), all);
+    await save(all);
     return all;
   });
 }
@@ -254,7 +287,7 @@ function updateSettings(id, patch) {
     const profile = all.find((p) => p.id === id);
     if (!profile) throw new Error('Profile not found.');
     profile.settings = { ...profile.settings, ...clean };
-    await writeJson(file(), all);
+    await save(all);
     return profile;
   });
 }
@@ -286,13 +319,35 @@ async function readLog(id) {
   }
 }
 
+/** Writes the per-folder snapshots that copies saved before they existed are missing. */
+async function backfillSnapshots() {
+  const all = await load();
+  for (const p of all) {
+    const text = JSON.stringify(p);
+    if (snapshots.get(p.id) === text) continue;
+    const saved = await fsp
+      .readFile(path.join(gameDir(p.id), recover.SNAPSHOT), 'utf8')
+      .then((t) => JSON.stringify(JSON.parse(t)))
+      .catch(() => null);
+    if (saved === text) {
+      snapshots.set(p.id, text);
+      continue;
+    }
+    await fsp
+      .access(gameDir(p.id))
+      .then(() => writeJson(path.join(gameDir(p.id), recover.SNAPSHOT), p, { backup: false }))
+      .then(() => snapshots.set(p.id, text))
+      .catch(() => {});
+  }
+}
+
 function remove(id) {
   return withLock(async () => {
     const all = await load();
     // Only ever delete folders of profiles we know about.
     if (!all.some((p) => p.id === id)) throw new Error('Profile not found.');
     await fsp.rm(gameDir(id), { recursive: true, force: true });
-    await writeJson(file(), all.filter((p) => p.id !== id));
+    await save(all.filter((p) => p.id !== id));
   });
 }
 
@@ -310,6 +365,7 @@ module.exports = {
   renameGroup,
   setHeld,
   remove,
+  backfillSnapshots,
   readLog,
   gameDir,
 };

@@ -1,21 +1,59 @@
 const fsp = require('node:fs/promises');
 const path = require('node:path');
 
-async function readJson(file, fallback) {
+const parse = async (file) => JSON.parse(await fsp.readFile(file, 'utf8'));
+
+/**
+ * Reads a JSON file written by writeJson. If it's damaged (a power cut can leave it empty or
+ * full of zero bytes), falls back to the last good copy in "<file>.bak". When both are gone or
+ * damaged, the damaged file is set aside and `recover()` (or `fallback`) supplies a fresh start.
+ */
+async function readJson(file, fallback, { recover } = {}) {
+  let error;
   try {
-    return JSON.parse(await fsp.readFile(file, 'utf8'));
+    return await parse(file);
   } catch (err) {
-    if (err.code === 'ENOENT' && fallback !== undefined) return fallback;
-    throw err;
+    error = err;
   }
+  try {
+    const data = await parse(`${file}.bak`);
+    console.warn(`[store] ${path.basename(file)} was unreadable (${error.message}); using the backup.`);
+    await writeJson(file, data).catch(() => {});
+    return data;
+  } catch {
+    // No usable backup either.
+  }
+  if (error.code === 'ENOENT') {
+    if (recover) return recover();
+    if (fallback !== undefined) return fallback;
+    throw error;
+  }
+  if (!recover && fallback === undefined) throw error;
+  console.warn(`[store] ${path.basename(file)} is damaged and has no backup (${error.message}); starting it over.`);
+  await fsp.rename(file, `${file}.damaged-${Date.now()}`).catch(() => {});
+  return recover ? recover() : fallback;
 }
 
-// Write to a temp file then rename, so a crash never leaves half-written JSON.
-async function writeJson(file, data) {
-  await fsp.mkdir(path.dirname(file), { recursive: true });
+/** Writes through a temp file that's flushed to disk before it replaces the real one. */
+async function writeDurably(file, text) {
   const tmp = `${file}.${process.pid}.tmp`;
-  await fsp.writeFile(tmp, JSON.stringify(data, null, 2));
+  const handle = await fsp.open(tmp, 'w');
+  try {
+    await handle.writeFile(text);
+    await handle.sync();
+  } finally {
+    await handle.close();
+  }
   await fsp.rename(tmp, file);
+}
+
+// Each save is flushed to disk, then copied to "<file>.bak", so turning the PC off mid-save
+// leaves at least one good copy for readJson.
+async function writeJson(file, data, { backup = true } = {}) {
+  await fsp.mkdir(path.dirname(file), { recursive: true });
+  const text = JSON.stringify(data, null, 2);
+  await writeDurably(file, text);
+  if (backup) await writeDurably(`${file}.bak`, text);
 }
 
 // Serializes read-modify-write cycles on a single file.

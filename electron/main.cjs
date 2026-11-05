@@ -125,6 +125,8 @@ app.whenReady().then(() => {
   require('./support.cjs').start(broadcast);
   require('./usercount.cjs').start();
   startCatchUp(broadcast);
+  // Copies of each profile's entry in its folder, for rebuilding the list if it's ever lost.
+  require('./profiles.cjs').backfillSnapshots().catch(() => {});
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
