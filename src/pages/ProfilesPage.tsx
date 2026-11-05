@@ -24,7 +24,6 @@ import {
 import PageHeader from '../components/PageHeader';
 import ProfileRow from '../components/ProfileRow';
 import ProfileCard from '../components/ProfileCard';
-import ComingSoon from '../components/ComingSoon';
 import CreateProfileModal from '../components/CreateProfileModal';
 import Dropdown from '../components/Dropdown';
 import GroupModal from '../components/GroupModal';
@@ -286,8 +285,6 @@ export default function ProfilesPage({ profiles, launches, onCreated, onOpen, on
           )}
         </>
       )}
-
-      <ComingSoon />
 
       {creating && <CreateProfileModal onClose={() => setCreating(false)} onCreated={onCreated} />}
       {updatingAll && profiles && (
