@@ -58,12 +58,235 @@ function loaderDependency(id) {
   return { [key]: match[2] };
 }
 
+// ---------- Browsing (mods, resource packs, shaders) ----------
+
+const GAME_ID = 432;
+// classId per content kind, and back.
+const KIND_CLASSES = { mod: 6, resourcepack: 12, shader: 6552 };
+const CLASS_KINDS = { 6: 'mod', 12: 'resourcepack', 6552: 'shader' };
+// CurseForge's modLoaderType ids. Quilt can also run Fabric mods.
+const LOADER_TYPES = { forge: [1], fabric: [4], quilt: [5, 4], neoforge: [6] };
+const LOADER_NAMES = { forge: 'forge', fabric: 'fabric', quilt: 'quilt', neoforge: 'neoforge' };
+// sortField: 2 popularity, 3 last updated, 6 total downloads, 11 released date. Relevance is CurseForge's default.
+const SORT_FIELDS = { downloads: 6, follows: 2, newest: 11, updated: 3 };
+const PAGE = 20;
+// CurseForge stops paging at 10,000 results.
+const MAX_INDEX = 10_000 - PAGE;
+
+/** Project and version ids from CurseForge carry a prefix so they never get mixed up with Modrinth ids. */
+const PREFIX = 'cf:';
+const isCurseForgeId = (id) => typeof id === 'string' && id.startsWith(PREFIX);
+const numericId = (id) => {
+  const n = Number(String(id).slice(PREFIX.length));
+  if (!Number.isSafeInteger(n) || n <= 0) throw new Error('Unknown CurseForge project.');
+  return n;
+};
+
+async function cfRaw(pathname) {
+  if (!enabled()) throw new Error('CurseForge isn’t available in this copy of Workbench.');
+  const res = await fetch(CF_API + pathname, {
+    headers: { 'x-api-key': CURSEFORGE_API_KEY, Accept: 'application/json', 'User-Agent': USER_AGENT },
+  });
+  if (!res.ok) throw new Error(`CurseForge request failed (${res.status}).`);
+  return res.json();
+}
+
+function toHit(m) {
+  return {
+    projectId: PREFIX + m.id,
+    slug: m.slug,
+    kind: CLASS_KINDS[m.classId] ?? 'mod',
+    title: m.name,
+    description: m.summary ?? '',
+    author: m.authors?.[0]?.name ?? '',
+    iconUrl: m.logo?.thumbnailUrl || m.logo?.url || null,
+    downloads: m.downloadCount ?? 0,
+    follows: m.thumbsUpCount ?? 0,
+    updatedAt: m.dateModified ?? m.dateReleased,
+    source: 'curseforge',
+  };
+}
+
+// Modrinth category names whose CurseForge equivalent is named differently.
+const CATEGORY_ALIASES = {
+  optimization: 'performance',
+  adventure: 'adventure-rpg',
+  decoration: 'cosmetic',
+  equipment: 'armor-weapons-tools',
+  food: 'mc-food',
+  library: 'library-api',
+  mobs: 'world-mobs',
+  transportation: 'technology-player-transport',
+  utility: 'utility-qol',
+  worldgen: 'world-gen',
+  realistic: 'photo-realistic',
+  '16x': 'sixteen-x',
+  '32x': 'thirty-two-x',
+  '64x': 'sixty-four-x',
+  '128x': 'one-twenty-eight-x',
+  '256x': 'two-fifty-six-x',
+  '512x+': 'five-twelve-x-and-beyond',
+};
+
+const categoryCache = new Map();
+/** The CurseForge category matching a Modrinth category name ("game-mechanics"), if there is one. */
+async function categoryId(kind, name) {
+  const classId = KIND_CLASSES[kind];
+  if (!classId || !name) return null;
+  if (!categoryCache.has(classId)) categoryCache.set(classId, cf(`/categories?gameId=${GAME_ID}&classId=${classId}`).catch(() => []));
+  const norm = (s) => String(s).toLowerCase().replace(/[^a-z0-9]/g, '');
+  const wanted = norm(CATEGORY_ALIASES[name] ?? name);
+  const match = (await categoryCache.get(classId)).find((c) => norm(c.slug) === wanted || norm(c.name) === wanted);
+  return match?.id ?? null;
+}
+
+/**
+ * One page of CurseForge results. `kinds` are the content kinds asked for; with a profile, results
+ * are limited to its Minecraft version and (for mods) its loader. Returns null when CurseForge
+ * can't answer this search (a category it doesn't have), so the caller shows Modrinth alone.
+ */
+async function search({ kinds, profile = null, query = '', sort, category, index = 0 }) {
+  const params = new URLSearchParams({
+    gameId: String(GAME_ID),
+    pageSize: String(PAGE),
+    index: String(Math.min(index, MAX_INDEX)),
+    sortOrder: 'desc',
+  });
+  if (query) params.set('searchFilter', String(query).slice(0, 200));
+  if (SORT_FIELDS[sort]) params.set('sortField', String(SORT_FIELDS[sort]));
+  // Several kinds can't be asked for at once: with a profile, "all" means its mods (the loader
+  // filter would hide packs anyway); without one, everything is fetched and filtered here.
+  const single = kinds.length === 1 ? kinds[0] : profile ? 'mod' : null;
+  if (single) params.set('classId', String(KIND_CLASSES[single]));
+  if (category) {
+    if (!single) return null;
+    const id = await categoryId(single, category);
+    if (!id) return null;
+    params.set('categoryId', String(id));
+  }
+  if (profile) {
+    params.set('gameVersion', profile.mcVersion);
+    const types = single === 'mod' ? LOADER_TYPES[profile.loader] : null;
+    if (types) params.set('modLoaderTypes', JSON.stringify(types));
+  }
+  const body = await cfRaw(`/mods/search?${params}`);
+  const allowed = new Set(single ? [single] : kinds);
+  const hits = body.data.filter((m) => allowed.has(CLASS_KINDS[m.classId])).map(toHit);
+  const total = Math.min(body.pagination?.totalCount ?? 0, 10_000);
+  const next = index + body.data.length;
+  return { hits, total, next: body.data.length === PAGE && next < total && next <= MAX_INDEX ? next : null };
+}
+
+/** Splits a file's gameVersions ("1.21.1", "NeoForge", "Client") into Minecraft versions and loaders. */
+function fileTargets(file, kind) {
+  const names = file.gameVersions ?? [];
+  const gameVersions = names.filter((v) => /^\d+(\.\d+)+/.test(v));
+  let loaders = names.map((v) => LOADER_NAMES[v.toLowerCase()]).filter(Boolean);
+  // Packs don't name a loader; give them the ones Workbench uses for those kinds.
+  if (kind === 'resourcepack') loaders = ['minecraft'];
+  else if (kind === 'shader') loaders = ['iris', 'optifine'];
+  return { gameVersions, loaders };
+}
+
+/** A CurseForge file in the shape of a Modrinth version, so installs and version lists treat both alike. */
+function toVersion(file, kind) {
+  const { gameVersions, loaders } = fileTargets(file, kind);
+  return {
+    id: PREFIX + file.id,
+    project_id: PREFIX + file.modId,
+    name: file.displayName,
+    version_number: file.displayName,
+    version_type: { 1: 'release', 2: 'beta', 3: 'alpha' }[file.releaseType] ?? 'release',
+    date_published: file.fileDate,
+    downloads: file.downloadCount ?? 0,
+    game_versions: gameVersions,
+    loaders,
+    changelog: '',
+    // Files whose author turned off third-party downloads have no URL, so nothing to install.
+    files: file.downloadUrl
+      ? [{ filename: file.fileName, url: file.downloadUrl, primary: true, size: file.fileLength, hashes: { sha1: fileSha1(file) } }]
+      : [],
+    // Modrinth-style dependencies stay empty; CurseForge's required ones are listed by project id.
+    dependencies: [],
+    requires: (file.dependencies ?? []).filter((d) => d.relationType === 3).map((d) => PREFIX + d.modId),
+  };
+}
+
+/** A project's files, newest first; optionally only those for a Minecraft version and loader type. */
+async function files(projectId, { gameVersion, loaderType } = {}, limit = 500) {
+  const id = numericId(projectId);
+  const out = [];
+  for (let index = 0; index < limit; index += 50) {
+    const params = new URLSearchParams({ index: String(index), pageSize: '50' });
+    if (gameVersion) params.set('gameVersion', gameVersion);
+    if (loaderType) params.set('modLoaderType', String(loaderType));
+    const body = await cfRaw(`/mods/${id}/files?${params}`);
+    out.push(...body.data);
+    if (body.data.length < 50 || out.length >= (body.pagination?.totalCount ?? 0)) break;
+  }
+  return out.sort((a, b) => Date.parse(b.fileDate) - Date.parse(a.fileDate));
+}
+
+const file = (projectId, versionId) => cf(`/mods/${numericId(projectId)}/files/${numericId(versionId)}`);
+const project = (projectId) => cf(`/mods/${numericId(projectId)}`);
+const kindOf = (m) => CLASS_KINDS[m.classId] ?? null;
+
+/** The project page, in the shape the details view uses for Modrinth projects. */
+async function details(projectId) {
+  const id = numericId(projectId);
+  const [m, body] = await Promise.all([cf(`/mods/${id}`), cf(`/mods/${id}/description`).catch(() => '')]);
+  const link = (url) => (typeof url === 'string' && url.startsWith('https://') ? url : null);
+  const kind = kindOf(m) ?? 'mod';
+  const loaderOf = (type) => Object.keys(LOADER_TYPES).find((k) => LOADER_TYPES[k][0] === type);
+  const indexes = m.latestFilesIndexes ?? [];
+  return {
+    projectId: PREFIX + m.id,
+    slug: m.slug,
+    type: kind,
+    title: m.name,
+    description: m.summary ?? '',
+    body: typeof body === 'string' ? body : '',
+    author: m.authors?.[0]?.name ?? null,
+    iconUrl: m.logo?.thumbnailUrl || null,
+    downloads: m.downloadCount ?? 0,
+    follows: m.thumbsUpCount ?? 0,
+    publishedAt: m.dateCreated ?? m.dateReleased,
+    updatedAt: m.dateModified,
+    categories: (m.categories ?? []).map((c) => c.slug),
+    loaders: kind === 'mod' ? [...new Set(indexes.map((f) => loaderOf(f.modLoader)).filter(Boolean))] : [],
+    gameVersions: [...new Set(indexes.map((f) => f.gameVersion).filter(Boolean))],
+    clientSide: 'unknown',
+    serverSide: 'unknown',
+    license: null,
+    gallery: (m.screenshots ?? [])
+      .filter((g) => link(g.url))
+      .map((g) => ({ url: link(g.thumbnailUrl) ?? g.url, fullUrl: g.url, title: g.title || null, description: g.description || null })),
+    links: {
+      modrinth: link(m.links?.websiteUrl),
+      source: link(m.links?.sourceUrl),
+      issues: link(m.links?.issuesUrl),
+      wiki: link(m.links?.wikiUrl),
+      discord: null,
+    },
+    source: 'curseforge',
+  };
+}
+
 module.exports = {
   CURSEFORGE_DOWNLOAD_HOSTS,
   CLASS_FOLDERS,
+  LOADER_TYPES,
   enabled,
   resolveFiles,
   fileSha1,
   filePageUrl,
   loaderDependency,
+  isCurseForgeId,
+  search,
+  files,
+  file,
+  toVersion,
+  project,
+  kindOf,
+  details,
 };

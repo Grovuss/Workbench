@@ -79,6 +79,18 @@ export interface ContentSearchHit {
   downloads: number;
   follows: number;
   updatedAt: string;
+  /** Where it was found. */
+  source?: ContentSource;
+}
+
+/** Where content comes from. Browse shows both at once by default. */
+export type ContentSource = 'modrinth' | 'curseforge';
+export type BrowseSource = ContentSource | 'both';
+
+/** How far each source has been paged; null once a source has no more results. */
+export interface SearchCursor {
+  modrinth: number | null;
+  curseforge: number | null;
 }
 
 export interface InstallClash {
@@ -100,6 +112,9 @@ export interface PendingUpdates {
 export interface ContentSearchResult {
   total: number;
   hits: ContentSearchHit[];
+  /** Pass back to get the next page. */
+  cursor: SearchCursor;
+  more: boolean;
 }
 
 export type PackKind = 'workbench' | 'mrpack' | 'curseforge';
@@ -629,6 +644,10 @@ export interface SearchOptions {
   sort?: ContentSort;
   /** A Modrinth category name, e.g. "optimization". */
   category?: string;
+  /** Modrinth, CurseForge or both (the default when CurseForge is set up). */
+  source?: BrowseSource;
+  /** From the previous page's result; replaces offset. */
+  cursor?: SearchCursor;
 }
 
 /** A Modrinth project's page, for the details view. */
@@ -654,7 +673,9 @@ export interface ProjectDetails {
   license: { id: string; name: string; url: string | null } | null;
   /** url is a preview; fullUrl the original image. */
   gallery: { url: string; fullUrl: string; title: string | null; description: string | null }[];
+  /** links.modrinth is the project's own page: on CurseForge for CurseForge projects. */
   links: { modrinth: string; source: string | null; issues: string | null; wiki: string | null; discord: string | null };
+  source?: ContentSource;
 }
 
 export interface ContentCategory {

@@ -2,6 +2,7 @@ const fsp = require('node:fs/promises');
 const path = require('node:path');
 const AdmZip = require('adm-zip');
 const profiles = require('./profiles.cjs');
+const curseforge = require('./curseforge.cjs');
 const { readJson, writeJson, createLock, exists } = require('./store.cjs');
 const { USER_AGENT } = require('./config.cjs');
 const { download, runPool, sha1 } = require('./launcher/http.cjs');
@@ -330,8 +331,7 @@ async function runSearch(facets, { query = '', offset = 0, sort } = {}, kindOf) 
 }
 
 /** Modrinth search for one kind of content, filtered to what works on the target profile. */
-async function search(target, options = {}) {
-  const { kind, profile } = await locate(target);
+async function modrinthSearch({ kind, profile }, options) {
   const facets = [
     [`project_type:${KINDS[kind].projectType}`],
     modrinthLoaders(kind, profile).map((l) => `categories:${l}`),
@@ -341,10 +341,9 @@ async function search(target, options = {}) {
   return runSearch(facets, options, () => kind);
 }
 
-/** Searches mods, resource packs and shaders at once (whichever the profile can use). */
-async function searchAll(profileId, options = {}) {
-  const profile = await profiles.get(profileId);
-  const usable = SEARCH_ALL_KINDS.filter((kind) => {
+/** The kinds of content a profile can use, of those the all-in-one search covers. */
+const usableKinds = (profile) =>
+  SEARCH_ALL_KINDS.filter((kind) => {
     try {
       modrinthLoaders(kind, profile);
       return true;
@@ -352,6 +351,10 @@ async function searchAll(profileId, options = {}) {
       return false;
     }
   });
+
+/** Modrinth search for mods, resource packs and shaders at once (whichever the profile can use). */
+async function modrinthSearchAll(profile, options) {
+  const usable = usableKinds(profile);
   const facets = [
     usable.map((kind) => `project_type:${KINDS[kind].projectType}`),
     [...new Set(usable.flatMap((kind) => modrinthLoaders(kind, profile)))].map((l) => `categories:${l}`),
@@ -360,13 +363,87 @@ async function searchAll(profileId, options = {}) {
   return runSearch(facets, options, (h) => PROJECT_TYPE_KINDS[h.project_type] ?? 'mod');
 }
 
-/** Modrinth search with no profile in mind: every mod, resource pack or shader, whatever it runs on. */
-async function searchAnywhere(kind, options = {}) {
+const anywhereKinds = (kind) => {
   const kinds = kind === 'all' ? SEARCH_ALL_KINDS : SEARCH_ALL_KINDS.includes(kind) ? [kind] : null;
   if (!kinds) throw new Error('Unknown content type.');
+  return kinds;
+};
+
+/** Modrinth search with no profile in mind: every mod, resource pack or shader, whatever it runs on. */
+async function modrinthSearchAnywhere(kind, options) {
+  const kinds = anywhereKinds(kind);
   const facets = [kinds.map((k) => `project_type:${KINDS[k].projectType}`)];
   if (kind !== 'all' && options.category) facets.push([`categories:${String(options.category)}`]);
   return runSearch(facets, options, (h) => PROJECT_TYPE_KINDS[h.project_type] ?? 'mod');
+}
+
+// ---------- Searching Modrinth and CurseForge together ----------
+
+const titleKey = (hit) => hit.title.toLowerCase().replace(/[^a-z0-9]/g, '');
+
+/**
+ * Both lists in one, taking turns, each in its own sort order. Download counts aren't comparable
+ * (CurseForge's run far higher), so a merged sort would bury one source. Modrinth wins duplicates.
+ */
+function mergeHits(a, b) {
+  const seen = new Set(a.flatMap((h) => [titleKey(h), h.slug]));
+  const rest = b.filter((h) => !seen.has(titleKey(h)) && !seen.has(h.slug));
+  const out = [];
+  for (let i = 0; i < Math.max(a.length, rest.length); i++) out.push(...[a[i], rest[i]].filter(Boolean));
+  return out;
+}
+
+/**
+ * Runs a search on Modrinth, CurseForge or both (options.source, default both when CurseForge is set up).
+ * Paging uses options.cursor ({ modrinth, curseforge } offsets, null when a source has no more);
+ * the result's `cursor` is the one for the next page.
+ */
+async function searchSources({ kinds, profile }, options, modrinthPage) {
+  const source = curseforge.enabled() ? (options.source ?? 'both') : 'modrinth';
+  const offset = (n) => (n === null ? null : Math.max(0, Math.floor(Number(n) || 0)));
+  const cursor = options.cursor
+    ? { modrinth: offset(options.cursor.modrinth), curseforge: offset(options.cursor.curseforge) }
+    : { modrinth: offset(options.offset), curseforge: 0 };
+  const sort = SORTS.has(options.sort) ? options.sort : options.query ? 'relevance' : 'downloads';
+  const [mr, cf] = await Promise.all([
+    source !== 'curseforge' && cursor.modrinth != null ? modrinthPage({ ...options, offset: cursor.modrinth }) : null,
+    source !== 'modrinth' && cursor.curseforge != null
+      ? curseforge
+          .search({ kinds, profile, query: options.query, sort, category: options.category, index: cursor.curseforge })
+          // CurseForge being down shouldn't hide Modrinth's results; alone, the error is shown.
+          .catch((err) => {
+            if (source === 'curseforge') throw err;
+            return null;
+          })
+      : null,
+  ]);
+  const mrHits = (mr?.hits ?? []).map((h) => ({ ...h, source: 'modrinth' }));
+  const mrNext = mr && cursor.modrinth + mr.hits.length < mr.total && mr.hits.length ? cursor.modrinth + mr.hits.length : null;
+  const next = { modrinth: mrNext, curseforge: cf?.next ?? null };
+  return {
+    hits: mergeHits(mrHits, cf?.hits ?? []),
+    total: (mr?.total ?? 0) + (cf?.total ?? 0),
+    cursor: next,
+    more: next.modrinth != null || next.curseforge != null,
+  };
+}
+
+/** One kind of content, filtered to what works on the target profile. Data packs are Modrinth only. */
+async function search(target, options = {}) {
+  const loc = await locate(target);
+  if (loc.kind === 'datapack') return searchSources({ kinds: [] }, { ...options, source: 'modrinth' }, (o) => modrinthSearch(loc, o));
+  return searchSources({ kinds: [loc.kind], profile: loc.profile }, options, (o) => modrinthSearch(loc, o));
+}
+
+/** Mods, resource packs and shaders at once (whichever the profile can use). */
+async function searchAll(profileId, options = {}) {
+  const profile = await profiles.get(profileId);
+  return searchSources({ kinds: usableKinds(profile), profile }, options, (o) => modrinthSearchAll(profile, o));
+}
+
+/** Everything, with no profile in mind. */
+async function searchAnywhere(kind, options = {}) {
+  return searchSources({ kinds: anywhereKinds(kind), profile: null }, options, (o) => modrinthSearchAnywhere(kind, o));
 }
 
 // Category tags that are really loaders or platforms, not things to browse by.
@@ -452,9 +529,49 @@ async function placeVersion(ctx, projectId, version, { title, iconUrl }, enabled
   }
 }
 
+/** The newest CurseForge file for the profile, releases first; null if there isn't one. */
+async function newestCurseForge(projectId, kind, profile) {
+  const types = kind === 'mod' ? (curseforge.LOADER_TYPES[profile.loader] ?? []) : [null];
+  for (const loaderType of types) {
+    const found = (await curseforge.files(projectId, { gameVersion: profile.mcVersion, loaderType }, 100)).map((f) => curseforge.toVersion(f, kind));
+    const usable = found.filter((v) => v.game_versions.includes(profile.mcVersion));
+    const pick = usable.find((v) => v.version_type === 'release') ?? usable[0];
+    if (pick) return pick;
+  }
+  return null;
+}
+
+/** Installs a CurseForge project, then its required dependencies (from Modrinth when they're there too). */
+async function installCurseForge(ctx, projectId, isRoot, versionId) {
+  const { kind, profile, spec } = ctx.loc;
+  const [project, version] = await Promise.all([
+    curseforge.project(projectId),
+    versionId ? curseforge.file(projectId, versionId).then((f) => curseforge.toVersion(f, kind)) : newestCurseForge(projectId, kind, profile),
+  ]);
+  if (!version) {
+    if (isRoot) throw new Error(`${project.name} has no ${spec.noun} version for ${profile.mcVersion} on this profile.`);
+    return;
+  }
+  if (!version.files.length) {
+    throw new Error(`${project.name}'s author doesn't allow launchers to download it. Get it from CurseForge and drag it into the profile.`);
+  }
+  await placeVersion(ctx, projectId, version, { title: project.name, iconUrl: project.logo?.thumbnailUrl || null });
+  if (kind !== 'mod' || ctx.exactList) return;
+  for (const depId of version.requires) {
+    if (ctx.installed.has(depId) || ctx.visited.has(depId)) continue;
+    // The same project on Modrinth (by slug) counts, and is preferred: it gets updates.
+    const dep = await curseforge.project(depId).catch(() => null);
+    const onModrinth = dep && (await modrinth(`/project/${encodeURIComponent(dep.slug)}`).catch(() => null));
+    if (onModrinth && ctx.installed.has(onModrinth.id)) continue;
+    if (onModrinth) await installProject(ctx, onModrinth.id, false);
+    if (!onModrinth || !ctx.installed.has(onModrinth.id)) await installProject(ctx, depId, false).catch(() => {});
+  }
+}
+
 async function installProject(ctx, projectId, isRoot, versionId = null) {
   if (ctx.visited.has(projectId)) return;
   ctx.visited.add(projectId);
+  if (curseforge.isCurseForgeId(projectId)) return installCurseForge(ctx, projectId, isRoot, versionId);
   const { kind, profile, spec } = ctx.loc;
   const [version, project] = await Promise.all([
     versionId ? modrinth(`/version/${encodeURIComponent(versionId)}`) : newestCompatible(projectId, kind, profile),
@@ -523,12 +640,26 @@ function installVersions(target, entries) {
     const ctx = { ...(await installContext(loc)), exactList: true };
     const failed = [];
     try {
-      const ids = entries.map((e) => e.versionId);
+      const ids = entries.map((e) => e.versionId).filter((id) => !curseforge.isCurseForgeId(id));
       const versions = ids.length ? await modrinth(`/versions?${new URLSearchParams({ ids: JSON.stringify(ids) })}`) : [];
       const projectIds = [...new Set(versions.map((v) => v.project_id))];
       const projects = projectIds.length ? await modrinth(`/projects?${new URLSearchParams({ ids: JSON.stringify(projectIds) })}`) : [];
       const byVersion = new Map(versions.map((v) => [v.id, v]));
       const byProject = new Map(projects.map((p) => [p.id, p]));
+      // Files installed from CurseForge, listed as "cf:<file id>".
+      const cfIds = entries
+        .map((e) => e.versionId)
+        .filter(curseforge.isCurseForgeId)
+        .map((id) => Number(id.slice(3)))
+        .filter(Number.isSafeInteger);
+      if (cfIds.length && curseforge.enabled()) {
+        for (const { file, mod } of await curseforge.resolveFiles(cfIds).catch(() => [])) {
+          if (!mod) continue;
+          const version = curseforge.toVersion(file, curseforge.kindOf(mod) ?? loc.kind);
+          byVersion.set(version.id, version);
+          byProject.set(version.project_id, { id: version.project_id, title: mod.name, icon_url: mod.logo?.thumbnailUrl || null });
+        }
+      }
       for (const { versionId, enabled } of entries) {
         const version = byVersion.get(versionId);
         const project = version && byProject.get(version.project_id);
@@ -551,6 +682,7 @@ function installVersions(target, entries) {
 
 /** Everything Modrinth shows on a project's page, for the details view. */
 async function project(projectId) {
+  if (curseforge.isCurseForgeId(projectId)) return curseforge.details(projectId);
   const id = encodeURIComponent(projectId);
   const [p, members] = await Promise.all([modrinth(`/project/${id}`), modrinth(`/project/${id}/members`).catch(() => [])]);
   const owner = members.find((m) => m.role === 'Owner') ?? members[0];
@@ -606,6 +738,10 @@ const hasFileFor = (loc, v) => v.files.some((f) => f.filename.toLowerCase().ends
 /** A project's versions that work on the target (loader and Minecraft version), newest first. */
 async function versions(target, projectId) {
   const loc = await locate(target);
+  if (curseforge.isCurseForgeId(projectId)) {
+    const list = (await curseforgeVersions(projectId, loc.kind)).filter((v) => versionFits(loc, v));
+    return list.map(toVersion);
+  }
   const params = new URLSearchParams({
     loaders: JSON.stringify(modrinthLoaders(loc.kind, loc.profile)),
     game_versions: JSON.stringify([loc.profile.mcVersion]),
@@ -614,11 +750,28 @@ async function versions(target, projectId) {
   return list.filter((v) => hasFileFor(loc, v)).map(toVersion);
 }
 
+/** Every file of a CurseForge project, as Modrinth-style versions. */
+async function curseforgeVersions(projectId, kind) {
+  const project = await curseforge.project(projectId);
+  const actual = curseforge.kindOf(project) ?? kind ?? 'mod';
+  return (await curseforge.files(projectId)).map((f) => curseforge.toVersion(f, actual));
+}
+
+/** Whether a version works on the target's loader and Minecraft version, with a file for its folder. */
+function versionFits(loc, v) {
+  const loaders = modrinthLoaders(loc.kind, loc.profile);
+  return v.game_versions.includes(loc.profile.mcVersion) && v.loaders.some((l) => loaders.includes(l)) && hasFileFor(loc, v);
+}
+
 /**
  * Every version of a project, newest first. With a target, each one says whether it works there
  * (`fits`); without one, `fits` is null.
  */
 async function allVersions(projectId, target = null) {
+  if (curseforge.isCurseForgeId(projectId)) {
+    const loc = target ? await locate(target) : null;
+    return (await curseforgeVersions(projectId, loc?.kind)).map((v) => ({ ...toVersion(v), fits: loc ? versionFits(loc, v) : null }));
+  }
   const [list, loc] = await Promise.all([
     modrinth(`/project/${encodeURIComponent(projectId)}/version`),
     target ? locate(target) : null,
@@ -803,7 +956,7 @@ function portToVersion(profileId) {
         continue;
       }
 
-      const known = items.filter((i) => i.info.projectId);
+      const known = items.filter((i) => i.info.projectId && !curseforge.isCurseForgeId(i.info.projectId));
       const latest = known.length
         ? await modrinth('/version_files/update', {
             hashes: known.map((i) => i.info.sha1),
@@ -815,7 +968,7 @@ function portToVersion(profileId) {
       const ctx = await installContext(loc);
       try {
         for (const item of items) {
-          const { projectId } = item.info;
+          const projectId = curseforge.isCurseForgeId(item.info.projectId) ? null : item.info.projectId;
           if (!projectId) {
             if (kind === 'mod') {
               if (item.enabled) await turnOff(item);

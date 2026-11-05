@@ -80,9 +80,12 @@ export default function ProjectDetails({ project, actions, target, installedVers
                 <span>
                   <Download size={14} /> {formatCount(details.downloads)} downloads
                 </span>
-                <span>
-                  <Heart size={14} /> {formatCount(details.follows)} followers
-                </span>
+                {/* CurseForge has no followers, only a rarely used thumbs-up count. */}
+                {details.source !== 'curseforge' && (
+                  <span>
+                    <Heart size={14} /> {formatCount(details.follows)} {details.follows === 1 ? 'follower' : 'followers'}
+                  </span>
+                )}
                 <span>Updated {timeAgo(details.updatedAt)}</span>
               </div>
             )}
@@ -154,7 +157,7 @@ export default function ProjectDetails({ project, actions, target, installedVers
                   </div>
                 </section>
               )}
-              {details.type === 'mod' && (
+              {details.type === 'mod' && details.source !== 'curseforge' && (
                 <section>
                   <h3>Where it runs</h3>
                   <dl className="project-facts">
@@ -194,7 +197,7 @@ export default function ProjectDetails({ project, actions, target, installedVers
                 <h3>Links</h3>
                 <div className="project-links">
                   <button onClick={() => open(details.links.modrinth)}>
-                    <ExternalLink size={14} /> Modrinth page
+                    <ExternalLink size={14} /> {details.source === 'curseforge' ? 'CurseForge page' : 'Modrinth page'}
                   </button>
                   {details.links.source && (
                     <button onClick={() => open(details.links.source!)}>

@@ -7106,3 +7106,18 @@ select.input option {
 .install-to-row.is-off strong {
   color: var(--text-muted);
 }
+
+/* ---------- Where a search result comes from ---------- */
+.source-tag {
+  text-transform: none;
+}
+
+.source-modrinth {
+  background: color-mix(in srgb, #1bd96a 16%, transparent);
+  color: color-mix(in srgb, #1bd96a 70%, var(--text));
+}
+
+.source-curseforge {
+  background: color-mix(in srgb, #f16436 16%, transparent);
+  color: color-mix(in srgb, #f16436 70%, var(--text));
+}

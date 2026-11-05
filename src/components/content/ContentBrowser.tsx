@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { AlertTriangle, ArrowDownWideNarrow, Check, ChevronDown, Download, LoaderCircle, Search } from 'lucide-react';
+import { AlertTriangle, ArrowDownWideNarrow, Check, ChevronDown, Download, Globe, LoaderCircle, Search } from 'lucide-react';
 import ContentIcon from './ContentIcon';
 import VersionModal from './VersionModal';
 import ProjectDetails from './ProjectDetails';
@@ -9,7 +9,9 @@ import { api, errorMessage } from '../../api';
 import { CONTENT, categoryLabel } from '../../content';
 import { formatCount } from '../../format';
 import { timeAgo } from '../../time';
+import { useStoredChoice } from '../../stored';
 import type {
+  BrowseSource,
   ContentCategory,
   ContentKind,
   ContentSearchHit,
@@ -17,6 +19,7 @@ import type {
   InstallClash,
   InstalledContent,
   Profile,
+  SearchCursor,
 } from '../../types';
 
 const SORTS: { id: ContentSort; label: string }[] = [
@@ -36,6 +39,19 @@ const HEADER_LABELS: Record<string, string> = {
 
 export type BrowseKind = ContentKind | 'all';
 
+const SOURCES: { id: BrowseSource; label: string }[] = [
+  { id: 'both', label: 'Modrinth + CurseForge' },
+  { id: 'modrinth', label: 'Modrinth' },
+  { id: 'curseforge', label: 'CurseForge' },
+];
+const SOURCE_NAMES = { both: 'Modrinth and CurseForge', modrinth: 'Modrinth', curseforge: 'CurseForge' };
+
+// Whether this copy has CurseForge set up; asked once.
+let curseforgeReady: Promise<boolean> | null = null;
+const hasCurseForge = () => (curseforgeReady ??= api.system.info().then((i) => i.curseforge, () => false));
+
+const hitKey = (hit: ContentSearchHit) => hit.title.toLowerCase().replace(/[^a-z0-9]/g, '');
+
 interface Props {
   /** The profile to install into; null browses everything on Modrinth and asks where to install. */
   profile: Profile | null;
@@ -53,14 +69,18 @@ interface Props {
   onError: (message: string) => void;
 }
 
-/** Modrinth search filtered to what works on the profile, with type, category and sort filters. */
+/** Modrinth and CurseForge search filtered to what works on the profile, with source, type, category and sort filters. */
 export default function ContentBrowser({ profile, profiles = [], kind, kindOptions, onKindChange, world, installedIds, onInstalled, onError }: Props) {
   const [query, setQuery] = useState('');
   const [sort, setSort] = useState<ContentSort | null>(null);
   const [category, setCategory] = useState('');
   const [categories, setCategories] = useState<ContentCategory[]>([]);
   const [hits, setHits] = useState<ContentSearchHit[] | null>(null);
-  const [total, setTotal] = useState(0);
+  const [cursor, setCursor] = useState<SearchCursor | null>(null);
+  const [curseforge, setCurseforge] = useState(false);
+  const [chosenSource, setSource] = useStoredChoice<BrowseSource>('workbench.browseSource', ['both', 'modrinth', 'curseforge'], 'both');
+  // Data packs are only on Modrinth.
+  const source: BrowseSource = curseforge && !world ? chosenSource : 'modrinth';
   const [loadingMore, setLoadingMore] = useState(false);
   const [installing, setInstalling] = useState<Set<string>>(new Set());
   const [choosing, setChoosing] = useState<ContentSearchHit | null>(null);
@@ -93,6 +113,10 @@ export default function ContentBrowser({ profile, profiles = [], kind, kindOptio
 
   useEffect(refreshClashes, [refreshClashes]);
 
+  useEffect(() => {
+    hasCurseForge().then(setCurseforge);
+  }, []);
+
   const installed = (kind: ContentKind, items: InstalledContent[]) => {
     onInstalled(kind, items);
     if (kind === 'mod') refreshClashes();
@@ -107,8 +131,8 @@ export default function ContentBrowser({ profile, profiles = [], kind, kindOptio
     else run();
   };
 
-  const fetchPage = (offset: number) => {
-    const options = { query: query.trim(), offset, sort: effectiveSort, category: category || undefined };
+  const fetchPage = (from: SearchCursor | null) => {
+    const options = { query: query.trim(), offset: 0, cursor: from ?? undefined, source, sort: effectiveSort, category: category || undefined };
     if (!profile) return api.content.searchAnywhere(kind, options);
     return kind === 'all'
       ? api.content.searchAll(profile.id, options)
@@ -120,25 +144,29 @@ export default function ContentBrowser({ profile, profiles = [], kind, kindOptio
     const id = ++requestId.current;
     setHits(null);
     const timer = window.setTimeout(() => {
-      fetchPage(0)
+      fetchPage(null)
         .then((res) => {
           if (id !== requestId.current) return;
           setHits(res.hits);
-          setTotal(res.total);
+          setCursor(res.more ? res.cursor : null);
         })
         .catch((err) => id === requestId.current && onError(errorMessage(err)));
     }, query ? 300 : 0);
     return () => window.clearTimeout(timer);
     // fetchPage reads exactly these values.
-  }, [profile?.id, profile?.loader, profile?.mcVersion, kind, world, query, effectiveSort, category, onError]);
+  }, [profile?.id, profile?.loader, profile?.mcVersion, kind, world, query, effectiveSort, category, source, onError]);
 
   const loadMore = async () => {
-    if (!hits) return;
+    if (!hits || !cursor) return;
     setLoadingMore(true);
     const id = requestId.current;
     try {
-      const res = await fetchPage(hits.length);
-      if (id === requestId.current) setHits([...hits, ...res.hits]);
+      const res = await fetchPage(cursor);
+      if (id !== requestId.current) return;
+      // A project on both sites can turn up on different pages; keep the first.
+      const seen = new Set(hits.flatMap((h) => [h.projectId, hitKey(h), h.slug]));
+      setHits([...hits, ...res.hits.filter((h) => !seen.has(h.projectId) && !seen.has(hitKey(h)) && !seen.has(h.slug))]);
+      setCursor(res.more ? res.cursor : null);
     } catch (err) {
       onError(errorMessage(err));
     } finally {
@@ -207,13 +235,25 @@ export default function ContentBrowser({ profile, profiles = [], kind, kindOptio
         <input
           className="input"
           value={query}
-          placeholder={profile ? `Search Modrinth for ${profile.mcVersion} ${noun}…` : `Search all ${noun} on Modrinth…`}
+          placeholder={profile ? `Search ${SOURCE_NAMES[source]} for ${profile.mcVersion} ${noun}…` : `Search all ${noun} on ${SOURCE_NAMES[source]}…`}
           onChange={(e) => setQuery(e.target.value)}
           autoFocus
         />
       </label>
 
       <div className="filter-row">
+        {curseforge && !world && (
+          <label className="select-pill">
+            <Globe size={15} />
+            <select value={source} onChange={(e) => setSource(e.target.value as BrowseSource)} aria-label="Where to search">
+              {SOURCES.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.label}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
         <label className="select-pill">
           <ArrowDownWideNarrow size={15} />
           <select value={effectiveSort} onChange={(e) => setSort(e.target.value as ContentSort)} aria-label="Sort by">
@@ -279,6 +319,11 @@ export default function ContentBrowser({ profile, profiles = [], kind, kindOptio
                     <p className="mod-description">{hit.description}</p>
                     <span className="mod-meta">
                       {kind === 'all' && <span className="kind-tag">{CONTENT[hit.kind].noun}</span>}
+                      {source === 'both' && (
+                        <span className={hit.source === 'curseforge' ? 'kind-tag source-tag source-curseforge' : 'kind-tag source-tag source-modrinth'}>
+                          {hit.source === 'curseforge' ? 'CurseForge' : 'Modrinth'}
+                        </span>
+                      )}
                       <Download size={12} /> {formatCount(hit.downloads)}
                       <span className="dot">·</span>
                       Updated {timeAgo(hit.updatedAt)}
@@ -295,7 +340,7 @@ export default function ContentBrowser({ profile, profiles = [], kind, kindOptio
               );
             })}
           </div>
-          {hits.length < total && (
+          {cursor && (
             <button className="btn btn-secondary mod-more" onClick={loadMore} disabled={loadingMore}>
               {loadingMore ? 'Loading…' : 'Load more'}
             </button>
