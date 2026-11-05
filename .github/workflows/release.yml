@@ -58,7 +58,17 @@ jobs:
 
       - run: npm run build
 
-      - run: npx electron-builder ${{ matrix.flags }} --publish never
+      # Packaging on GitHub's Mac runners fails now and then for no reason of ours, so it gets three tries.
+      - name: Package
+        shell: bash
+        run: |
+          for attempt in 1 2 3; do
+            npx electron-builder ${{ matrix.flags }} --publish never && exit 0
+            echo "Packaging failed (attempt $attempt)"
+            rm -rf release
+            sleep 15
+          done
+          exit 1
 
       # The installers, plus the latest*.yml files the update check reads.
       - uses: actions/upload-artifact@v4
