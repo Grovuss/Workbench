@@ -32,11 +32,11 @@ jobs:
       # No paid Apple certificate: the Mac build is ad-hoc signed after packaging (scripts/after-pack.cjs).
       CSC_IDENTITY_AUTO_DISCOVERY: false
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
 
       - run: npm ci
