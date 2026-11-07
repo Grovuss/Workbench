@@ -4,10 +4,6 @@ main = "src/index.js"
 compatibility_date = "2025-09-01"
 workers_dev = true
 
-# The website's "people using Workbench" count never shows less than this.
-[vars]
-USER_BASE = "5"
-
 # Which copies of Workbench have been counted, and the total.
 [[kv_namespaces]]
 binding = "USERS"

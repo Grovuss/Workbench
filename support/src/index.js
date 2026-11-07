@@ -151,8 +151,7 @@ async function reply(env, id, input) {
 
 // ── People using Workbench ───────────────────────────────────────────────────
 // Each copy of the app sends a random id once (and again to take itself off). Nothing else is kept.
-// The website shows the total, never less than USER_BASE: the people using it before counting began
-// are counted once they update, so they aren't counted twice.
+// The website shows the total as it is.
 
 const INSTALL_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
@@ -173,7 +172,7 @@ async function count(env, input, remove) {
 
 async function stats(env) {
   const counted = Number((await env.USERS.get('count')) ?? 0);
-  const users = Math.max(Number(env.USER_BASE ?? 0), counted);
+  const users = Math.max(0, counted);
   return new Response(JSON.stringify({ users }), {
     headers: {
       'Content-Type': 'application/json; charset=utf-8',
