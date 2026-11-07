@@ -5,7 +5,8 @@ import Modal from '../Modal';
 import JobProgress, { useJobProgress } from '../JobProgress';
 import { api, errorMessage } from '../../api';
 import { timeAgo } from '../../time';
-import type { ModpackUpdate, Profile } from '../../types';
+import { MissingFilesModal } from '../CreateProfileModal';
+import type { ImportResult, ModpackUpdate, Profile } from '../../types';
 
 // ---------- Share code ----------
 
@@ -52,7 +53,7 @@ export function ShareCodeModal({ profile, onClose }: { profile: Profile; onClose
         <>
           <textarea className="input share-code" readOnly value={result.code} onFocus={(e) => e.currentTarget.select()} rows={4} />
           <p className="content-hint">
-            {result.included} {result.included === 1 ? 'file' : 'files'} from Modrinth. Config isn’t included; export a .workbench file to
+            {result.included} {result.included === 1 ? 'file' : 'files'} from Modrinth and CurseForge. Config isn’t included; export a .workbench file to
             share that too.
           </p>
           {result.skipped.length > 0 && (
@@ -220,13 +221,16 @@ function ModpackUpdateModal({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [progress] = useJobProgress();
+  const [partial, setPartial] = useState<{ result: ImportResult; kept: string[] } | null>(null);
   const latest = update.latest!;
 
   const start = async () => {
     setBusy(true);
     setError(null);
     try {
-      const { profile: updated, kept } = await api.modpacks.update(profile.id, latest.versionId);
+      const { profile: updated, kept, missing } = await api.modpacks.update(profile.id, latest.versionId);
+      // CurseForge files the author won't let launchers download: show where to get them first.
+      if (missing?.length) return setPartial({ result: { profile: updated, missing }, kept });
       onUpdated(updated, kept);
       onClose();
     } catch (err) {
@@ -234,6 +238,19 @@ function ModpackUpdateModal({
       setBusy(false);
     }
   };
+
+  if (partial) {
+    return (
+      <MissingFilesModal
+        result={partial.result}
+        onDone={() => {
+          onUpdated(partial.result.profile, partial.kept);
+          onClose();
+        }}
+        onError={setError}
+      />
+    );
+  }
 
   return (
     <Modal

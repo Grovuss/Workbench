@@ -143,9 +143,12 @@ async function importWorkbench(zip, onProgress) {
   });
 }
 
-/** Downloads the icon of a Modrinth project onto a profile. */
+// Where pack icons may come from.
+const ICON_HOSTS = new Set([...ALLOWED_DOWNLOAD_HOSTS, 'media.forgecdn.net']);
+
+/** Downloads the icon of a Modrinth or CurseForge project onto a profile. */
 async function setProjectIcon(profileId, project) {
-  if (!project.icon_url || !allowedUrl(project.icon_url)) return;
+  if (!project.icon_url || !allowedUrl(project.icon_url, ICON_HOSTS)) return;
   const res = await fetch(project.icon_url, { headers: { 'User-Agent': USER_AGENT } });
   if (res.ok) await icons.setFromBuffer(profileId, Buffer.from(await res.arrayBuffer()));
 }
@@ -201,7 +204,7 @@ async function writePackFiles(dir, files, onProgress) {
   let done = 0;
   onProgress({ label: 'Downloading mods', done, total: downloads.length });
   await runPool(downloads, 8, async ([rel, { download: f }]) => {
-    await downloadFrom(f.downloads ?? [], safeJoin(dir, rel), { sha1: f.hashes?.sha1, size: f.fileSize });
+    await downloadFrom(f.downloads ?? [], safeJoin(dir, rel), { sha1: f.hashes?.sha1, size: f.fileSize }, f.hosts);
     onProgress({ label: 'Downloading mods', done: ++done, total: downloads.length });
   });
   onProgress({ label: 'Copying files', done: 0, total: 1 });
@@ -220,6 +223,8 @@ async function savePackRecord(profileId, { project, version }, files) {
     versionNumber: version.version_number,
     title: project.title,
     files: Object.fromEntries([...files].map(([rel, f]) => [rel, f.sha1])),
+    // CurseForge project of each downloaded file, by hash, so updates can follow the player's choices.
+    projects: Object.fromEntries([...files].filter(([, f]) => f.project && f.sha1).map(([, f]) => [f.sha1, f.project])),
   };
   await fsp.writeFile(path.join(profiles.gameDir(profileId), PACK_RECORD), JSON.stringify(record, null, 2));
   return profiles.update(profileId, {
@@ -259,7 +264,10 @@ async function checkModpackUpdate(profileId) {
   const record = await readPackRecord(profileId);
   if (!record) return null;
   const profile = await profiles.get(profileId);
-  const versions = await content.modrinth(`/project/${encodeURIComponent(record.projectId)}/version`);
+  const fromCf = curseforge.isCurseForgeId(record.projectId);
+  const versions = fromCf
+    ? await curseforgePackVersions(record.projectId)
+    : await content.modrinth(`/project/${encodeURIComponent(record.projectId)}/version`);
   const current = versions.find((v) => v.id === record.versionId);
   // Players on a release stay on releases; players on a beta also get newer betas.
   const onRelease = !current || current.version_type === 'release';
@@ -280,7 +288,7 @@ async function checkModpackUpdate(profileId) {
           versionNumber: latest.version_number,
           date: latest.date_published,
           gameVersions: latest.game_versions,
-          changelog: latest.changelog ?? '',
+          changelog: fromCf ? await curseforge.changelog(record.projectId, latest.id) : (latest.changelog ?? ''),
           newerCount: newer.length,
         }
       : null,
@@ -294,7 +302,8 @@ async function checkModpackUpdate(profileId) {
  */
 async function updateModpack(profileId, versionId, onProgress) {
   const record = await readPackRecord(profileId);
-  if (!record) throw new Error('This profile wasn’t installed from a Modrinth modpack.');
+  if (!record) throw new Error('This profile wasn’t installed from a modpack Workbench can update.');
+  if (curseforge.isCurseForgeId(record.projectId)) return updateCurseForgePack(profileId, record, versionId, onProgress);
   const [project, version] = await Promise.all([
     content.modrinth(`/project/${encodeURIComponent(record.projectId)}`),
     content.modrinth(`/version/${encodeURIComponent(versionId)}`),
@@ -319,6 +328,28 @@ async function updateModpack(profileId, versionId, onProgress) {
   const index = JSON.parse(zip.readAsText('modrinth.index.json'));
   const selection = await mrpackSelection(index.dependencies ?? {});
   const files = mrpackContents(zip, index);
+  return applyPackUpdate(profileId, record, { project, version }, selection, files, onProgress);
+}
+
+/** Updates a profile to another file of its CurseForge pack. */
+async function updateCurseForgePack(profileId, record, versionId, onProgress) {
+  onProgress({ label: 'Backing up worlds', done: 0, total: 1 });
+  await require('./worlds.cjs').backupChanged(profileId, 'update');
+  const { zip, project, version } = await fetchCurseForgePack(record.projectId, versionId, onProgress);
+  if (version.project_id !== record.projectId) throw new Error('That version belongs to a different modpack.');
+  const manifest = readCurseForgeManifest(zip);
+  const selection = await curseforgeSelection(manifest);
+  const { files, missing, records } = await curseforgeContents(zip, manifest, onProgress);
+  const result = await applyPackUpdate(profileId, record, { project, version }, selection, files, onProgress);
+  await recordCurseForgeFiles(profileId, records);
+  return { ...result, missing };
+}
+
+/**
+ * Brings a profile from the pack files in `record` to `files` (see mrpackContents): replaced, removed and
+ * new files, keeping the player's own changes. Resolves to { profile, kept }.
+ */
+async function applyPackUpdate(profileId, record, { project, version }, selection, files, onProgress) {
   const dir = profiles.gameDir(profileId);
   const at = (rel) => safeJoin(dir, rel);
 
@@ -335,6 +366,9 @@ async function updateModpack(profileId, versionId, onProgress) {
     const found = await content.modrinth('/version_files', { hashes, algorithm: 'sha1' }).catch(() => ({}));
     for (const [hash, v] of Object.entries(found)) projectOf.set(hash, v.project_id);
   }
+  // CurseForge's own ids win, so an old and a new file of one project always match.
+  for (const [hash, project] of Object.entries(record.projects ?? {})) projectOf.set(hash, project);
+  for (const [, f] of files) if (f.project && f.sha1) projectOf.set(f.sha1, f.project);
   const playerChoice = new Map([...oldState].map(([hash, state]) => [projectOf.get(hash) ?? hash, state]));
 
   // Old pack files the new version drops: remove them unless the player changed them.
@@ -376,7 +410,7 @@ async function updateModpack(profileId, versionId, onProgress) {
   let done = 0;
   onProgress({ label: 'Downloading mods', done, total: toDownload.length });
   await runPool(toDownload, 8, async ({ target, f }) => {
-    await downloadFrom(f.downloads ?? [], target, { sha1: f.hashes?.sha1, size: f.fileSize });
+    await downloadFrom(f.downloads ?? [], target, { sha1: f.hashes?.sha1, size: f.fileSize }, f.hosts);
     onProgress({ label: 'Downloading mods', done: ++done, total: toDownload.length });
   });
 
@@ -385,45 +419,97 @@ async function updateModpack(profileId, versionId, onProgress) {
   return { profile, kept };
 }
 
+// ---------- CurseForge packs ----------
+
+const FOLDER_KINDS = { mods: 'mod', resourcepacks: 'resourcepack', shaderpacks: 'shader' };
+
 /**
- * CurseForge pack zip: manifest.json lists project/file ids; files are fetched through
- * CurseForge's API. Authors can forbid launchers from downloading their files, so those
- * are returned as `missing` with a link for the player to download them by hand.
+ * Everything a CurseForge pack zip puts in a profile, in the same shape as mrpackContents, plus
+ * `missing` (files the player has to download: authors can forbid launchers from fetching them)
+ * and `records` (what Workbench knows about each downloaded file, per folder).
  */
-async function importCurseForge(zip, onProgress) {
+async function curseforgeContents(zip, manifest, onProgress) {
+  const files = new Map();
+  const missing = [];
+  const records = {};
+  const fileIds = (manifest.files ?? []).filter((f) => f.required !== false).map((f) => f.fileID);
+  onProgress({ label: 'Looking up files on CurseForge', done: 0, total: 1 });
+  for (const { file, mod } of await curseforge.resolveFiles(fileIds)) {
+    const folder = curseforge.CLASS_FOLDERS[mod?.classId];
+    const name = mod?.name ?? file.displayName ?? file.fileName;
+    if (!folder || !file.downloadUrl) {
+      missing.push({ name, fileName: file.fileName, url: curseforge.filePageUrl(file, mod), reason: folder ? 'author' : 'unsupported' });
+      continue;
+    }
+    const fileName = content.safeFileName(file.fileName);
+    const sha = curseforge.fileSha1(file);
+    files.set(`${folder}/${fileName}`, {
+      sha1: sha,
+      project: `cf:${mod.id}`,
+      download: { downloads: [file.downloadUrl], hashes: { sha1: sha }, fileSize: file.fileLength, hosts: curseforge.CURSEFORGE_DOWNLOAD_HOSTS },
+    });
+    (records[folder] ??= []).push({
+      fileName,
+      info: {
+        sha1: sha,
+        size: file.fileLength,
+        projectId: `cf:${mod.id}`,
+        versionId: `cf:${file.id}`,
+        versionNumber: file.displayName,
+        title: mod.name,
+        iconUrl: mod.logo?.thumbnailUrl || null,
+        url: file.downloadUrl,
+        // Left for the next scan to look up on Modrinth: a match there gets Modrinth's updates.
+        detailsChecked: true,
+      },
+    });
+  }
+  const prefix = `${manifest.overrides || 'overrides'}/`;
+  for (const entry of zip.getEntries()) {
+    if (entry.isDirectory || !entry.entryName.startsWith(prefix)) continue;
+    const data = entry.getData();
+    files.set(entry.entryName.slice(prefix.length), { sha1: sha1(data), entry: data });
+  }
+  return { files, missing, records };
+}
+
+/** Workbench's notes on the files a CurseForge pack downloaded, so they show with titles and get updates. */
+async function recordCurseForgeFiles(profileId, records) {
+  for (const [folder, entries] of Object.entries(records)) {
+    await content.recordInstalledMods(profileId, entries, FOLDER_KINDS[folder]).catch(() => {});
+  }
+}
+
+function readCurseForgeManifest(zip) {
   const manifest = JSON.parse(zip.readAsText('manifest.json'));
   if (manifest.manifestType !== 'minecraftModpack') throw new Error('This CurseForge file isn’t a Minecraft modpack.');
+  return manifest;
+}
+
+async function curseforgeSelection(manifest) {
   const loaders = manifest.minecraft?.modLoaders ?? [];
   const primary = loaders.find((l) => l.primary) ?? loaders[0];
-  const selection = await mrpackSelection({
-    minecraft: manifest.minecraft?.version,
-    ...curseforge.loaderDependency(primary?.id),
-  });
-  const missing = [];
+  return mrpackSelection({ minecraft: manifest.minecraft?.version, ...curseforge.loaderDependency(primary?.id) });
+}
 
+/**
+ * CurseForge pack zip: manifest.json lists project/file ids; files are fetched through
+ * CurseForge's API. Files the author won't let launchers download come back as `missing`,
+ * with a link for the player to fetch them. `source` (from the modpack browser) turns on updates.
+ */
+async function importCurseForge(zip, onProgress, source = null) {
+  const manifest = readCurseForgeManifest(zip);
+  const selection = await curseforgeSelection(manifest);
+  let missing = [];
   const profile = await withNewProfile({ name: manifest.name, ...selection }, async (created, dir) => {
-    const fileIds = (manifest.files ?? []).filter((f) => f.required !== false).map((f) => f.fileID);
-    onProgress({ label: 'Looking up files on CurseForge', done: 0, total: 1 });
-    const resolved = await curseforge.resolveFiles(fileIds);
-
-    let done = 0;
-    onProgress({ label: 'Downloading mods', done, total: resolved.length });
-    await runPool(resolved, 8, async ({ file, mod }) => {
-      const folder = curseforge.CLASS_FOLDERS[mod?.classId];
-      const name = mod?.name ?? file.displayName ?? file.fileName;
-      if (!folder) {
-        missing.push({ name, fileName: file.fileName, url: curseforge.filePageUrl(file, mod), reason: 'unsupported' });
-      } else if (!file.downloadUrl) {
-        missing.push({ name, fileName: file.fileName, url: curseforge.filePageUrl(file, mod), reason: 'author' });
-      } else {
-        const dest = safeJoin(path.join(dir, folder), content.safeFileName(file.fileName));
-        await downloadFrom([file.downloadUrl], dest, { sha1: curseforge.fileSha1(file), size: file.fileLength }, curseforge.CURSEFORGE_DOWNLOAD_HOSTS);
-      }
-      onProgress({ label: 'Downloading mods', done: ++done, total: resolved.length });
-    });
-
-    onProgress({ label: 'Copying files', done: 0, total: 1 });
-    await extractFolder(zip, `${manifest.overrides || 'overrides'}/`, dir);
+    const contents = await curseforgeContents(zip, manifest, onProgress);
+    missing = contents.missing;
+    await writePackFiles(dir, contents.files, onProgress);
+    await recordCurseForgeFiles(created.id, contents.records);
+    if (source) {
+      await savePackRecord(created.id, source, contents.files);
+      await setProjectIcon(created.id, source.project).catch(() => {});
+    }
   });
   return { profile, missing };
 }
@@ -447,7 +533,7 @@ const MODPACK_SORTS = new Set(['relevance', 'downloads', 'follows', 'newest', 'u
 const PACK_LOADERS = ['fabric', 'quilt', 'forge', 'neoforge'];
 
 /** Modrinth modpack search; `loader` and `gameVersion` narrow it down. */
-async function searchModpacks({ query = '', offset = 0, sort, category, loader, gameVersion } = {}) {
+async function searchModrinthModpacks({ query = '', offset = 0, sort, category, loader, gameVersion } = {}) {
   const facets = [['project_type:modpack']];
   if (PACK_LOADERS.includes(loader)) facets.push([`categories:${loader}`]);
   if (gameVersion) facets.push([`versions:${String(gameVersion)}`]);
@@ -474,12 +560,66 @@ async function searchModpacks({ query = '', offset = 0, sort, category, loader, 
       updatedAt: h.date_modified,
       loaders: (h.categories ?? []).filter((c) => PACK_LOADERS.includes(c)),
       gameVersions: h.versions ?? [],
+      source: 'modrinth',
     })),
   };
 }
 
+const packKey = (hit) => hit.title.toLowerCase().replace(/[^a-z0-9]/g, '');
+
+/**
+ * Modpacks from Modrinth, CurseForge or both (`source`, default both when CurseForge is set up),
+ * taking turns. Paging uses `cursor` ({ modrinth, curseforge } offsets, null when one has no more).
+ */
+async function searchModpacks(options = {}) {
+  const source = curseforge.enabled() ? (options.source ?? 'both') : 'modrinth';
+  const offset = (n) => (n === null ? null : Math.max(0, Math.floor(Number(n) || 0)));
+  const cursor = options.cursor
+    ? { modrinth: offset(options.cursor.modrinth), curseforge: offset(options.cursor.curseforge) }
+    : { modrinth: offset(options.offset), curseforge: 0 };
+  const text = String(options.query ?? '').slice(0, 200);
+  const sort = MODPACK_SORTS.has(options.sort) ? options.sort : text ? 'relevance' : 'downloads';
+  const [mr, cf] = await Promise.all([
+    source !== 'curseforge' && cursor.modrinth != null ? searchModrinthModpacks({ ...options, offset: cursor.modrinth }) : null,
+    source !== 'modrinth' && cursor.curseforge != null
+      ? curseforge
+          .searchModpacks({ query: text, sort, category: options.category, loader: options.loader, gameVersion: options.gameVersion, index: cursor.curseforge })
+          .catch((err) => {
+            if (source === 'curseforge') throw err;
+            return null;
+          })
+      : null,
+  ]);
+  const mrHits = mr?.hits ?? [];
+  const seen = new Set(mrHits.map(packKey));
+  const cfHits = (cf?.hits ?? []).filter((h) => !seen.has(packKey(h)));
+  const hits = [];
+  for (let i = 0; i < Math.max(mrHits.length, cfHits.length); i++) hits.push(...[mrHits[i], cfHits[i]].filter(Boolean));
+  const next = {
+    modrinth: mr && mr.hits.length && cursor.modrinth + mr.hits.length < mr.total ? cursor.modrinth + mr.hits.length : null,
+    curseforge: cf?.next ?? null,
+  };
+  return { hits, total: (mr?.total ?? 0) + (cf?.total ?? 0), cursor: next, more: next.modrinth != null || next.curseforge != null };
+}
+
+/** A CurseForge modpack's files as Modrinth-style versions, newest first. */
+async function curseforgePackVersions(projectId) {
+  return (await curseforge.files(projectId)).map((f) => curseforge.toVersion(f, 'modpack'));
+}
+
 /** A modpack's versions, newest first. */
 async function modpackVersions(projectId) {
+  if (curseforge.isCurseForgeId(projectId)) {
+    return (await curseforgePackVersions(projectId)).map((v) => ({
+      id: v.id,
+      name: v.name,
+      versionNumber: v.version_number,
+      type: v.version_type,
+      gameVersions: v.game_versions,
+      loaders: v.loaders,
+      date: v.date_published,
+    }));
+  }
   const versions = await content.modrinth(`/project/${encodeURIComponent(projectId)}/version`);
   return versions.map((v) => ({
     id: v.id,
@@ -492,8 +632,39 @@ async function modpackVersions(projectId) {
   }));
 }
 
-/** Downloads a Modrinth modpack version (the newest release by default) and imports it as a new profile. */
+/** A CurseForge pack file downloaded and opened: { zip, project, version } (project and version Modrinth-shaped, for the pack record). */
+async function fetchCurseForgePack(projectId, versionId, onProgress) {
+  const mod = await curseforge.project(projectId);
+  if (curseforge.kindOf(mod) !== 'modpack') throw new Error('That project isn’t a modpack.');
+  let file;
+  if (versionId) {
+    file = await curseforge.file(projectId, versionId);
+  } else {
+    const all = await curseforge.files(projectId, {}, 50);
+    file = all.find((f) => f.releaseType === 1) ?? all[0];
+    if (!file) throw new Error(`${mod.name} has no versions to install.`);
+  }
+  if (!file.downloadUrl) {
+    throw new Error(`${mod.name}'s author doesn't allow launchers to download it. Get the .zip from CurseForge and import it under New profile.`);
+  }
+  const version = curseforge.toVersion(file, 'modpack');
+  const project = { id: `cf:${mod.id}`, title: mod.name, icon_url: mod.logo?.thumbnailUrl || null };
+  onProgress({ label: `Downloading ${mod.name}`, done: 0, total: 1 });
+  const tmp = path.join(paths.root(), 'tmp', `cf-${file.id}.zip`);
+  try {
+    await downloadFrom([file.downloadUrl], tmp, { sha1: curseforge.fileSha1(file), size: file.fileLength }, curseforge.CURSEFORGE_DOWNLOAD_HOSTS);
+    return { zip: new AdmZip(await fsp.readFile(tmp)), project, version };
+  } finally {
+    await fsp.rm(tmp, { force: true });
+  }
+}
+
+/** Downloads a modpack version (the newest release by default) and imports it as a new profile. */
 async function installModpack(projectId, versionId, onProgress) {
+  if (curseforge.isCurseForgeId(projectId)) {
+    const { zip, project, version } = await fetchCurseForgePack(projectId, versionId, onProgress);
+    return importCurseForge(zip, onProgress, { project, version });
+  }
   const project = await content.modrinth(`/project/${encodeURIComponent(projectId)}`);
   if (project.project_type !== 'modpack') throw new Error('That project isn’t a modpack.');
   let version;

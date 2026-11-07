@@ -62,8 +62,8 @@ function loaderDependency(id) {
 
 const GAME_ID = 432;
 // classId per content kind, and back.
-const KIND_CLASSES = { mod: 6, resourcepack: 12, shader: 6552 };
-const CLASS_KINDS = { 6: 'mod', 12: 'resourcepack', 6552: 'shader' };
+const KIND_CLASSES = { mod: 6, resourcepack: 12, shader: 6552, modpack: 4471 };
+const CLASS_KINDS = { 6: 'mod', 12: 'resourcepack', 6552: 'shader', 4471: 'modpack' };
 // CurseForge's modLoaderType ids. Quilt can also run Fabric mods.
 const LOADER_TYPES = { forge: [1], fabric: [4], quilt: [5, 4], neoforge: [6] };
 const LOADER_NAMES = { forge: 'forge', fabric: 'fabric', quilt: 'quilt', neoforge: 'neoforge' };
@@ -127,6 +127,15 @@ const CATEGORY_ALIASES = {
   '256x': 'two-fifty-six-x',
   '512x+': 'five-twelve-x-and-beyond',
 };
+// The same for modpack categories, which CurseForge names differently again.
+const MODPACK_ALIASES = {
+  adventure: 'adventure-and-rpg',
+  technology: 'tech',
+  combat: 'combat-pvp',
+  challenging: 'hardcore',
+  lightweight: 'small-light',
+  'kitchen-sink': 'extra-large',
+};
 
 const categoryCache = new Map();
 /** The CurseForge category matching a Modrinth category name ("game-mechanics"), if there is one. */
@@ -135,8 +144,8 @@ async function categoryId(kind, name) {
   if (!classId || !name) return null;
   if (!categoryCache.has(classId)) categoryCache.set(classId, cf(`/categories?gameId=${GAME_ID}&classId=${classId}`).catch(() => []));
   const norm = (s) => String(s).toLowerCase().replace(/[^a-z0-9]/g, '');
-  const wanted = norm(CATEGORY_ALIASES[name] ?? name);
-  const match = (await categoryCache.get(classId)).find((c) => norm(c.slug) === wanted || norm(c.name) === wanted);
+  const wanted = [name, kind === 'modpack' ? MODPACK_ALIASES[name] : CATEGORY_ALIASES[name]].filter(Boolean).map(norm);
+  const match = (await categoryCache.get(classId)).find((c) => wanted.includes(norm(c.slug)) || wanted.includes(norm(c.name)));
   return match?.id ?? null;
 }
 
@@ -145,7 +154,10 @@ async function categoryId(kind, name) {
  * are limited to its Minecraft version and (for mods) its loader. Returns null when CurseForge
  * can't answer this search (a category it doesn't have), so the caller shows Modrinth alone.
  */
-async function search({ kinds, profile = null, query = '', sort, category, index = 0 }) {
+async function search({ kinds, profile = null, gameVersion = null, loader = null, query = '', sort, category, index = 0 }) {
+  // Without a profile, Browse can still narrow to a Minecraft version and loader.
+  const mcVersion = profile?.mcVersion ?? gameVersion;
+  const modLoader = profile?.loader ?? loader;
   const params = new URLSearchParams({
     gameId: String(GAME_ID),
     pageSize: String(PAGE),
@@ -156,7 +168,7 @@ async function search({ kinds, profile = null, query = '', sort, category, index
   if (SORT_FIELDS[sort]) params.set('sortField', String(SORT_FIELDS[sort]));
   // Several kinds can't be asked for at once: with a profile, "all" means its mods (the loader
   // filter would hide packs anyway); without one, everything is fetched and filtered here.
-  const single = kinds.length === 1 ? kinds[0] : profile ? 'mod' : null;
+  const single = kinds.length === 1 ? kinds[0] : modLoader ? 'mod' : null;
   if (single) params.set('classId', String(KIND_CLASSES[single]));
   if (category) {
     if (!single) return null;
@@ -164,9 +176,9 @@ async function search({ kinds, profile = null, query = '', sort, category, index
     if (!id) return null;
     params.set('categoryId', String(id));
   }
-  if (profile) {
-    params.set('gameVersion', profile.mcVersion);
-    const types = single === 'mod' ? LOADER_TYPES[profile.loader] : null;
+  if (mcVersion) params.set('gameVersion', mcVersion);
+  if (modLoader) {
+    const types = single === 'mod' ? LOADER_TYPES[modLoader] : null;
     if (types) params.set('modLoaderTypes', JSON.stringify(types));
   }
   const body = await cfRaw(`/mods/search?${params}`);
@@ -272,6 +284,78 @@ async function details(projectId) {
   };
 }
 
+/**
+ * A project's files that work on a profile, as Modrinth-style versions, newest first. For mods,
+ * only files for the profile's loader (Quilt also takes Fabric ones).
+ */
+async function candidates(projectId, kind, profile) {
+  const types = kind === 'mod' ? (LOADER_TYPES[profile.loader] ?? []) : [null];
+  const out = [];
+  for (const loaderType of types) {
+    for (const f of await files(projectId, { gameVersion: profile.mcVersion, loaderType }, 100)) {
+      const v = toVersion(f, kind);
+      if (v.game_versions.includes(profile.mcVersion) && !out.some((o) => o.id === v.id)) out.push(v);
+    }
+  }
+  return out.sort((a, b) => Date.parse(b.date_published) - Date.parse(a.date_published));
+}
+
+/** The newest that fits, preferring releases; null if nothing does. */
+async function newestFor(projectId, kind, profile) {
+  const list = await candidates(projectId, kind, profile);
+  return list.find((v) => v.version_type === 'release') ?? list[0] ?? null;
+}
+
+/** A file's changelog (HTML, which the app's Markdown view understands); '' when there isn't one. */
+async function changelog(projectId, versionId) {
+  const text = await cf(`/mods/${numericId(projectId)}/files/${numericId(versionId)}/changelog`).catch(() => '');
+  return typeof text === 'string' ? text : '';
+}
+
+// ---------- Modpacks ----------
+
+const loaderOfType = (type) => Object.keys(LOADER_TYPES).find((k) => LOADER_TYPES[k][0] === type) ?? null;
+
+/** One page of CurseForge modpacks, in the shape the modpack browser uses; null when a filter can't apply. */
+async function searchModpacks({ query = '', sort, category, loader, gameVersion, index = 0 }) {
+  const params = new URLSearchParams({
+    gameId: String(GAME_ID),
+    classId: String(KIND_CLASSES.modpack),
+    pageSize: String(PAGE),
+    index: String(Math.min(index, MAX_INDEX)),
+    sortOrder: 'desc',
+  });
+  if (query) params.set('searchFilter', String(query).slice(0, 200));
+  if (SORT_FIELDS[sort]) params.set('sortField', String(SORT_FIELDS[sort]));
+  if (gameVersion) params.set('gameVersion', String(gameVersion));
+  if (LOADER_TYPES[loader]) params.set('modLoaderType', String(LOADER_TYPES[loader][0]));
+  if (category) {
+    const id = await categoryId('modpack', category);
+    if (!id) return null;
+    params.set('categoryId', String(id));
+  }
+  const body = await cfRaw(`/mods/search?${params}`);
+  const hits = body.data.map((m) => {
+    const indexes = m.latestFilesIndexes ?? [];
+    return {
+      projectId: PREFIX + m.id,
+      title: m.name,
+      description: m.summary ?? '',
+      author: m.authors?.[0]?.name ?? '',
+      iconUrl: m.logo?.thumbnailUrl || null,
+      downloads: m.downloadCount ?? 0,
+      follows: m.thumbsUpCount ?? 0,
+      updatedAt: m.dateModified ?? m.dateReleased,
+      loaders: [...new Set(indexes.map((i) => loaderOfType(i.modLoader)).filter(Boolean))],
+      gameVersions: [...new Set(indexes.map((i) => i.gameVersion).filter(Boolean))],
+      source: 'curseforge',
+    };
+  });
+  const total = Math.min(body.pagination?.totalCount ?? 0, 10_000);
+  const next = index + body.data.length;
+  return { hits, total, next: body.data.length === PAGE && next < total && next <= MAX_INDEX ? next : null };
+}
+
 module.exports = {
   CURSEFORGE_DOWNLOAD_HOSTS,
   CLASS_FOLDERS,
@@ -282,6 +366,11 @@ module.exports = {
   filePageUrl,
   loaderDependency,
   isCurseForgeId,
+  numericId,
+  candidates,
+  newestFor,
+  changelog,
+  searchModpacks,
   search,
   files,
   file,

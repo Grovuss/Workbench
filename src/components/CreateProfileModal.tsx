@@ -278,7 +278,7 @@ export default function CreateProfileModal({ onClose, onCreated, initialFile, in
 }
 
 /** After a CurseForge import: files the player needs to fetch from CurseForge themselves. */
-function MissingFilesModal({
+export function MissingFilesModal({
   result,
   onDone,
   onError,

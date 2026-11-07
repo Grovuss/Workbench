@@ -1,14 +1,16 @@
 import { useEffect, useRef, useState } from 'react';
-import { ArrowDownWideNarrow, Download, LoaderCircle, Search } from 'lucide-react';
+import { ArrowDownWideNarrow, Download, Globe, LoaderCircle, Search } from 'lucide-react';
 import ContentIcon from './ContentIcon';
 import ProjectDetails from './ProjectDetails';
 import Modal from '../Modal';
 import LoaderBadge from '../LoaderBadge';
 import JobProgress, { useJobProgress } from '../JobProgress';
+import { MissingFilesModal } from '../CreateProfileModal';
+import { useStoredChoice } from '../../stored';
 import { api, errorMessage } from '../../api';
 import { LOADER_LABELS } from '../../loaders';
 import { timeAgo } from '../../time';
-import type { ContentCategory, ContentSort, ModLoader, ModpackHit, ModpackVersion, Profile } from '../../types';
+import type { BrowseSource, ContentCategory, ContentSort, ImportResult, ModLoader, ModpackHit, ModpackVersion, Profile, SearchCursor } from '../../types';
 import { formatCount } from '../../format';
 
 const SORTS: { id: ContentSort; label: string }[] = [
@@ -21,6 +23,14 @@ const SORTS: { id: ContentSort; label: string }[] = [
 
 const LOADERS: ModLoader[] = ['fabric', 'quilt', 'forge', 'neoforge'];
 
+const SOURCES: { id: BrowseSource; label: string }[] = [
+  { id: 'both', label: 'Modrinth + CurseForge' },
+  { id: 'modrinth', label: 'Modrinth' },
+  { id: 'curseforge', label: 'CurseForge' },
+];
+const SOURCE_NAMES = { both: 'Modrinth and CurseForge', modrinth: 'Modrinth', curseforge: 'CurseForge' };
+const packKey = (hit: ModpackHit) => hit.title.toLowerCase().replace(/[^a-z0-9]/g, '');
+
 const categoryLabel = (name: string) => name.replace(/-/g, ' ').replace(/^./, (c) => c.toUpperCase());
 
 interface Props {
@@ -28,7 +38,7 @@ interface Props {
   onError: (message: string) => void;
 }
 
-/** Modrinth modpacks; installing one makes a new profile. */
+/** Modrinth and CurseForge modpacks; installing one makes a new profile. */
 export default function ModpackBrowser({ onInstalled, onError }: Props) {
   const [query, setQuery] = useState('');
   const [sort, setSort] = useState<ContentSort | null>(null);
@@ -38,7 +48,11 @@ export default function ModpackBrowser({ onInstalled, onError }: Props) {
   const [releases, setReleases] = useState<string[]>([]);
   const [categories, setCategories] = useState<ContentCategory[]>([]);
   const [hits, setHits] = useState<ModpackHit[] | null>(null);
-  const [total, setTotal] = useState(0);
+  const [cursor, setCursor] = useState<SearchCursor | null>(null);
+  const [curseforge, setCurseforge] = useState(false);
+  // Shared with the content browser, so both tabs search the same places.
+  const [chosenSource, setSource] = useStoredChoice<BrowseSource>('workbench.browseSource', ['both', 'modrinth', 'curseforge'], 'both');
+  const source: BrowseSource = curseforge ? chosenSource : 'modrinth';
   const [loadingMore, setLoadingMore] = useState(false);
   const [installing, setInstalling] = useState<ModpackHit | null>(null);
   const [viewing, setViewing] = useState<ModpackHit | null>(null);
@@ -50,16 +64,22 @@ export default function ModpackBrowser({ onInstalled, onError }: Props) {
       .list()
       .then((versions) => setReleases(versions.filter((v) => v.type === 'release').map((v) => v.id)))
       .catch(() => {});
+    api.system
+      .info()
+      .then((info) => setCurseforge(info.curseforge))
+      .catch(() => {});
     api.content
       .categories('modpack')
       .then((c) => setCategories(c.filter((x) => x.header === 'categories')))
       .catch(() => {});
   }, []);
 
-  const fetchPage = (offset: number) =>
+  const fetchPage = (from: SearchCursor | null) =>
     api.modpacks.search({
       query: query.trim(),
-      offset,
+      offset: 0,
+      cursor: from ?? undefined,
+      source,
       sort: effectiveSort,
       category: category || undefined,
       loader: loader || undefined,
@@ -71,25 +91,28 @@ export default function ModpackBrowser({ onInstalled, onError }: Props) {
     const id = ++requestId.current;
     setHits(null);
     const timer = window.setTimeout(() => {
-      fetchPage(0)
+      fetchPage(null)
         .then((res) => {
           if (id !== requestId.current) return;
           setHits(res.hits);
-          setTotal(res.total);
+          setCursor(res.more ? res.cursor : null);
         })
         .catch((err) => id === requestId.current && onError(errorMessage(err)));
     }, query ? 300 : 0);
     return () => window.clearTimeout(timer);
     // fetchPage reads exactly these values.
-  }, [query, effectiveSort, category, loader, gameVersion, onError]);
+  }, [query, effectiveSort, category, loader, gameVersion, source, onError]);
 
   const loadMore = async () => {
-    if (!hits) return;
+    if (!hits || !cursor) return;
     setLoadingMore(true);
     const id = requestId.current;
     try {
-      const res = await fetchPage(hits.length);
-      if (id === requestId.current) setHits([...hits, ...res.hits]);
+      const res = await fetchPage(cursor);
+      if (id !== requestId.current) return;
+      const seen = new Set(hits.flatMap((h) => [h.projectId, packKey(h)]));
+      setHits([...hits, ...res.hits.filter((h) => !seen.has(h.projectId) && !seen.has(packKey(h)))]);
+      setCursor(res.more ? res.cursor : null);
     } catch (err) {
       onError(errorMessage(err));
     } finally {
@@ -101,10 +124,22 @@ export default function ModpackBrowser({ onInstalled, onError }: Props) {
     <div className="mod-browser">
       <label className="search-field">
         <Search size={16} />
-        <input className="input" value={query} placeholder="Search Modrinth modpacks…" onChange={(e) => setQuery(e.target.value)} autoFocus />
+        <input className="input" value={query} placeholder={`Search ${SOURCE_NAMES[source]} modpacks…`} onChange={(e) => setQuery(e.target.value)} autoFocus />
       </label>
 
       <div className="filter-row">
+        {curseforge && (
+          <label className="select-pill">
+            <Globe size={15} />
+            <select value={source} onChange={(e) => setSource(e.target.value as BrowseSource)} aria-label="Where to search">
+              {SOURCES.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.label}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
         <label className="select-pill">
           <ArrowDownWideNarrow size={15} />
           <select value={effectiveSort} onChange={(e) => setSort(e.target.value as ContentSort)} aria-label="Sort by">
@@ -169,6 +204,11 @@ export default function ModpackBrowser({ onInstalled, onError }: Props) {
                     </div>
                     <p className="mod-description">{hit.description}</p>
                     <span className="mod-meta">
+                      {source === 'both' && (
+                        <span className={hit.source === 'curseforge' ? 'kind-tag source-tag source-curseforge' : 'kind-tag source-tag source-modrinth'}>
+                          {hit.source === 'curseforge' ? 'CurseForge' : 'Modrinth'}
+                        </span>
+                      )}
                       {hit.loaders.map((l) => (
                         <LoaderBadge key={l} loader={l} />
                       ))}
@@ -184,7 +224,7 @@ export default function ModpackBrowser({ onInstalled, onError }: Props) {
               </div>
             ))}
           </div>
-          {hits.length < total && (
+          {cursor && (
             <button className="btn btn-secondary mod-more" onClick={loadMore} disabled={loadingMore}>
               {loadingMore ? 'Loading…' : 'Load more'}
             </button>
@@ -247,7 +287,7 @@ function ModpackInstallModal({
   const [busy, setBusy] = useState(false);
   const [progress, resetProgress] = useJobProgress();
   const [error, setError] = useState<string | null>(null);
-
+  const [partial, setPartial] = useState<ImportResult | null>(null);
 
   useEffect(() => {
     api.modpacks
@@ -268,14 +308,29 @@ function ModpackInstallModal({
     setError(null);
     resetProgress();
     try {
-      const { profile } = await api.modpacks.install(pack.projectId, versionId);
-      onInstalled(profile);
+      const result = await api.modpacks.install(pack.projectId, versionId);
+      // Files the author won't let launchers download: show where to get them first.
+      if (result.missing.length) return setPartial(result);
+      onInstalled(result.profile);
       onClose();
     } catch (err) {
       setError(errorMessage(err));
       setBusy(false);
     }
   };
+
+  if (partial) {
+    return (
+      <MissingFilesModal
+        result={partial}
+        onDone={() => {
+          onInstalled(partial.profile);
+          onClose();
+        }}
+        onError={setError}
+      />
+    );
+  }
 
   return (
     <Modal

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ArrowDownWideNarrow, Check, ChevronDown, Download, LoaderCircle } from 'lucide-react';
-import Markdown from '../Markdown';
+import VersionChangelog from './VersionChangelog';
 import { api, errorMessage } from '../../api';
 import { categoryLabel } from '../../content';
 import { timeAgo } from '../../time';
@@ -186,7 +186,7 @@ export default function ProjectVersions({ projectId, target, installedVersionId,
                 </div>
                 {open && (
                   <div className="project-version-changelog">
-                    {v.changelog.trim() ? <Markdown text={v.changelog} /> : <p className="changelog-none">No changelog for this version.</p>}
+                    <VersionChangelog projectId={projectId} version={v} />
                   </div>
                 )}
               </li>

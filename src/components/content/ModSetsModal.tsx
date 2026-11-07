@@ -301,7 +301,7 @@ function CreateSet({
         <div className="empty empty-compact">
           <Layers className="empty-icon" size={40} strokeWidth={1.5} />
           <h2>Nothing to save yet</h2>
-          <p>Install some mods from Modrinth in this profile, then save them as a set to reuse in other profiles.</p>
+          <p>Install some mods in this profile, then save them as a set to reuse in other profiles.</p>
         </div>
       ) : (
         <>

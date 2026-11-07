@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { ArrowDownWideNarrow, Download, LoaderCircle } from 'lucide-react';
 import Modal from '../Modal';
-import Markdown from '../Markdown';
+import VersionChangelog from './VersionChangelog';
 import ContentIcon from './ContentIcon';
 import { api, errorMessage } from '../../api';
 import { timeAgo } from '../../time';
@@ -127,7 +127,7 @@ export default function VersionModal({ title, iconUrl, target, projectId, curren
                 <strong>{chosen.name || chosen.versionNumber}</strong>
                 <span>Minecraft {chosen.gameVersions.join(', ')}</span>
               </div>
-              {chosen.changelog.trim() ? <Markdown text={chosen.changelog} /> : <p className="changelog-none">No changelog for this version.</p>}
+              <VersionChangelog projectId={projectId} version={chosen} />
             </div>
           )}
         </div>

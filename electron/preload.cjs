@@ -135,6 +135,7 @@ contextBridge.exposeInMainWorld('workbench', {
     performance: (id) => invoke('content:performance', id),
     versions: (target, projectId) => invoke('content:versions', target, projectId),
     project: (projectId) => invoke('content:project', projectId),
+    versionChangelog: (projectId, versionId) => invoke('content:versionChangelog', projectId, versionId),
     setHeld: (target, fileName, held) => invoke('content:setHeld', target, fileName, held),
     pendingUpdates: (id) => invoke('content:pendingUpdates', id),
     allVersions: (projectId, target) => invoke('content:allVersions', projectId, target),

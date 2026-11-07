@@ -454,14 +454,15 @@ export interface WorkbenchApi {
     saveEdited(id: string | null, base64: string, name: string, variant: SkinVariant): Promise<{ id: string | null; library: LibrarySkin[] }>;
   };
   modpacks: {
-    search(options: ModpackSearchOptions): Promise<{ total: number; hits: ModpackHit[] }>;
+    /** Modrinth, CurseForge or both (options.source); page on with the result's cursor. */
+    search(options: ModpackSearchOptions): Promise<{ total: number; hits: ModpackHit[]; cursor: SearchCursor; more: boolean }>;
     versions(projectId: string): Promise<ModpackVersion[]>;
     /** Installs a version (the newest release by default) as a new profile. */
     install(projectId: string, versionId?: string): Promise<ImportResult>;
-    /** For profiles installed from a Modrinth modpack; null for other profiles. */
+    /** For profiles installed from a Modrinth or CurseForge modpack; null for other profiles. */
     checkUpdate(profileId: string): Promise<ModpackUpdate | null>;
     /** Resolves to the updated profile and config files kept because the player edited them. */
-    update(profileId: string, versionId: string): Promise<{ profile: Profile; kept: string[] }>;
+    update(profileId: string, versionId: string): Promise<{ profile: Profile; kept: string[]; missing?: MissingPackFile[] }>;
   };
   worlds: {
     rename(profileId: string, folder: string, name: string): Promise<World[]>;
@@ -561,6 +562,8 @@ export interface WorkbenchApi {
     project(projectId: string): Promise<ProjectDetails>;
     /** Every version of a project, newest first; `fits` says which work on the target, when given. */
     allVersions(projectId: string, target?: ContentTarget): Promise<ProjectVersion[]>;
+    /** One version's changelog, for versions listed without one (CurseForge's). */
+    versionChangelog(projectId: string, versionId: string): Promise<string>;
     /** Asks Modrinth for newer compatible versions; fills in `updateVersion`. */
     checkUpdates(target: ContentTarget): Promise<InstalledContent[]>;
     /** Changelogs between the installed version and its update. */
@@ -646,6 +649,10 @@ export interface SearchOptions {
   category?: string;
   /** Modrinth, CurseForge or both (the default when CurseForge is set up). */
   source?: BrowseSource;
+  /** Browsing with no profile: only things for this Minecraft version. */
+  gameVersion?: string;
+  /** Browsing with no profile: only things for this mod loader. */
+  loader?: Exclude<Loader, 'vanilla'>;
   /** From the previous page's result; replaces offset. */
   cursor?: SearchCursor;
 }
@@ -821,7 +828,7 @@ export interface Changelog {
   more: number;
 }
 
-export interface ModpackSearchOptions extends SearchOptions {
+export interface ModpackSearchOptions extends Omit<SearchOptions, 'loader'> {
   loader?: ModLoader;
   gameVersion?: string;
 }
@@ -837,6 +844,7 @@ export interface ModpackHit {
   updatedAt: string;
   loaders: ModLoader[];
   gameVersions: string[];
+  source?: ContentSource;
 }
 
 export interface ModpackVersion {

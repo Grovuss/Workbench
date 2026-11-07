@@ -68,7 +68,7 @@ export default function BrowsePage({ profiles, onProfileCreated, onError }: Prop
     <>
       <PageHeader
         title="Browse"
-        subtitle={section === 'content' ? 'Find mods, resource packs and shaders to install' : 'Install a Modrinth modpack as a new profile'}
+        subtitle={section === 'content' ? 'Find mods, resource packs and shaders to install' : 'Install a modpack as a new profile'}
         actions={section === 'content' ? picker : null}
       />
       <div className="segmented browse-switch" role="group" aria-label="What to browse">

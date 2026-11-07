@@ -370,9 +370,23 @@ const anywhereKinds = (kind) => {
 };
 
 /** Modrinth search with no profile in mind: every mod, resource pack or shader, whatever it runs on. */
+/** Browse filters with no profile: a Minecraft version and/or a mod loader, checked against what exists. */
+function browseFilters(options) {
+  const gameVersion = /^[\w.-]{1,40}$/.test(String(options.gameVersion ?? '')) ? String(options.gameVersion) : null;
+  const loader = Object.hasOwn(MOD_LOADERS, options.loader) ? options.loader : null;
+  return { gameVersion, loader };
+}
+
 async function modrinthSearchAnywhere(kind, options) {
   const kinds = anywhereKinds(kind);
+  const { gameVersion, loader } = browseFilters(options);
   const facets = [kinds.map((k) => `project_type:${KINDS[k].projectType}`)];
+  if (gameVersion) facets.push([`versions:${gameVersion}`]);
+  // The loader each kind needs on that mod loader, as for a profile using it (resource packs work anywhere).
+  if (loader && kind !== 'resourcepack') {
+    const pseudo = { loader };
+    facets.push([...new Set(kinds.flatMap((k) => modrinthLoaders(k, pseudo)))].map((l) => `categories:${l}`));
+  }
   if (kind !== 'all' && options.category) facets.push([`categories:${String(options.category)}`]);
   return runSearch(facets, options, (h) => PROJECT_TYPE_KINDS[h.project_type] ?? 'mod');
 }
@@ -409,7 +423,7 @@ async function searchSources({ kinds, profile }, options, modrinthPage) {
     source !== 'curseforge' && cursor.modrinth != null ? modrinthPage({ ...options, offset: cursor.modrinth }) : null,
     source !== 'modrinth' && cursor.curseforge != null
       ? curseforge
-          .search({ kinds, profile, query: options.query, sort, category: options.category, index: cursor.curseforge })
+          .search({ kinds, profile, ...(profile ? {} : browseFilters(options)), query: options.query, sort, category: options.category, index: cursor.curseforge })
           // CurseForge being down shouldn't hide Modrinth's results; alone, the error is shown.
           .catch((err) => {
             if (source === 'curseforge') throw err;
@@ -529,24 +543,12 @@ async function placeVersion(ctx, projectId, version, { title, iconUrl }, enabled
   }
 }
 
-/** The newest CurseForge file for the profile, releases first; null if there isn't one. */
-async function newestCurseForge(projectId, kind, profile) {
-  const types = kind === 'mod' ? (curseforge.LOADER_TYPES[profile.loader] ?? []) : [null];
-  for (const loaderType of types) {
-    const found = (await curseforge.files(projectId, { gameVersion: profile.mcVersion, loaderType }, 100)).map((f) => curseforge.toVersion(f, kind));
-    const usable = found.filter((v) => v.game_versions.includes(profile.mcVersion));
-    const pick = usable.find((v) => v.version_type === 'release') ?? usable[0];
-    if (pick) return pick;
-  }
-  return null;
-}
-
 /** Installs a CurseForge project, then its required dependencies (from Modrinth when they're there too). */
 async function installCurseForge(ctx, projectId, isRoot, versionId) {
   const { kind, profile, spec } = ctx.loc;
   const [project, version] = await Promise.all([
     curseforge.project(projectId),
-    versionId ? curseforge.file(projectId, versionId).then((f) => curseforge.toVersion(f, kind)) : newestCurseForge(projectId, kind, profile),
+    versionId ? curseforge.file(projectId, versionId).then((f) => curseforge.toVersion(f, kind)) : curseforge.newestFor(projectId, kind, profile),
   ]);
   if (!version) {
     if (isRoot) throw new Error(`${project.name} has no ${spec.noun} version for ${profile.mcVersion} on this profile.`);
@@ -796,18 +798,36 @@ function checkUpdates(target) {
     const loc = await locate(target);
     const { kind, profile } = loc;
     const items = await scan(loc);
-    const known = items.filter((i) => i.info.projectId);
-    if (known.length) {
+    const fromCurseForge = items.filter((i) => curseforge.isCurseForgeId(i.info.projectId));
+    const known = items.filter((i) => i.info.projectId && !curseforge.isCurseForgeId(i.info.projectId));
+    if (fromCurseForge.length && curseforge.enabled()) {
+      await runPool(fromCurseForge, 6, async ({ info }) => {
+        try {
+          const list = await curseforge.candidates(info.projectId, kind, profile);
+          const current = list.find((v) => v.id === info.versionId);
+          // Files on a release stay on releases, as for Modrinth.
+          const onRelease = !current || current.version_type === 'release';
+          const next = list.find((v) => !onRelease || v.version_type === 'release');
+          const newer = next && next.id !== info.versionId && (!current || Date.parse(next.date_published) > Date.parse(current.date_published));
+          info.update = newer ? { versionId: next.id, versionNumber: next.version_number } : null;
+        } catch {
+          // CurseForge unreachable: keep what the last check found.
+        }
+      });
+    }
+    if (known.length || fromCurseForge.length) {
       const hashes = known.map((i) => i.info.sha1);
-      const [current, latest] = await Promise.all([
-        modrinth('/version_files', { hashes, algorithm: 'sha1' }),
-        modrinth('/version_files/update', {
-          hashes,
-          algorithm: 'sha1',
-          loaders: modrinthLoaders(kind, profile),
-          game_versions: [profile.mcVersion],
-        }),
-      ]);
+      const [current, latest] = hashes.length
+        ? await Promise.all([
+            modrinth('/version_files', { hashes, algorithm: 'sha1' }),
+            modrinth('/version_files/update', {
+              hashes,
+              algorithm: 'sha1',
+              loaders: modrinthLoaders(kind, profile),
+              game_versions: [profile.mcVersion],
+            }),
+          ])
+        : [{}, {}];
       await runPool(known, 6, async ({ info }) => {
         const cur = current[info.sha1];
         let next = latest[info.sha1];
@@ -839,7 +859,9 @@ function update(target, fileNames) {
         if (ctx.visited.has(m.projectId)) return;
         ctx.visited.add(m.projectId);
         const enabled = await exists(path.join(loc.dir, name));
-        const version = await modrinth(`/version/${encodeURIComponent(m.update.versionId)}`);
+        const version = curseforge.isCurseForgeId(m.projectId)
+          ? curseforge.toVersion(await curseforge.file(m.projectId, m.update.versionId), loc.kind)
+          : await modrinth(`/version/${encodeURIComponent(m.update.versionId)}`);
         await placeVersion(ctx, m.projectId, version, { title: m.title, iconUrl: m.iconUrl }, enabled);
       });
     } finally {
@@ -890,7 +912,22 @@ const MAX_CHANGELOG_ENTRIES = 15;
 async function changelog(target, fileName) {
   const loc = await locate(target);
   const info = (await loadMeta(loc))[safeFileName(fileName)];
-  if (!info?.projectId) throw new Error('This file isn’t from Modrinth, so it has no changelog.');
+  if (!info?.projectId) throw new Error('This file isn’t from Modrinth or CurseForge, so it has no changelog.');
+  if (curseforge.isCurseForgeId(info.projectId)) {
+    const list = await curseforge.candidates(info.projectId, loc.kind, loc.profile);
+    const newest = Math.max(info.update ? list.findIndex((v) => v.id === info.update.versionId) : 0, 0);
+    const current = list.findIndex((v) => v.id === info.versionId);
+    const between = list.slice(newest, current > newest ? current : newest + 1);
+    const shown = between.slice(0, MAX_CHANGELOG_ENTRIES);
+    const texts = await Promise.all(shown.map((v) => curseforge.changelog(info.projectId, v.id)));
+    return {
+      title: info.title ?? fileName,
+      from: info.versionNumber ?? null,
+      to: info.update?.versionNumber ?? list[0]?.version_number ?? null,
+      entries: shown.map((v, i) => ({ versionNumber: v.version_number, type: v.version_type, date: v.date_published, changelog: texts[i] })),
+      more: Math.max(0, between.length - MAX_CHANGELOG_ENTRIES),
+    };
+  }
   const params = new URLSearchParams({
     loaders: JSON.stringify(modrinthLoaders(loc.kind, loc.profile)),
     game_versions: JSON.stringify([loc.profile.mcVersion]),
@@ -914,10 +951,16 @@ async function changelog(target, fileName) {
   };
 }
 
+/** One version's changelog, for lists that don't include them (CurseForge's). */
+async function versionChangelog(projectId, versionId) {
+  if (curseforge.isCurseForgeId(projectId)) return curseforge.changelog(projectId, versionId);
+  return (await modrinth(`/version/${encodeURIComponent(versionId)}`)).changelog ?? '';
+}
+
 /** Records metadata for mods a pack import downloaded, so they show with titles straight away. */
-function recordInstalledMods(profileId, entries) {
+function recordInstalledMods(profileId, entries, kind = 'mod') {
   return withLock(async () => {
-    const loc = await locate({ profileId, kind: 'mod' });
+    const loc = await locate({ profileId, kind });
     const meta = await loadMeta(loc);
     // Left unchecked so the next scan fills in version numbers and icons from Modrinth.
     for (const e of entries) meta[e.fileName] = { ...e.info };
@@ -957,6 +1000,14 @@ function portToVersion(profileId) {
       }
 
       const known = items.filter((i) => i.info.projectId && !curseforge.isCurseForgeId(i.info.projectId));
+      // CurseForge files are looked up there, one project at a time.
+      const fromCurseForge = new Map();
+      for (const i of items.filter((x) => curseforge.isCurseForgeId(x.info.projectId))) {
+        if (!curseforge.enabled()) break;
+        // Files the author won't let launchers download count as not out yet.
+        const next = await curseforge.newestFor(i.info.projectId, kind, loc.profile).catch(() => null);
+        fromCurseForge.set(i.fileName, next?.files.length ? next : null);
+      }
       const latest = known.length
         ? await modrinth('/version_files/update', {
             hashes: known.map((i) => i.info.sha1),
@@ -968,7 +1019,8 @@ function portToVersion(profileId) {
       const ctx = await installContext(loc);
       try {
         for (const item of items) {
-          const projectId = curseforge.isCurseForgeId(item.info.projectId) ? null : item.info.projectId;
+          const fromCf = curseforge.isCurseForgeId(item.info.projectId);
+          const projectId = fromCf && !curseforge.enabled() ? null : item.info.projectId;
           if (!projectId) {
             if (kind === 'mod') {
               if (item.enabled) await turnOff(item);
@@ -977,7 +1029,7 @@ function portToVersion(profileId) {
             continue;
           }
           if (ctx.visited.has(projectId)) continue;
-          let next = latest[item.info.sha1];
+          let next = fromCf ? fromCurseForge.get(item.fileName) : latest[item.info.sha1];
           if (!next) {
             if (kind === 'mod' && item.enabled) await turnOff(item);
             missing.push({ kind, title: titleOf(item), reason: 'no-version' });
@@ -986,7 +1038,7 @@ function portToVersion(profileId) {
             continue;
           }
           // Prefer a release over a newer beta.
-          if (next.version_type !== 'release') next = (await newestCompatible(projectId, kind, loc.profile)) ?? next;
+          if (!fromCf && next.version_type !== 'release') next = (await newestCompatible(projectId, kind, loc.profile)) ?? next;
           ctx.visited.add(projectId);
           if (next.id === item.info.versionId) continue;
           await placeVersion(ctx, projectId, next, { title: titleOf(item), iconUrl: item.info.iconUrl ?? null }, item.enabled);
@@ -1018,15 +1070,26 @@ function catchUp(profileId) {
       } catch {
         continue;
       }
-      const latest = await modrinth('/version_files/update', {
-        hashes: waiting.map(([, m]) => m.sha1),
-        algorithm: 'sha1',
-        loaders,
-        game_versions: [loc.profile.mcVersion],
-      });
+      const onModrinth = waiting.filter(([, m]) => !curseforge.isCurseForgeId(m.projectId));
+      const latest = onModrinth.length
+        ? await modrinth('/version_files/update', {
+            hashes: onModrinth.map(([, m]) => m.sha1),
+            algorithm: 'sha1',
+            loaders,
+            game_versions: [loc.profile.mcVersion],
+          })
+        : {};
       const ctx = await installContext(loc);
       try {
         for (const [name, m] of waiting) {
+          if (curseforge.isCurseForgeId(m.projectId)) {
+            if (!curseforge.enabled()) continue;
+            const next = await curseforge.newestFor(m.projectId, kind, loc.profile).catch(() => null);
+            if (!next?.files.length) continue;
+            await placeVersion(ctx, m.projectId, next, { title: m.title ?? name, iconUrl: m.iconUrl ?? null }, m.waiting.wasEnabled !== false);
+            done.push(m.title ?? name);
+            continue;
+          }
           let next = latest[m.sha1];
           if (!next) continue;
           if (next.version_type !== 'release') next = (await newestCompatible(m.projectId, kind, loc.profile)) ?? next;
@@ -1083,6 +1146,7 @@ module.exports = {
   changelog,
   listModsForExport,
   recordInstalledMods,
+  versionChangelog,
   modsDir,
   safeFileName,
   modrinth,

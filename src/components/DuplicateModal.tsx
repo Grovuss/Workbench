@@ -117,7 +117,7 @@ export default function DuplicateModal({ profile, onClose, onDuplicated, onError
 
 const GROUPS: { id: string; title: string; match: (m: PortMissing) => boolean }[] = [
   { id: 'no-version-mod', title: 'Turned off for now: no version for {v} yet. They come back on by themselves once there is.', match: (m) => m.kind === 'mod' && m.reason === 'no-version' },
-  { id: 'unknown', title: 'Turned off: not from Modrinth, so they couldn’t be checked', match: (m) => m.reason === 'unknown' },
+  { id: 'unknown', title: 'Turned off: not from Modrinth or CurseForge, so they couldn’t be checked', match: (m) => m.reason === 'unknown' },
   { id: 'loader', title: 'Turned off: vanilla Minecraft can’t run mods or shaders', match: (m) => m.reason === 'loader' },
   {
     id: 'no-version-pack',

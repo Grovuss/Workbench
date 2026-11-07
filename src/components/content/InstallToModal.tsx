@@ -18,12 +18,14 @@ function loadersFor(kind: ContentKind, loader: Loader): string[] | null {
 interface Props {
   project: { projectId: string; title: string; iconUrl: string | null; kind: ContentKind };
   profiles: Profile[];
+  /** The Browse filters, if any: matching profiles are listed first. */
+  prefer?: { gameVersion?: string; loader?: string };
   onClose: () => void;
   onError: (message: string) => void;
 }
 
 /** Picks a profile to install into when browsing without one, showing which profiles the project has a version for. */
-export default function InstallToModal({ project, profiles, onClose, onError }: Props) {
+export default function InstallToModal({ project, profiles, prefer, onClose, onError }: Props) {
   const [versions, setVersions] = useState<ContentVersion[] | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
@@ -36,7 +38,7 @@ export default function InstallToModal({ project, profiles, onClose, onError }: 
       .catch((err) => setFailed(errorMessage(err)));
   }, [project.projectId]);
 
-  // Profiles that have a version, first; then the rest with why they don't.
+  // Profiles that have a version, first (those matching the Browse filters before others); then the rest with why they don't.
   const rows = useMemo(() => {
     if (!versions) return [];
     return profiles
@@ -47,10 +49,12 @@ export default function InstallToModal({ project, profiles, onClose, onError }: 
         else if (!versions.some((v) => v.gameVersions.includes(profile.mcVersion) && v.loaders.some((l) => loaders.includes(l)))) {
           reason = `No version for ${profile.loader === 'vanilla' ? '' : `${LOADER_LABELS[profile.loader]} `}${profile.mcVersion}`;
         }
-        return { profile, reason };
+        const matches =
+          (!prefer?.gameVersion || profile.mcVersion === prefer.gameVersion) && (!prefer?.loader || profile.loader === prefer.loader);
+        return { profile, reason, matches };
       })
-      .sort((a, b) => Number(Boolean(a.reason)) - Number(Boolean(b.reason)));
-  }, [versions, profiles, project.kind]);
+      .sort((a, b) => Number(Boolean(a.reason)) - Number(Boolean(b.reason)) || Number(b.matches) - Number(a.matches));
+  }, [versions, profiles, project.kind, prefer?.gameVersion, prefer?.loader]);
 
   const fitting = rows.filter((r) => !r.reason).length;
 

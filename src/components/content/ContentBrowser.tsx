@@ -10,6 +10,7 @@ import { CONTENT, categoryLabel } from '../../content';
 import { formatCount } from '../../format';
 import { timeAgo } from '../../time';
 import { useStoredChoice } from '../../stored';
+import { LOADER_LABELS } from '../../loaders';
 import type {
   BrowseSource,
   ContentCategory,
@@ -18,6 +19,7 @@ import type {
   ContentSort,
   InstallClash,
   InstalledContent,
+  Loader,
   Profile,
   SearchCursor,
 } from '../../types';
@@ -50,6 +52,20 @@ const SOURCE_NAMES = { both: 'Modrinth and CurseForge', modrinth: 'Modrinth', cu
 let curseforgeReady: Promise<boolean> | null = null;
 const hasCurseForge = () => (curseforgeReady ??= api.system.info().then((i) => i.curseforge, () => false));
 
+type ModLoader = Exclude<Loader, 'vanilla'>;
+const MOD_LOADERS: ModLoader[] = ['fabric', 'quilt', 'forge', 'neoforge'];
+
+// Minecraft releases, newest first, for the version filter; asked once.
+let releaseList: Promise<string[]> | null = null;
+const releases = () =>
+  (releaseList ??= api.versions.list().then(
+    (list) => list.filter((v) => v.type === 'release').map((v) => v.id),
+    () => {
+      releaseList = null;
+      return [];
+    },
+  ));
+
 const hitKey = (hit: ContentSearchHit) => hit.title.toLowerCase().replace(/[^a-z0-9]/g, '');
 
 interface Props {
@@ -75,6 +91,13 @@ export default function ContentBrowser({ profile, profiles = [], kind, kindOptio
   const [sort, setSort] = useState<ContentSort | null>(null);
   const [category, setCategory] = useState('');
   const [categories, setCategories] = useState<ContentCategory[]>([]);
+  // Browsing with no profile: narrow to a Minecraft version and loader.
+  const [gameVersion, setGameVersion] = useState('');
+  const [modLoader, setModLoader] = useState<ModLoader | ''>('');
+  const [versionList, setVersionList] = useState<string[]>([]);
+  // Resource packs work on any loader.
+  const loaderFilter = !profile && kind !== 'resourcepack' ? modLoader : '';
+  const versionFilter = profile ? '' : gameVersion;
   const [hits, setHits] = useState<ContentSearchHit[] | null>(null);
   const [cursor, setCursor] = useState<SearchCursor | null>(null);
   const [curseforge, setCurseforge] = useState(false);
@@ -117,6 +140,10 @@ export default function ContentBrowser({ profile, profiles = [], kind, kindOptio
     hasCurseForge().then(setCurseforge);
   }, []);
 
+  useEffect(() => {
+    if (!profile) releases().then(setVersionList);
+  }, [profile]);
+
   const installed = (kind: ContentKind, items: InstalledContent[]) => {
     onInstalled(kind, items);
     if (kind === 'mod') refreshClashes();
@@ -132,7 +159,16 @@ export default function ContentBrowser({ profile, profiles = [], kind, kindOptio
   };
 
   const fetchPage = (from: SearchCursor | null) => {
-    const options = { query: query.trim(), offset: 0, cursor: from ?? undefined, source, sort: effectiveSort, category: category || undefined };
+    const options = {
+      query: query.trim(),
+      offset: 0,
+      cursor: from ?? undefined,
+      source,
+      sort: effectiveSort,
+      category: category || undefined,
+      gameVersion: versionFilter || undefined,
+      loader: loaderFilter || undefined,
+    };
     if (!profile) return api.content.searchAnywhere(kind, options);
     return kind === 'all'
       ? api.content.searchAll(profile.id, options)
@@ -154,7 +190,7 @@ export default function ContentBrowser({ profile, profiles = [], kind, kindOptio
     }, query ? 300 : 0);
     return () => window.clearTimeout(timer);
     // fetchPage reads exactly these values.
-  }, [profile?.id, profile?.loader, profile?.mcVersion, kind, world, query, effectiveSort, category, source, onError]);
+  }, [profile?.id, profile?.loader, profile?.mcVersion, kind, world, query, effectiveSort, category, source, versionFilter, loaderFilter, onError]);
 
   const loadMore = async () => {
     if (!hits || !cursor) return;
@@ -226,6 +262,8 @@ export default function ContentBrowser({ profile, profiles = [], kind, kindOptio
   };
 
   const noun = kind === 'all' ? 'content' : CONTENT[kind].nounPlural;
+  // "Fabric 1.21.1", for the search box and empty message.
+  const filterText = [loaderFilter && LOADER_LABELS[loaderFilter], versionFilter].filter(Boolean).join(' ');
   const groups = [...new Set(categories.map((c) => c.header))];
 
   return (
@@ -235,7 +273,7 @@ export default function ContentBrowser({ profile, profiles = [], kind, kindOptio
         <input
           className="input"
           value={query}
-          placeholder={profile ? `Search ${SOURCE_NAMES[source]} for ${profile.mcVersion} ${noun}…` : `Search all ${noun} on ${SOURCE_NAMES[source]}…`}
+          placeholder={profile ? `Search ${SOURCE_NAMES[source]} for ${profile.mcVersion} ${noun}…` : `Search ${filterText ? `${filterText} ` : 'all '}${noun} on ${SOURCE_NAMES[source]}…`}
           onChange={(e) => setQuery(e.target.value)}
           autoFocus
         />
@@ -273,6 +311,30 @@ export default function ContentBrowser({ profile, profiles = [], kind, kindOptio
             ))}
           </div>
         )}
+        {!profile && versionList.length > 0 && (
+          <label className="select-pill">
+            <select value={gameVersion} onChange={(e) => setGameVersion(e.target.value)} aria-label="Minecraft version">
+              <option value="">Any version</option>
+              {versionList.map((v) => (
+                <option key={v} value={v}>
+                  {v}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
+        {!profile && kind !== 'resourcepack' && (
+          <label className="select-pill">
+            <select value={modLoader} onChange={(e) => setModLoader(e.target.value as ModLoader | '')} aria-label="Loader">
+              <option value="">Any loader</option>
+              {MOD_LOADERS.map((l) => (
+                <option key={l} value={l}>
+                  {LOADER_LABELS[l]}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
         {categories.length > 0 && (
           <label className="select-pill">
             <select value={category} onChange={(e) => setCategory(e.target.value)} aria-label="Category">
@@ -291,6 +353,17 @@ export default function ContentBrowser({ profile, profiles = [], kind, kindOptio
             </select>
           </label>
         )}
+        {(versionFilter || loaderFilter) && (
+          <button
+            className="chip"
+            onClick={() => {
+              setGameVersion('');
+              setModLoader('');
+            }}
+          >
+            Clear filters
+          </button>
+        )}
       </div>
 
       {hits === null ? (
@@ -299,7 +372,7 @@ export default function ContentBrowser({ profile, profiles = [], kind, kindOptio
         </div>
       ) : hits.length === 0 ? (
         <p className="mod-empty">
-          No {noun} found{profile ? ` for ${profile.mcVersion}` : ''}
+          No {noun} found{profile ? ` for ${profile.mcVersion}` : filterText ? ` for ${filterText}` : ''}
           {category ? ` in ${categoryLabel(category)}` : ''}.
         </p>
       ) : (
@@ -370,7 +443,11 @@ export default function ContentBrowser({ profile, profiles = [], kind, kindOptio
       )}
 
       {installTo && (
-        <InstallToModal project={installTo} profiles={profiles} onClose={() => setInstallTo(null)} onError={onError} />
+        <InstallToModal
+          project={installTo}
+          profiles={profiles}
+          prefer={{ gameVersion: versionFilter || undefined, loader: loaderFilter || undefined }}
+          onClose={() => setInstallTo(null)} onError={onError} />
       )}
 
       {guard && profile && (

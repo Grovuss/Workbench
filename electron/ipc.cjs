@@ -330,6 +330,7 @@ function registerIpc() {
   );
   handle('content:performance', (_e, id) => performance.suggestions(String(id)));
   handle('content:project', (_e, projectId) => content.project(String(projectId)));
+  handle('content:versionChangelog', (_e, projectId, versionId) => content.versionChangelog(String(projectId), String(versionId)));
   handle('content:allVersions', (_e, projectId, t) => content.allVersions(String(projectId), t ? contentTarget(t) : null));
   handle('content:versions', (_e, t, projectId) => content.versions(contentTarget(t), String(projectId)));
   handle('content:addFiles', (_e, t, filePaths) => {
